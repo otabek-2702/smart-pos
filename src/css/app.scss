@@ -1,0 +1,64 @@
+:root {
+  /* === LIGHT GREY CANVAS === */
+  --bg-app: #f1f3f5; /* slightly darker than before */
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f6f7f9; /* cards / items */
+  --danger-bg: #fdecec;
+
+  /* === BORDERS === */
+  --border-color: #e2e5e9;
+
+  /* === TEXT === */
+  --text-primary: #1f2937;
+  --text-muted: #6b7280;
+  --text-disabled: #9ca3af;
+  --warning-bg: #fff7e6;
+  --warning-text: #92400e;
+  --danger-text: #991b1b;
+  --success-text: #2e7d32;
+
+  /* === ACCENT === */
+  --accent-primary: #16a34a;
+  --accent-soft: #e7f5ee;
+
+  /* === SHADOWS (VERY IMPORTANT) === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.06);
+
+  /* === BUTTONS === */
+  --btn-secondary-bg: #f1f3f5;
+  --btn-secondary-text: #374151;
+  /* === BACKGROUNDS === */
+  --kds-bg-app: #eef1f4;
+  --kds-bg-card: #ffffff;
+
+  /* === TEXT === */
+  --kds-text-primary: #1f2937;
+  --kds-text-muted: #6b7280;
+
+  /* === BORDERS === */
+  --kds-border-color: #e2e5e9;
+
+  /* === STATUS === */
+  --kds-status-ready-bg: #d1fae5;
+
+  /* === ITEM STATES === */
+  --kds-item-bg: #f8f9fa;
+  --kds-item-hover: #f1f3f5;
+  --kds-item-done-bg: #bbf7d0;
+  --kds-item-done-text: #166534;
+
+  /* === BUTTONS === */
+  --kds-btn-primary-bg: #16a34a;
+  --kds-btn-primary-text: #ffffff;
+  --kds-btn-secondary-bg: #ffffff;
+  --kds-btn-secondary-text: #d97706;
+  --kds-btn-secondary-hover: #f3f4f6;
+
+  /* === SHADOWS (subtle, modern) === */
+  --kds-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --kds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  /* === RADIUS === */
+  --kds-radius-md: 10px;
+}
