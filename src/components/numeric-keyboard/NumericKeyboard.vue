@@ -40,7 +40,7 @@ function onClear(): void {
 }
 </script>
 
-<style lang="scss">
+<style scoped lang="scss">
 .nk {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

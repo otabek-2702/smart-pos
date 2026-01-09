@@ -92,7 +92,11 @@
 
     <!-- Footer -->
     <footer class="page-footer">
-      <div class="footer-left">Smart POS © 2026</div>
+      <div class="footer-left">
+        <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
+          Kassa
+        </button>
+      </div>
 
       <div class="footer-right">
         <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
@@ -204,7 +208,6 @@ async function onOrderClick(order: Order): Promise<void> {
 
   selectedOrder.value = order;
   selectedOrderItems.value = mapOrderItems(orderDetails.items || []);
-  console.log(selectedOrderItems.value);
   if (status.value === 'UNPAID') {
     showPaymentDialog.value = true;
   } else {
@@ -253,7 +256,6 @@ function mapOrder(order: ApiOrder): Order {
 }
 
 function mapOrderItems(items: ApiOrderItem[]): ReceiptItem[] {
-  console.log(items);
   return items.map((item) => ({
     productId: item.product.id,
     name: item.product.name,
@@ -277,7 +279,6 @@ async function fetchOrders(): Promise<void> {
       params: { ...params, per_page: 100 },
     });
 
-    console.log('Orders response:', response.data);
 
     const ordersData = response.data.data.orders || [];
     orders.value = ordersData.map(mapOrder);
@@ -292,8 +293,6 @@ async function fetchOrders(): Promise<void> {
 async function fetchOrderDetails(orderId: number): Promise<ApiOrder | null> {
   try {
     const response = await api.get<OrderDetailResponse>(`/orders/${orderId}`);
-
-    console.log('Order detail response:', response.data);
 
     return response.data.data;
   } catch (error) {
@@ -312,13 +311,11 @@ function createOrder(): void {
 }
 
 function onOrderPaid(): void {
-  console.log('Order paid');
   void fetchOrders();
   resetSelection();
 }
 
 function onPaymentCancel(): void {
-  console.log('Payment cancelled');
   resetSelection();
 }
 
@@ -339,18 +336,6 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-
-  &::before {
-    content: '';
-    background-image: url('../assets/logo.png') !important; /* ← твой логотип */
-    position: absolute;
-    inset: 0;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 90%;
-    opacity: 0.07;
-    pointer-events: none;
-  }
 }
 
 /* Header */

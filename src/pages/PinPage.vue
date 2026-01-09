@@ -180,7 +180,7 @@ onMounted(() => {
 });
 </script>
 
-<style lang="scss">
+<style scoped lang="scss">
 .page-pin {
   background: var(--bg-app);
   position: relative;

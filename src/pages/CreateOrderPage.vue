@@ -92,9 +92,7 @@
               class="category-btn"
               :class="{ active: selectedCategory === category.id }"
               :style="{
-                '--category-color': category.color[0],
-                '--category-color-light': category.color[0] + '20',
-                backgroundColor: category.color[0],
+                backgroundColor: category.colors[0],
               }"
               @click="selectCategory(category.id)"
             >
@@ -104,13 +102,13 @@
 
           <!-- Results -->
           <div class="products">
-            <div v-if="filteredProducts.length === 0 && search" class="products-state">
+            <div v-if="products.length === 0 && search" class="products-state">
               Mahsulot topilmadi
             </div>
 
-            <div v-if="filteredProducts.length" class="products-list">
+            <div v-if="products.length" class="products-list">
               <button
-                v-for="product in filteredProducts"
+                v-for="product in products"
                 :key="product.id"
                 type="button"
                 class="product-item"
@@ -190,17 +188,34 @@ import ReceiptItemDescriptionDialog from 'src/components/ReceiptItemDescriptionD
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
 interface Category {
-  id: string;
+  id: number;
   name: string;
+  sort_order: number;
+  colors: string[];
+  status: string;
   slug: string;
-  color: string[];
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CategoriesResponse {
+  success: boolean;
+  data: {
+    categories: Category[];
+  };
 }
 
 interface ApiProduct {
   id: number;
   name: string;
   price: string;
-  category: Category;
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    color: string[];
+  };
 }
 
 interface ProductsResponse {
@@ -248,9 +263,7 @@ function onKeyPress(key: string): void {
     return;
   } else if (key === 'SPACE') {
     search.value += ' ';
-  } else if (key === 'Bekor qilish') {
-    console.log('s');
-  }
+  } 
 
   search.value += key.toLowerCase();
 }
@@ -270,8 +283,9 @@ const search = ref<string>('');
 
 const products = ref<ApiProduct[]>([]);
 const categories = ref<Category[]>([]);
-const selectedCategory = ref<string | null>(null);
+const selectedCategory = ref<number | null>(null);
 const loadingProducts = ref<boolean>(false);
+const loadingCategories = ref<boolean>(false);
 const submitting = ref<boolean>(false);
 
 const description = ref('');
@@ -281,14 +295,6 @@ const phone_number = ref('');
 const showPaymentDialog = ref<boolean>(false);
 const createdOrderId = ref<number | null>(null);
 const createdDisplayId = ref<number | null>(null);
-
-// Filtered products based on selected category
-const filteredProducts = computed<ApiProduct[]>(() => {
-  if (selectedCategory.value === null) {
-    return products.value;
-  }
-  return products.value.filter((product) => product.category.id === selectedCategory.value);
-});
 
 const totalAmount = computed<number>(() => {
   return receiptItems.value.reduce((sum, item) => {
@@ -300,22 +306,25 @@ const totalItemsCount = computed<number>(() => {
   return receiptItems.value.reduce((sum, item) => sum + item.quantity, 0);
 });
 
-// Extract unique categories from products
-function extractCategories(productList: ApiProduct[]): void {
-  const categoryMap = new Map<string, Category>();
-
-  productList.forEach((product) => {
-    if (!categoryMap.has(product.category.id)) {
-      categoryMap.set(product.category.id, product.category);
-    }
-  });
-
-  categories.value = Array.from(categoryMap.values());
+// Fetch categories from API
+async function fetchCategories(): Promise<void> {
+  loadingCategories.value = true;
+  try {
+    const response = await api.get<CategoriesResponse>('/categories', {
+      params: { status: 'ACTIVE', per_page: 100 },
+    });
+    categories.value = response.data.data.categories;
+  } catch (error) {
+    console.error('Failed to fetch categories:', error);
+  } finally {
+    loadingCategories.value = false;
+  }
 }
 
 // Select category filter
-function selectCategory(categoryId: string | null): void {
+function selectCategory(categoryId: number | null): void {
   selectedCategory.value = categoryId;
+  void fetchProducts('');
 }
 
 // Add this function to your script setup
@@ -385,15 +394,10 @@ async function fetchProducts(query: string): Promise<void> {
 
   try {
     const response = await api.get<ProductsResponse>('/products', {
-      params: { search: query, per_page: 100 },
+      params: { search: query, per_page: 100, category_ids: selectedCategory.value },
     });
 
     products.value = response.data.data.products;
-
-    // Extract categories only on initial load (when no search query)
-    if (!query) {
-      extractCategories(response.data.data.products);
-    }
   } finally {
     loadingProducts.value = false;
   }
@@ -459,7 +463,6 @@ function saveItemDescription(value: string): void {
     }
     return item;
   });
-  console.log(receiptItems.value);
 }
 
 /* Create order first, then open payment dialog */
@@ -536,8 +539,10 @@ function onCancel(): void {
   void router.push({ name: 'orders' });
 }
 
-onMounted(() => {
-  void fetchProducts('');
+onMounted(async () => {
+  // First fetch categories, then products
+  await fetchCategories();
+  await fetchProducts('');
 });
 </script>
 
@@ -743,10 +748,10 @@ onMounted(() => {
 .category-filter {
   display: flex;
   gap: 8px;
-  padding: 12px 12px 0 12px;
+  padding: 12px;
   overflow-x: scroll;
   background: #ffffff;
-  border-radius:  16px 16px 0 0;
+  border-radius: 16px 16px 0 0;
   border: 1px solid #e2e5e9;
   border-bottom: none;
 }
@@ -773,13 +778,11 @@ onMounted(() => {
 
   &:active {
     transform: scale(0.97);
-    
   }
-  
+
   &.active {
     transform: translateY(-3px);
-    border-color: var(--category-color, #16a34a);
-    background: var(--category-color-light, #e7f5ee);
+    border-color: #16a34a;
   }
 
   // Default "Barchasi" button colors
@@ -795,7 +798,7 @@ onMounted(() => {
   position: relative;
   background: #ffffff;
   border-radius: 0 0 16px 16px;
-  padding: 10px;
+  padding: 0 10px 10px 10px;
   overflow-y: auto;
   border: 1px solid #e2e5e9;
   border-top: none;

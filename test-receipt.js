@@ -296,5 +296,3 @@ const html = generateReceiptHtml(testData, '');
 const outputPath = path.join(__dirname, 'receipt-preview.html');
 fs.writeFileSync(outputPath, html);
 
-console.log(`Preview saved to: ${outputPath}`);
-console.log('Open this file in your browser to see the receipt!');

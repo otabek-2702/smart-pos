@@ -166,7 +166,7 @@ audio.volume = 1.0;
 function playReadySound(): void {
   if (audio) {
     audio.currentTime = 0;
-    audio.play().catch((e) => console.log('Audio play error:', e));
+    audio.play().catch((e) => console.error('Audio play error:', e));
   }
 }
 

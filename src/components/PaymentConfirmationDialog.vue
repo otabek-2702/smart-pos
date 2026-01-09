@@ -270,10 +270,8 @@ async function onConfirmPayment(): Promise<void> {
   payLoading.value = true;
 
   try {
-    console.log('Paying order:', props.orderId);
     await api.post(`/orders/${props.orderId}/pay`);
 
-    console.log('Payment successful');
     emit('paid');
     isOpen.value = false;
 

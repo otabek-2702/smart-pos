@@ -36,6 +36,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/ClientDisplayPage.vue'),
         meta: { fullscreen: true },
       },
+
+      {
+        path: '/cash-box',
+        name: 'cash-box',
+        component: () => import('pages/CashBoxPage.vue'),
+      },
     ],
   },
 ];

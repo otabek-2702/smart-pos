@@ -128,7 +128,6 @@ function playBeep(): void {
 
   gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
-  console.log('audio');
 
   oscillator.start();
   oscillator.stop(audioContext.currentTime + 0.25);
@@ -146,7 +145,6 @@ function checkForNewOrders(newOrders: Order[]): void {
   if (!isInitialLoad.value) {
     for (const id of newIds) {
       if (!previousOrderIds.value.has(id)) {
-        console.log('check');
         playBeep();
         break;
       }
