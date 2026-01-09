@@ -80,6 +80,7 @@ interface Order {
   order_type: 'HALL' | 'PICKUP' | 'DELIVERY';
   status: OrderStatus;
   created_at: string;
+  ready_at: string;
   updated_at: string;
   cashier: Cashier;
   items: OrderItem[];
@@ -160,7 +161,7 @@ function checkForNewOrders(newOrders: Order[]): void {
 async function fetchOrders(): Promise<void> {
   const response = await api.get<OrdersResponse>('/orders', {
     params: {
-      status: currentMode.value,
+      statuses: currentMode.value,
     },
   });
 

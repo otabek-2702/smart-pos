@@ -9,7 +9,7 @@ declare module 'vue' {
 }
 const baseURL = localStorage.getItem('pos:IpAdress')
   ? `http://${localStorage.getItem('pos:IpAdress')}:8000`
-  : '';
+  : 'http://127.0.0.1:8000';
 
 const api = axios.create({
   baseURL,

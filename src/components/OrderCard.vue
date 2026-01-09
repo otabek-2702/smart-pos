@@ -76,6 +76,7 @@ interface Order {
   order_type: 'HALL' | 'PICKUP' | 'DELIVERY';
   status: 'PREPARING' | 'READY';
   created_at: string;
+  ready_at: string;
   updated_at: string;
   cashier: Cashier;
   items: OrderItem[];
@@ -111,13 +112,13 @@ const createdAtTimestamp = computed<number>(() => {
   return new Date(props.order.created_at).getTime();
 });
 
-const updatedAtTimestamp = computed<number>(() => {
-  return new Date(props.order.updated_at).getTime();
+const readyAtTimestamp = computed<number>(() => {
+  return new Date(props.order.ready_at).getTime();
 });
 
 const elapsedSeconds = computed<number>(() => {
   if (props.order.status === 'READY') {
-    const diff = updatedAtTimestamp.value - createdAtTimestamp.value;
+    const diff = readyAtTimestamp.value - createdAtTimestamp.value;
     return Math.max(0, Math.floor(diff / 1000));
   }
 

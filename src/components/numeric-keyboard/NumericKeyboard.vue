@@ -4,15 +4,16 @@
     <button v-for="key in keys" :key="key" type="button" class="nk-key" @click="onPress(key)">
       {{ key }}
     </button>
-    <button type="button" class="nk-key" @click="onClear()">C</button>
+
+    <!-- Dot or Clear button based on prop -->
+    <button v-if="props.dot" type="button" class="nk-key" @click="onPress('.')">.</button>
+    <button v-else type="button" class="nk-key clear" @click="onClear">C</button>
+
+    <!-- 0 -->
     <button type="button" class="nk-key" @click="onPress('0')">0</button>
-    <button type="button" class="nk-key" @click="onBackspace">⌫</button>
 
-    <!-- 0 centered -->
-    <!-- <div class="nk-zero">
-    </div> -->
-
-    <!-- backspace -->
+    <!-- Backspace -->
+    <button type="button" class="nk-key backspace" @click="onBackspace">⌫</button>
   </div>
 </template>
 
@@ -23,7 +24,14 @@ const emit = defineEmits<{
   (e: 'clear'): void;
 }>();
 
-
+const props = withDefaults(
+  defineProps<{
+    dot?: boolean;
+  }>(),
+  {
+    dot: false,
+  }
+);
 
 const keys: ReadonlyArray<string> = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -76,25 +84,25 @@ function onClear(): void {
   }
 }
 
-/* BACKSPACE (VISUAL ONLY, STRUCTURE UNCHANGED) */
-.nk-key.back {
-  font-size: 22px;
-}
+/* CLEAR BUTTON */
+.nk-key.clear {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #d97706;
 
-/* ZERO ROW (KEPT FOR FUTURE, NO LAYOUT CHANGE) */
-.nk-zero {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: end;
-
-  button {
-    width: 33%;
+  &:active {
+    background: #fde68a;
   }
 }
 
-/* DOT HIDDEN */
-.hidden-btn {
-  opacity: 0;
-  pointer-events: none;
+/* BACKSPACE BUTTON */
+.nk-key.backspace {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+
+  &:active {
+    background: #fecaca;
+  }
 }
 </style>
