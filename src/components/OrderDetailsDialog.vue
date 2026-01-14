@@ -5,10 +5,11 @@
         <!-- LEFT -->
         <div class="left">
           <div class="field">
-            <label>Tavsif</label>
-            <div class="description-box">
-              {{ descriptionLocal || '—' }}
-            </div>
+            <textarea
+              placeholder="Tavsif"
+              v-model="descriptionLocal"
+              class="description-box"
+            ></textarea>
           </div>
 
           <VirtualKeyboard
@@ -25,9 +26,7 @@
             <label>Telefon raqam</label>
             <div class="phone-input">
               <div class="prefix">+998</div>
-              <div class="number">
-                {{ formattedPhone || '—' }}
-              </div>
+              <input type="text" v-model="formattedPhone" class="number" />
             </div>
           </div>
 
@@ -119,7 +118,7 @@ function onNumberBackspace(): void {
   phoneDigitsLocal.value = phoneDigitsLocal.value.slice(0, -1);
 }
 function onNumberClear(): void {
-  phoneDigitsLocal.value = "";
+  phoneDigitsLocal.value = '';
 }
 
 /* SAVE */
@@ -181,6 +180,7 @@ defineExpose({ reset });
   padding: 12px;
   color: var(--text-primary);
   min-height: 120px;
+  width: 100%;
   font-size: 18px;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
@@ -192,7 +192,7 @@ defineExpose({ reset });
   align-items: center;
   background: var(--bg-surface-2);
   border-radius: 12px;
-  padding: 12px;
+  padding:0 12px;
   gap: 8px;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
@@ -202,11 +202,17 @@ defineExpose({ reset });
   color: var(--accent-primary);
   font-weight: 600;
   font-size: 17px;
+  padding-block: 12px;
 }
 
 .number {
   color: var(--text-primary);
   font-size: 18px;
+  border: none;
+  outline: none;
+  background-color: transparent;
+  padding-block: 12px;
+
 }
 
 /* BUTTONS */

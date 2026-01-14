@@ -10,12 +10,13 @@
 
               <div v-if="receiptItems.length === 0" class="receipt-empty">Mahsulotlar yo'q</div>
 
-              <div v-else class="receipt-list">
+              <TransitionGroup v-else name="list" tag="div" class="receipt-list">
                 <div
                   v-for="(item, index) in receiptItems"
                   :key="item.productId"
                   @click="openDescription(index)"
                   class="receipt-item"
+                  :class="{ 'flash-highlight': item.isFlashing }"
                 >
                   <div class="receipt-item-body">
                     <div class="info">
@@ -25,15 +26,19 @@
 
                     <div class="quantity">
                       <button type="button" @click.stop="decreaseQty(item)">−</button>
-                      <span>{{ item.quantity }}</span>
+                      <div class="qty-wrapper" :class="{ 'qty-flash': item.qtyFlashing }">
+                        <Transition name="qty" mode="out-in">
+                          <span :key="item.quantity" class="qty-value">{{ item.quantity }}</span>
+                        </Transition>
+                      </div>
                       <button type="button" @click.stop="increaseQty(item)">+</button>
                     </div>
                   </div>
-                  <div class="receipt-item-detail receipt-empty">
+                  <div v-if="item.description" class="receipt-item-detail">
                     {{ item.description }}
                   </div>
                 </div>
-              </div>
+              </TransitionGroup>
             </div>
 
             <!-- TOTAL -->
@@ -42,10 +47,27 @@
 
               <div class="total-row">
                 <span>Jami</span>
-                <strong>{{ formatPrice(totalAmount) }} so'm</strong>
+                <div class="total-wrapper" :class="{ 'total-flash': totalFlashing }">
+                  <Transition name="total" mode="out-in">
+                    <strong :key="totalAmount">{{ formatPrice(totalAmount) }} so'm</strong>
+                  </Transition>
+                </div>
               </div>
             </div>
-            <div class="left-footer"></div>
+          </div>
+          <div class="left-footer" v-if="!virtualKeyboardEnabled">
+            <button type="button" class="btn secondary" @click="onCancel">
+              <q-icon name="chevron_left" size="28px" class="back-icon" /> Orqaga
+            </button>
+            <button
+              type="button"
+              class="btn primary"
+              :disabled="!receiptItems.length || submitting"
+              @click="createOrderAndOpenPayment"
+            >
+              <span v-if="submitting">Yuklanmoqda...</span>
+              <span v-else>Saqlash</span>
+            </button>
           </div>
         </div>
 
@@ -64,13 +86,17 @@
             >
               {{ t.label }}
             </button>
-            <input
-              class="search-input"
-              type="text"
-              :value="search"
-              readonly
-              placeholder="Mahsulot qidirish"
-            />
+            <div class="search-wrap">
+              <input
+                class="search-input"
+                type="text"
+                v-model="search"
+                placeholder="Mahsulot qidirish"
+              />
+
+              <!-- v-if="search" -->
+              <q-icon class="search-clear" @click="search = ''" name="close" size="25px" />
+            </div>
 
             <OrderDetailsDialog v-model:description="description" v-model:phone="phone_number" />
           </div>
@@ -106,7 +132,7 @@
               Mahsulot topilmadi
             </div>
 
-            <div v-if="products.length" class="products-list">
+            <TransitionGroup v-if="products.length" name="product" tag="div" class="products-list">
               <button
                 v-for="product in products"
                 :key="product.id"
@@ -120,13 +146,13 @@
                 </div>
                 <div class="product-price">{{ formatPrice(product.price) }} so'm</div>
               </button>
-            </div>
+            </TransitionGroup>
           </div>
 
           <!-- Keyboard -->
         </div>
       </div>
-      <div class="vk">
+      <div class="vk" v-if="virtualKeyboardEnabled">
         <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
           <button
             v-for="key in row"
@@ -184,6 +210,7 @@ import OrderDetailsDialog from 'src/components/OrderDetailsDialog.vue';
 import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.vue';
 import { formatPrice } from 'src/utils/formatPrice';
 import ReceiptItemDescriptionDialog from 'src/components/ReceiptItemDescriptionDialog.vue';
+import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -231,6 +258,8 @@ interface ReceiptItem {
   price: number;
   quantity: number;
   description: string;
+  isFlashing: boolean;
+  qtyFlashing: boolean;
 }
 
 interface CreateOrderPayload {
@@ -263,7 +292,7 @@ function onKeyPress(key: string): void {
     return;
   } else if (key === 'SPACE') {
     search.value += ' ';
-  } 
+  }
 
   search.value += key.toLowerCase();
 }
@@ -295,6 +324,33 @@ const phone_number = ref('');
 const showPaymentDialog = ref<boolean>(false);
 const createdOrderId = ref<number | null>(null);
 const createdDisplayId = ref<number | null>(null);
+
+// Flash state for total
+const totalFlashing = ref<boolean>(false);
+
+// Helper function to trigger flash on an item
+function triggerItemFlash(item: ReceiptItem): void {
+  item.isFlashing = true;
+  setTimeout(() => {
+    item.isFlashing = false;
+  }, 400);
+}
+
+// Helper function to trigger quantity flash
+function triggerQtyFlash(item: ReceiptItem): void {
+  item.qtyFlashing = true;
+  setTimeout(() => {
+    item.qtyFlashing = false;
+  }, 300);
+}
+
+// Helper function to trigger total flash
+function triggerTotalFlash(): void {
+  totalFlashing.value = true;
+  setTimeout(() => {
+    totalFlashing.value = false;
+  }, 400);
+}
 
 const totalAmount = computed<number>(() => {
   return receiptItems.value.reduce((sum, item) => {
@@ -335,20 +391,20 @@ async function printReceipt(displayId: number): Promise<void> {
     : null;
   const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
 
-  const logoUrl = new URL('../assets/logo-black.jpg', import.meta.url).href;
-  let logoBase64 = '';
+  // const logoUrl = new URL('../assets/logo-black.jpg', import.meta.url).href;
+  // let logoBase64 = '';
 
-  try {
-    const response = await fetch(logoUrl);
-    const blob = await response.blob();
-    logoBase64 = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.error('Failed to load logo:', err);
-  }
+  // try {
+  //   const response = await fetch(logoUrl);
+  //   const blob = await response.blob();
+  //   logoBase64 = await new Promise<string>((resolve) => {
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => resolve(reader.result as string);
+  //     reader.readAsDataURL(blob);
+  //   });D
+  // } catch (err) {
+  //   console.error('Failed to load logo:', err);
+  // }
 
   const printData = {
     displayId,
@@ -362,7 +418,7 @@ async function printReceipt(displayId: number): Promise<void> {
     total: totalAmount.value,
     description: description.value || undefined,
     phoneNumber: phone_number.value || undefined,
-    logoBase64,
+    // logoBase64,
   };
 
   try {
@@ -420,15 +476,28 @@ function addProduct(product: ApiProduct): void {
 
   if (existing) {
     existing.quantity += 1;
+    triggerQtyFlash(existing);
+    triggerItemFlash(existing);
   } else {
-    receiptItems.value.push({
+    const newItem: ReceiptItem = {
       productId: product.id,
       name: product.name,
       price,
       quantity: 1,
       description: '',
-    });
+      isFlashing: true,
+      qtyFlashing: false,
+    };
+    receiptItems.value.push(newItem);
+
+    // Remove flash after animation
+    setTimeout(() => {
+      newItem.isFlashing = false;
+    }, 400);
   }
+
+  // Flash the total
+  triggerTotalFlash();
 
   // UX FIX
   search.value = '';
@@ -436,13 +505,18 @@ function addProduct(product: ApiProduct): void {
 
 function increaseQty(item: ReceiptItem): void {
   item.quantity += 1;
+  triggerQtyFlash(item);
+  triggerTotalFlash();
 }
 
 function decreaseQty(item: ReceiptItem): void {
   if (item.quantity > 1) {
     item.quantity -= 1;
+    triggerQtyFlash(item);
+    triggerTotalFlash();
   } else {
     receiptItems.value = receiptItems.value.filter((i) => i.productId !== item.productId);
+    triggerTotalFlash();
   }
 }
 
@@ -560,7 +634,7 @@ onMounted(async () => {
   flex-direction: column;
 
   .container {
-    height: 70%;
+    flex: 1;
     display: grid;
     grid-template-columns: 360px 1fr;
     gap: 12px;
@@ -578,7 +652,7 @@ onMounted(async () => {
 }
 
 .order-type {
-  flex: 1;
+  flex: 0.8;
   height: 48px;
   border-radius: 12px;
   border: 1px solid #e2e5e9;
@@ -665,6 +739,10 @@ onMounted(async () => {
   border: 1px solid #e2e5e9;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   cursor: pointer;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 
   &:active {
     transform: scale(0.98);
@@ -683,6 +761,24 @@ onMounted(async () => {
   }
 }
 
+/* Flash highlight for receipt item */
+.receipt-item.flash-highlight {
+  animation: item-flash 0.4s ease;
+}
+
+@keyframes item-flash {
+  0% {
+    background-color: #bbf7d0;
+    border-color: #16a34a;
+    box-shadow: 0 0 12px rgba(22, 163, 74, 0.4);
+  }
+  100% {
+    background-color: #f8fafc;
+    border-color: #e2e5e9;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+}
+
 .quantity {
   display: flex;
   align-items: center;
@@ -698,11 +794,56 @@ onMounted(async () => {
     font-size: 18px;
     font-weight: 600;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease;
 
     &:active {
-      transform: scale(0.95);
+      transform: scale(0.9);
+      background: #e7f5ee;
+      border-color: #16a34a;
     }
   }
+}
+
+/* Quantity wrapper for flash effect */
+.qty-wrapper {
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.qty-wrapper.qty-flash {
+  animation: qty-flash-effect 0.3s ease;
+}
+
+@keyframes qty-flash-effect {
+  0% {
+    background-color: #bbf7d0;
+    box-shadow: 0 0 8px rgba(22, 163, 74, 0.5);
+    transform: scale(1.1);
+  }
+  50% {
+    background-color: #dcfce7;
+    transform: scale(1.05);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+    transform: scale(1);
+  }
+}
+
+/* Quantity value styles */
+.qty-value {
+  min-width: 24px;
+  text-align: center;
+  display: inline-block;
+  font-weight: 600;
 }
 
 .receipt-total .line {
@@ -714,9 +855,44 @@ onMounted(async () => {
 .total-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   color: #1f2937;
   font-size: 16px;
   font-weight: 600;
+
+  strong {
+    display: inline-block;
+  }
+}
+
+/* Total wrapper for flash effect */
+.total-wrapper {
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.total-wrapper.total-flash {
+  animation: total-flash-effect 0.4s ease;
+}
+
+@keyframes total-flash-effect {
+  0% {
+    background-color: #bbf7d0;
+    box-shadow: 0 0 12px rgba(22, 163, 74, 0.5);
+    transform: scale(1.05);
+  }
+  50% {
+    background-color: #dcfce7;
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+    transform: scale(1);
+  }
 }
 
 /* RIGHT */
@@ -733,7 +909,32 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 
+.search-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+
+  &:active {
+    transform: translateY(-50%) scale(0.96);
+    color: var(--text-primary);
+    background: var(--bg-surface-2);
+  }
+}
+
 .search-input {
+  flex: 1;
+  // padding-right: 54px;
   height: 48px;
   border-radius: 12px;
   border: 1px solid #e2e5e9;
@@ -840,9 +1041,16 @@ onMounted(async () => {
   font-weight: bold;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.96);
   }
 }
 
@@ -852,18 +1060,29 @@ onMounted(async () => {
 }
 
 /* BUTTONS */
+.left-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  padding-top: 15px;
+}
 .btn {
+  height: 48px;
   border-radius: 12px;
   border: none;
   font-size: 16px;
   font-weight: 600;
   padding: 0 20px;
+  cursor: pointer;
 }
 
 .secondary {
   background: #f1f3f5;
   color: #374151;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding-left: 0;
+  display: flex;
+  align-items: center;
 
   &:active {
     transform: scale(0.97);
@@ -916,5 +1135,85 @@ onMounted(async () => {
 
 .vk-key.wide {
   flex: 3;
+}
+
+/* ==================== */
+/* ANIMATIONS           */
+/* ==================== */
+
+/* Quantity number animation */
+.qty-enter-active,
+.qty-leave-active {
+  transition: all 0.15s ease;
+}
+
+.qty-enter-from {
+  opacity: 0;
+  transform: scale(0.5) translateY(10px);
+}
+
+.qty-leave-to {
+  opacity: 0;
+  transform: scale(1.5) translateY(-10px);
+}
+
+/* Total amount animation */
+.total-enter-active,
+.total-leave-active {
+  transition: all 0.2s ease;
+}
+
+.total-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.total-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Receipt list item animation */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(-30px) scale(0.95);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(30px) scale(0.95);
+}
+
+.list-move {
+  transition: transform 0.3s ease;
+}
+
+/* Product grid animation */
+// .product-enter-active,
+// .product-leave-active {
+//   transition: all 0.25s ease;
+// }
+
+.product-enter-active{
+  transition: all 0.25s ease;
+}
+
+.product-enter-from {
+  opacity: 0; 
+  transform: scale(0.8);
+}
+
+// .product-leave-to {
+//   opacity: 0;
+//   transform: scale(0.8);
+// }
+
+.product-move {
+  transition: transform 0.25s ease;
 }
 </style>

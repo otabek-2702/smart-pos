@@ -38,9 +38,8 @@
                 <span class="item-price">{{ formatPrice(item.price * item.quantity) }} so'm</span>
               </div>
             </div>
-
           </div>
-          
+
           <!-- Order Summary -->
           <div class="order-summary">
             <div class="divider" />
@@ -73,8 +72,15 @@
             <!-- Given Amount Input -->
             <div class="calc-field">
               <label class="calc-label">Berilgan summa</label>
-              <div class="calc-input">
-                <span class="calc-value">{{ formatPrice(givenAmount) }}</span>
+              <div class="calc-input-wrapper">
+                <q-icon
+                  class="calc-input-clear"
+                  @click="givenAmountInput = ''"
+                  name="close"
+                  size="25px"
+                />
+                <input name="calc-input" v-model="givenAmountView" class="calc-input" />
+                <div class="after">000</div>
               </div>
             </div>
 
@@ -101,7 +107,7 @@
             </div>
 
             <!-- Numeric Keypad -->
-            <div class="numpad">
+            <div class="numpad" v-if="virtualKeyboardEnabled">
               <button
                 v-for="key in numpadKeys"
                 :key="key"
@@ -155,6 +161,7 @@ import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
+import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -193,6 +200,17 @@ const payLoading = ref(false);
 // Cash calculator state
 const givenAmountInput = ref<string>('');
 
+const givenAmountView = computed<string>({
+  get() {
+    return formatPrice(givenAmountInput.value, true);
+  },
+  set(value: string) {
+    // faqat raqamlarni qoldiramiz: "12 000" -> "12000"
+    const cleaned = value.replace(/[^\d]/g, '');
+    givenAmountInput.value = Number(cleaned) ? cleaned : '';
+  },
+});
+
 const isOpen = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
@@ -217,7 +235,7 @@ const orderTypeLabel = computed(() => ORDER_TYPE_LABELS[props.orderType] || prop
 const numpadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 // Quick amount buttons (in UZS - common denominations)
-const quickAmounts = [20000, 50000, 100000, 200000];
+const quickAmounts = [10000, 20000, 50000, 100000, 200000];
 
 // Given amount in UZS (input * 1000)
 const givenAmount = computed<number>(() => {
@@ -258,7 +276,7 @@ function onBackspace(): void {
 
 // Set quick amount (divide by 1000 since we multiply by 1000 in givenAmount)
 function setQuickAmount(amount: number): void {
-  givenAmountInput.value = String(amount / 1000);
+  givenAmountInput.value = String(+givenAmountInput.value + amount / 1000);
 }
 
 async function onConfirmPayment(): Promise<void> {
@@ -330,6 +348,7 @@ function onCancel(): void {
   flex: 1;
   padding: 16px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   gap: 16px;
   .left-side {
@@ -444,7 +463,6 @@ function onCancel(): void {
 
 /* SUMMARY */
 
-
 .summary-row {
   display: flex;
   justify-content: space-between;
@@ -504,6 +522,7 @@ function onCancel(): void {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  position: relative;
 }
 
 .calc-label {
@@ -514,21 +533,50 @@ function onCancel(): void {
   letter-spacing: 0.03em;
 }
 
-.calc-input {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+.calc-input-wrapper {
+  width: 100%;
+  position: relative;
 }
 
-.calc-value {
+.calc-input-clear {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+
+  &:active {
+    transform: translateY(-50%) scale(0.96);
+    color: var(--text-primary);
+    background: var(--bg-surface-2);
+  }
+}
+
+.calc-input-wrapper > .after {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+}
+
+.calc-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 60px 12px 16px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .calc-result {

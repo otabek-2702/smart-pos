@@ -48,7 +48,7 @@
 
         <div class="order-meta">{{ order.itemsCount }} ta mahsulot</div>
 
-        <div class="order-meta">{{ order.description }} </div>
+        <div class="order-meta">{{ order.description }}</div>
 
         <div class="order-amount">
           {{ order.phone_number?.length > 4 ? formatPhoneNumber(order.phone_number) : '' }}
@@ -63,7 +63,6 @@
         <div class="order-status" :class="getStatusClass(order.status)">
           {{ getStatusLabel(order.status) }}
         </div>
-
       </div>
     </div>
 
@@ -98,6 +97,8 @@
         </button>
       </div>
 
+      <AdminSettingsButton show-label />
+
       <div class="footer-right">
         <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
           Monitor
@@ -118,6 +119,7 @@ import { formatPrice } from 'src/utils/formatPrice';
 import OrderInfoDialog from 'src/components/OrderInfoDialog.vue';
 import { formatPhoneNumber } from 'src/utils';
 import LogOutButton from 'src/components/LogOutButton.vue';
+import AdminSettingsButton from 'src/components/AdminSettingsButton.vue';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -278,7 +280,6 @@ async function fetchOrders(): Promise<void> {
     const response = await api.get<OrdersResponse>('/orders', {
       params: { ...params, per_page: 100 },
     });
-
 
     const ordersData = response.data.data.orders || [];
     orders.value = ordersData.map(mapOrder);

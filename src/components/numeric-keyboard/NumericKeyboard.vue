@@ -1,5 +1,5 @@
 <template>
-  <div class="nk">
+  <div class="nk" v-if="virtualKeyboardEnabled">
     <!-- 1–9 -->
     <button v-for="key in keys" :key="key" type="button" class="nk-key" @click="onPress(key)">
       {{ key }}
@@ -18,6 +18,8 @@
 </template>
 
 <script setup lang="ts">
+import { virtualKeyboardEnabled } from 'boot/virtual-keyboard';
+
 const emit = defineEmits<{
   (e: 'input', value: string): void;
   (e: 'backspace'): void;
@@ -30,7 +32,7 @@ const props = withDefaults(
   }>(),
   {
     dot: false,
-  }
+  },
 );
 
 const keys: ReadonlyArray<string> = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];

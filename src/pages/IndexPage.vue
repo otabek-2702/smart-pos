@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import NumericKeyboard from 'src/components/numeric-keyboard/NumericKeyboard.vue';
+import { virtualKeyboardEnabled, setVirtualKeyboardEnabled } from 'boot/virtual-keyboard';
 
 /* ============
  * Constants
@@ -43,6 +44,11 @@ interface User {
   email: string;
 }
 
+const vk = computed({
+  get: () => virtualKeyboardEnabled.value,
+  set: (v: boolean) => setVirtualKeyboardEnabled(v),
+});
+
 /* ============
  * State
  * ============ */
@@ -54,7 +60,8 @@ const isLoading = ref(false);
 
 /* Settings */
 const showSettings = ref(false);
-const baseUrl = ref('');
+const serverIpAdress = ref('');
+const printerIpAdress = ref('');
 
 /* ============
  * Methods
@@ -101,7 +108,7 @@ function goToPin(user: User): void {
 /* SETTINGS */
 
 function openSettings(): void {
-  baseUrl.value = localStorage.getItem(BASE_URL_KEY) ?? api.defaults.baseURL ?? '';
+  serverIpAdress.value = localStorage.getItem(BASE_URL_KEY) ?? api.defaults.baseURL ?? '';
   showSettings.value = true;
 }
 
@@ -112,22 +119,35 @@ function closeSettings(): void {
 /* VIRTUAL KEYBOARD HANDLERS */
 
 function onKeyboardInput(value: string): void {
-  baseUrl.value += value;
+  serverIpAdress.value += value;
 }
 
 function onKeyboardBackspace(): void {
-  baseUrl.value = baseUrl.value.slice(0, -1);
+  serverIpAdress.value = serverIpAdress.value.slice(0, -1);
 }
 
 function onKeyboardClear(): void {
-  baseUrl.value = "";
+  serverIpAdress.value = '';
+}
+
+function onKeyboard2Input(value: string): void {
+  printerIpAdress.value += value;
+}
+
+function onKeyboard2Backspace(): void {
+  printerIpAdress.value = printerIpAdress.value.slice(0, -1);
+}
+
+function onKeyboard2Clear(): void {
+  printerIpAdress.value = '';
 }
 
 function saveSettings(): void {
-  if (!baseUrl.value.trim()) return;
+  if (!serverIpAdress.value.trim()) return;
 
-  localStorage.setItem(BASE_URL_KEY, baseUrl.value);
-  api.defaults.baseURL = baseUrl.value;
+  localStorage.setItem(BASE_URL_KEY, serverIpAdress.value);
+  api.defaults.baseURL = serverIpAdress.value;
+  window.location.reload();
 
   showSettings.value = false;
 }
@@ -185,20 +205,37 @@ onMounted(() => {
       <div class="modal">
         <div class="modal-title">Server sozlamalari</div>
 
-        <label class="field-label">Backend Base URL</label>
+        <div class="content">
+          <div class="left">
+            <label class="field-label">Ip Adress Server</label>
 
-        <div class="input-display">
-          {{ baseUrl || '—' }}
+            <input class="input-display" v-model="serverIpAdress" />
+
+            <NumericKeyboard
+              dot
+              class="keyboard-numeric"
+              @input="onKeyboardInput"
+              @backspace="onKeyboardBackspace"
+              @clear="onKeyboardClear"
+              style="margin-bottom: 10px"
+            />
+          </div>
+          <div class="right">
+            <label class="field-label">Ip Adress Server</label>
+
+            <input class="input-display" v-model="serverIpAdress" />
+
+            <NumericKeyboard
+              dot
+              class="keyboard-numeric"
+              @input="onKeyboard2Input"
+              @backspace="onKeyboard2Backspace"
+              @clear="onKeyboard2Clear"
+              style="margin-bottom: 10px"
+            />
+          </div>
         </div>
-
-        <NumericKeyboard
-          dot
-          class="keyboard-numeric"
-          @input="onKeyboardInput"
-          @backspace="onKeyboardBackspace"
-          @clear="onKeyboardClear"
-          style="margin-bottom: 10px"
-        />
+        <q-toggle v-model="vk" color="green" label="Virtual klaviatura" left-label />
 
         <div class="actions">
           <button class="btn secondary" @click="closeSettings">Bekor qilish</button>
@@ -307,6 +344,9 @@ onMounted(() => {
 }
 
 /* DIALOG */
+.modal {
+  margin-inline: 5px;
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -318,7 +358,6 @@ onMounted(() => {
 }
 
 .modal {
-  width: 420px;
   background: var(--bg-surface);
   border-radius: 16px;
   padding: 16px;
@@ -333,12 +372,22 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
+.content {
+  display: flex;
+  gap: 10px;
+  .left,
+  .right {
+    width: 270px;
+  }
+}
+
 .field-label {
   color: var(--text-muted);
   font-size: 14px;
 }
 
 .input-display {
+  width: 100%;
   height: 44px;
   margin-top: 6px;
   padding: 0 12px;

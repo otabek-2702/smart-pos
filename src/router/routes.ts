@@ -1,3 +1,5 @@
+// src/router/routes.ts
+
 import type { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
@@ -36,11 +38,33 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/ClientDisplayPage.vue'),
         meta: { fullscreen: true },
       },
-
       {
         path: '/cash-box',
         name: 'cash-box',
         component: () => import('pages/CashBoxPage.vue'),
+      },
+
+      // Settings routes (Admin only)
+      {
+        path: '/settings',
+        component: () => import('pages/settings/SettingsLayout.vue'),
+        meta: { requiresAdmin: true },
+        children: [
+          {
+            path: '',
+            redirect: { name: 'settings-receipt' },
+          },
+          {
+            path: 'receipt',
+            name: 'settings-receipt',
+            component: () => import('pages/settings/ReceiptSettings.vue'),
+          },
+          {
+            path: 'printer',
+            name: 'settings-printer',
+            component: () => import('pages/settings/PrinterSettings.vue'),
+          },
+        ],
       },
     ],
   },

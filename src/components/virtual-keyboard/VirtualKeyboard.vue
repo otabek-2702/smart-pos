@@ -1,5 +1,5 @@
 <template>
-  <div class="vk">
+  <div class="vk" v-if="virtualKeyboardEnabled">
     <div v-for="(row, rowIndex) in layout" :key="rowIndex" class="vk-row">
       <button
         v-for="key in row"
@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { KEYBOARD_LAYOUT, KEYBOARD_LAYOUT_WITH_NUMS } from './keyboardLayout';
+import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 
 const emit = defineEmits<{
   (e: 'input', value: string): void;

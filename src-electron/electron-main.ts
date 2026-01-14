@@ -1,10 +1,15 @@
+// src-electron/electron-main.ts
+
 import { app, BrowserWindow, screen } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 
 import { registerPrintHandler } from './print-handler';
+import { registerSettingsHandler } from './settings-handler';
 
+// Register handlers
+registerSettingsHandler();
 registerPrintHandler();
 
 const platform = process.platform || os.platform();
@@ -15,7 +20,6 @@ let clientWindow: BrowserWindow | null = null;
 
 function createMainWindow(display: Electron.Display): BrowserWindow {
   const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER ?? 'src-electron';
-
   const preloadExt = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION ?? '.js';
 
   const win = new BrowserWindow({
@@ -50,7 +54,7 @@ function createClientWindow(display: Electron.Display): BrowserWindow {
     icon: path.resolve(currentDir, 'icons/icon.png'),
     webPreferences: {
       contextIsolation: true,
-      sandbox:true
+      sandbox: true,
     },
   });
 
@@ -92,7 +96,7 @@ function setupWindows(): void {
 void app.whenReady().then(() => {
   setupWindows();
 
-  // 🔥 React to monitor plug/unplug
+  // React to monitor plug/unplug
   screen.on('display-added', setupWindows);
   screen.on('display-removed', setupWindows);
 });

@@ -4,9 +4,7 @@
       <div class="title">Mahsulot tavsifi</div>
 
       <!-- DESCRIPTION PREVIEW -->
-      <div class="description-box">
-        {{ localDescription || '—' }}
-      </div>
+      <textarea v-model="localDescription" placeholder="Tavsif" class="description-box"></textarea>
 
       <!-- VIRTUAL KEYBOARD -->
       <VirtualKeyboard class="keyboard" nums_on @input="onInput" @backspace="onBackspace" />

@@ -9,6 +9,18 @@ export interface ReceiptItem {
   description?: string;
 }
 
+export interface ReceiptSettings {
+  logoBase64: string | null;
+  useDefaultLogo: boolean;
+  thankYouMessage: string;
+  showThankYouMessage: boolean;
+  footerTitle: string;
+  footerPhone: string;
+  showFooterPhone: boolean;
+  additionalFooterText: string;
+  showAdditionalFooter: boolean;
+}
+
 export interface ReceiptData {
   displayId: number;
   orderType: string;
@@ -39,7 +51,11 @@ function formatDate(): string {
   return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
-export function generateReceiptHtml(data: ReceiptData, logoBase64: string): string {
+export function generateReceiptHtml(
+  data: ReceiptData,
+  logoBase64: string,
+  settings: ReceiptSettings
+): string {
   const orderTypeLabel = ORDER_TYPE_LABELS[data.orderType] || data.orderType;
 
   const itemsHtml = data.items
@@ -50,14 +66,21 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
         <td class="item-qty">${item.quantity}</td>
         <td class="item-price">${formatPrice(item.price * item.quantity)}</td>
       </tr>
-    `,
+    `
     )
     .join('');
 
+  // Logo section
   const logoHtml = logoBase64
     ? `<div class="logo"><img src="${logoBase64}" alt="Logo" /></div>`
     : '';
 
+  // Thank you message section
+  const thankYouHtml = settings.showThankYouMessage && settings.thankYouMessage
+    ? `<div class="thank-you">${settings.thankYouMessage}</div>`
+    : '';
+
+  // Client info sections
   const descriptionHtml = data.description
     ? `
       <div class="client-info">
@@ -72,6 +95,25 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
       <div class="client-info">
         <span class="client-label">Mijoz tel:</span>
         <span class="client-value">${formatPhoneNumber(data.phoneNumber)}</span>
+      </div>
+    `
+    : '';
+
+  // Footer sections
+  const footerPhoneHtml = settings.showFooterPhone && (settings.footerTitle || settings.footerPhone)
+    ? `
+      <div class="footer">
+        ${settings.footerTitle ? `<div class="footer-title">${settings.footerTitle}</div>` : ''}
+        ${settings.footerPhone ? `<div class="footer-phone">${settings.footerPhone}</div>` : ''}
+      </div>
+    `
+    : '';
+
+  // Additional footer (Instagram, address, etc.)
+  const additionalFooterHtml = settings.showAdditionalFooter && settings.additionalFooterText
+    ? `
+      <div class="additional-footer">
+        ${settings.additionalFooterText.split('\n').map(line => `<div>${line}</div>`).join('')}
       </div>
     `
     : '';
@@ -183,17 +225,16 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
           .client-info {
             margin: 12px 0;
             font-size: 35px;
-            text-wrap:wrap;
+            text-wrap: wrap;
             padding: 8px 0;
             width: 100%;
-            }
+          }
             
           .client-label {
             font-weight: bold;
             display: block;
             margin-bottom: 5px;
             margin-left: 260px;
-
           }
           .client-value {
             margin-left: 260px;
@@ -220,10 +261,18 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
             font-weight: bold;
           }
 
+          .additional-footer {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 20px;
+            line-height: 1.6;
+          }
+
           .display_id {
             font-size: 90px;
             font-weight: bold;
             text-align: center;
+            margin: 20px 0;
           }
         </style>
       </head>
@@ -254,7 +303,7 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
         
         <div class="divider"></div>
         
-        <div class="thank-you">XARIDINGIZ UCHUN RAHMAT!</div>
+        ${thankYouHtml}
         
         <div class="total-section">
           <div class="total-row">
@@ -272,14 +321,12 @@ export function generateReceiptHtml(data: ReceiptData, logoBase64: string): stri
         ${phoneHtml}
         ${descriptionHtml}
 
-        ${data.description || phoneHtml ? '<div class="divider"></div>' : ''}
+        ${data.description || data.phoneNumber ? '<div class="divider"></div>' : ''}
 
         <div class="display_id">${data.displayId}</div>
         
-        <div class="footer">
-          <div class="footer-title">FIKR BILDIRISH UCHUN TEL:</div>
-          <div class="footer-phone">+998 90 205 50 80</div>
-        </div>
+        ${footerPhoneHtml}
+        ${additionalFooterHtml}
       </body>
     </html>
   `;
