@@ -1,8 +1,14 @@
 <template>
-  <div class="client-display">
+  <div class="client-display" :style="displayStyles">
     <!-- FULLSCREEN READY NOTIFICATION -->
     <Transition name="fullscreen">
-      <div v-if="showFullscreenNotification" class="fullscreen-notification">
+      <div
+        v-if="showFullscreenNotification"
+        class="fullscreen-notification"
+        :style="{
+          background: `linear-gradient(135deg, ${colors.readyColor} 0%, ${colors.readyDark} 100%)`,
+        }"
+      >
         <div class="fullscreen-content">
           <div class="fullscreen-label">BUYURTMA TAYYOR!</div>
           <div class="fullscreen-number">{{ formatId(currentFullscreenOrder) }}</div>
@@ -15,31 +21,45 @@
     <!-- HEADER -->
     <header class="header">
       <div class="datetime">
-        <div class="date">{{ currentDate }}</div>
-        <div class="day">{{ currentDay }}</div>
+        <div class="date" :style="{ color: displaySettings.headerTextColor }">{{ currentDate }}</div>
+        <div class="day" :style="{ color: displaySettings.headerTextColor }">{{ currentDay }}</div>
       </div>
-      <div class="title">SMART FOOD</div>
+      <div
+        class="title"
+        :style="{
+          color: displaySettings.headerTextColor,
+          fontSize: fontSizeValue,
+        }"
+      >
+        {{ displaySettings.companyName }}
+      </div>
       <div class="time-display">
         <div class="time-segment">
           <div class="flip-clock">
             <Transition name="flip" mode="out-in">
-              <span :key="hours" class="flip-number">{{ hours }}</span>
+              <span :key="hours" class="flip-number" :style="{ color: displaySettings.headerTextColor }">{{
+                hours
+              }}</span>
             </Transition>
           </div>
         </div>
-        <span class="time-separator">:</span>
+        <span class="time-separator" :style="{ color: displaySettings.headerTextColor }">:</span>
         <div class="time-segment">
           <div class="flip-clock">
             <Transition name="flip" mode="out-in">
-              <span :key="minutes" class="flip-number">{{ minutes }}</span>
+              <span :key="minutes" class="flip-number" :style="{ color: displaySettings.headerTextColor }">{{
+                minutes
+              }}</span>
             </Transition>
           </div>
         </div>
-        <span class="time-separator">:</span>
+        <span class="time-separator" :style="{ color: displaySettings.headerTextColor }">:</span>
         <div class="time-segment seconds">
           <div class="flip-clock">
             <Transition name="flip" mode="out-in">
-              <span :key="seconds" class="flip-number">{{ seconds }}</span>
+              <span :key="seconds" class="flip-number" :style="{ color: displaySettings.headerTextColor }">{{
+                seconds
+              }}</span>
             </Transition>
           </div>
         </div>
@@ -50,14 +70,24 @@
     <main class="content">
       <!-- PROCESSING -->
       <section class="column processing">
-        <h2>JARAYONDA</h2>
+        <h2 :style="{ color: displaySettings.headerTextColor }">JARAYONDA</h2>
         <div v-if="processing.length === 0" class="empty">
-          <div class="empty-icon">🍳</div>
-          <div class="empty-text">Buyurtmalar yo'q</div>
+          <div
+            class="empty-icon"
+            :style="{ filter: colors.isDark ? 'grayscale(1) brightness(10)' : 'none' }"
+          >
+            🍳
+          </div>
+          <div class="empty-text" :style="{ color: displaySettings.headerTextColor }">Buyurtmalar yo'q</div>
         </div>
         <div class="orders">
           <TransitionGroup name="order-list">
-            <div v-for="o in processing" :key="o.id" class="order-box processing-box">
+            <div
+              v-for="o in processing"
+              :key="o.id"
+              class="order-box processing-box"
+              :style="{ color: displaySettings.brandColor }"
+            >
               {{ formatId(o.display_id) }}
             </div>
           </TransitionGroup>
@@ -68,11 +98,11 @@
       <div class="divider"></div>
 
       <!-- READY -->
-      <section class="column ready">
-        <h2>TAYYOR</h2>
+      <section class="column ready" :style="{ background: colors.readySectionBg }">
+        <h2 :style="{ color: colors.readyColor }">TAYYOR</h2>
         <div v-if="finished.length === 0" class="empty">
           <div class="empty-icon">✨</div>
-          <div class="empty-text">—</div>
+          <div class="empty-text" :style="{ color: colors.readyMuted }">—</div>
         </div>
         <div class="orders">
           <TransitionGroup name="ready-list">
@@ -81,6 +111,11 @@
               :key="o.id"
               class="order-box ready-box"
               :class="{ 'new-ready': newlyFinishedIds.has(o.id) }"
+              :style="{
+                color: colors.readyColor,
+                borderColor: colors.readyColor,
+                '--ready-shadow': `rgba(${hexToRgb(colors.readyColor)}, 0.4)`,
+              }"
             >
               {{ formatId(o.display_id) }}
             </div>
@@ -92,14 +127,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'boot/axios';
 
+// Types
 interface DisplayOrder {
   id: number;
   display_id: number;
 }
 
+interface DisplaySettings {
+  companyName: string;
+  titleFontSize: 'small' | 'medium' | 'large' | 'xlarge';
+  brandColor: string;
+  readyColor: string;
+  headerTextColor: string;
+}
+
+// Default settings (fallback)
+const DEFAULT_SETTINGS: DisplaySettings = {
+  companyName: 'SMART FOOD',
+  titleFontSize: 'large',
+  brandColor: '#ff6b00',
+  readyColor: '#16a34a',
+  headerTextColor: '#ffffff',
+};
+
+// Font size mapping
+const FONT_SIZE_MAP: Record<DisplaySettings['titleFontSize'], string> = {
+  small: '1.5rem',
+  medium: '2rem',
+  large: '2.5rem',
+  xlarge: '3rem',
+};
+
+// State
+const displaySettings = reactive<DisplaySettings>({ ...DEFAULT_SETTINGS });
 const processing = ref<DisplayOrder[]>([]);
 const finished = ref<DisplayOrder[]>([]);
 
@@ -107,11 +170,129 @@ const previousFinishedIds = new Set<number>();
 const newlyFinishedIds = ref<Set<number>>(new Set());
 let firstLoad = true;
 
-// Fullscreen notification queue
+// Fullscreen notification
 const showFullscreenNotification = ref(false);
 const currentFullscreenOrder = ref<number>(0);
 const notificationQueue = ref<number[]>([]);
 let isProcessingQueue = false;
+
+/* ================= COMPUTED COLORS ================= */
+
+const colors = computed(() => {
+  const brand = displaySettings.brandColor;
+  const ready = displaySettings.readyColor;
+
+  const isDark = isColorDark(brand);
+
+  return {
+    isDark,
+    gradientStart: brand,
+    gradientEnd: isDark ? lightenColor(brand, 20) : lightenColor(brand, 15),
+    textColor: isDark ? '#ffffff' : '#1a1d23',
+    readySectionBg: lightenColor(brand, 92),
+    readyColor: ready,
+    readyDark: darkenColor(ready, 15),
+    readyLightBg: lightenColor(ready, 85),
+    readyMuted: '#9ca3af',
+  };
+});
+
+const displayStyles = computed(() => ({
+  background: `linear-gradient(145deg, ${colors.value.gradientStart} 0%, ${colors.value.gradientEnd} 100%)`,
+}));
+
+const fontSizeValue = computed(() => FONT_SIZE_MAP[displaySettings.titleFontSize]);
+
+/* ================= COLOR HELPERS ================= */
+
+function isColorDark(hexColor: string): boolean {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.5;
+}
+
+function lightenColor(hexColor: string, percent: number): string {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  const newR = Math.min(255, Math.floor(r + (255 - r) * (percent / 100)));
+  const newG = Math.min(255, Math.floor(g + (255 - g) * (percent / 100)));
+  const newB = Math.min(255, Math.floor(b + (255 - b) * (percent / 100)));
+
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
+
+function darkenColor(hexColor: string, percent: number): string {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  const newR = Math.max(0, Math.floor(r * (1 - percent / 100)));
+  const newG = Math.max(0, Math.floor(g * (1 - percent / 100)));
+  const newB = Math.max(0, Math.floor(b * (1 - percent / 100)));
+
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
+
+function hexToRgb(hex: string): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
+/* ================= SETTINGS ================= */
+
+async function loadSettings(): Promise<void> {
+  try {
+    // Check if running in Electron
+    const electron = (
+      window as unknown as {
+        electron?: {
+          ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> };
+        };
+      }
+    ).electron;
+
+    if (electron) {
+      const result = (await electron.ipcRenderer.invoke('settings:getDisplay')) as DisplaySettings;
+      Object.assign(displaySettings, result);
+      console.log('Display settings loaded:', result);
+    }
+  } catch (error) {
+    console.error('Failed to load display settings:', error);
+  }
+}
+
+function setupSettingsListener(): void {
+  try {
+    const electron = (
+      window as unknown as {
+        electron?: {
+          ipcRenderer: {
+            on: (channel: string, callback: (...args: unknown[]) => void) => void;
+          };
+        };
+      }
+    ).electron;
+
+    if (electron) {
+      electron.ipcRenderer.on('display-settings-updated', (newSettings: unknown) => {
+        console.log('Display settings updated:', newSettings);
+        Object.assign(displaySettings, newSettings as DisplaySettings);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to setup settings listener:', error);
+  }
+}
 
 /* ================= CLOCK ================= */
 
@@ -182,17 +363,14 @@ async function processNotificationQueue(): Promise<void> {
     currentFullscreenOrder.value = displayId;
     showFullscreenNotification.value = true;
 
-    // Play sound and wait for it to finish before continuing
     playReadySound();
 
-    // Show for 3 seconds (or audio duration, whichever is longer)
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     showFullscreenNotification.value = false;
 
-    // Longer gap to ensure sound finishes
     if (notificationQueue.value.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // increased from 500ms
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -233,14 +411,11 @@ function detectNewFinished(list: DisplayOrder[]): void {
   }
 
   if (newOnes.length > 0) {
-    // Add to highlight set
     const newIds = new Set(newOnes.map((o) => o.id));
     newlyFinishedIds.value = newIds;
 
-    // Add to fullscreen queue
     void addToNotificationQueue(newOnes.map((o) => o.display_id));
 
-    // Remove highlight after animation
     setTimeout(() => {
       newlyFinishedIds.value = new Set();
     }, 2000);
@@ -262,7 +437,12 @@ function formatId(id: number): string {
 let poll: number | undefined;
 let clockTimer: number | undefined;
 
-onMounted(() => {
+onMounted(async () => {
+  // Load settings first
+  await loadSettings();
+  setupSettingsListener();
+
+  // Start clock and polling
   updateClock();
   void fetchData();
 
@@ -279,22 +459,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ===== VARIABLES ===== */
-.client-display {
-  --brand: #ff7a00;
-  --brand-dark: #e56d00;
-  --brand-bg: #fff8f0;
-  --ready-color: #16a34a;
-  --ready-light: #dcfce7;
-  --text-dark: #1a1d23;
-  --text-muted: #9ca3af;
-  --white: #ffffff;
-}
-
 /* ===== BASE LAYOUT ===== */
 .client-display {
   height: 100vh;
-  background: linear-gradient(145deg, #ff6b00 0%, #ff8c1a 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -323,23 +490,20 @@ onUnmounted(() => {
 }
 
 .date {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 600;
-  color: var(--white);
 }
 
 .day {
-  font-size: 0.95rem;
+  font-size: 1.2rem;
   font-weight: 500;
-  color: var(--white);
   text-transform: uppercase;
   letter-spacing: 1px;
+  opacity: 0.9;
 }
 
 .title {
-  font-size: 2.5rem;
   font-weight: 900;
-  color: var(--white);
   letter-spacing: 6px;
   text-transform: uppercase;
 }
@@ -368,14 +532,12 @@ onUnmounted(() => {
   display: block;
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--white);
   font-variant-numeric: tabular-nums;
 }
 
 .time-separator {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--white);
 }
 
 /* Flip animation */
@@ -421,10 +583,9 @@ onUnmounted(() => {
   padding: 0px 25px;
   display: flex;
   flex-direction: column;
-}
-
-.ready {
-  background: #fff9f0; /* light peach tint */
+  &.ready{
+    border-top-left-radius: 10px;
+  }
 }
 
 /* ===== TITLES ===== */
@@ -435,14 +596,6 @@ h2 {
   letter-spacing: 4px;
   text-transform: uppercase;
   margin: 0 0 15px 0;
-}
-
-.processing h2 {
-  color: var(--white);
-}
-
-.ready h2 {
-  color: var(--ready-color);
 }
 
 /* ===== ORDERS ===== */
@@ -468,16 +621,14 @@ h2 {
 }
 
 .processing-box {
-  background: var(--white);
-  color: var(--brand);
+  background: #ffffff;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
 }
 
 .ready-box {
-  background: var(--white);
-  color: var(--ready-color);
-  border: 4px solid var(--ready-color);
-  box-shadow: 0 10px 40px rgba(22, 163, 74, 0.2);
+  background: #ffffff;
+  border: 4px solid;
+  box-shadow: 0 10px 40px var(--ready-shadow, rgba(22, 163, 74, 0.2));
 }
 
 .ready-box.new-ready {
@@ -491,7 +642,7 @@ h2 {
   }
   50% {
     transform: scale(1.1);
-    box-shadow: 0 15px 50px rgba(22, 163, 74, 0.4);
+    box-shadow: 0 15px 50px var(--ready-shadow, rgba(22, 163, 74, 0.4));
   }
 }
 
@@ -510,21 +661,9 @@ h2 {
   margin-bottom: 15px;
 }
 
-.processing .empty-icon {
-  filter: grayscale(1) brightness(10);
-}
-
 .empty-text {
   font-size: 1.3rem;
   font-weight: 500;
-}
-
-.processing .empty-text {
-  color: var(--white);
-}
-
-.ready .empty-text {
-  color: var(--text-muted);
 }
 
 /* ===== LIST ANIMATIONS ===== */
@@ -569,7 +708,6 @@ h2 {
 .fullscreen-notification {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, var(--ready-color) 0%, #0d7a32 100%);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -609,7 +747,7 @@ h2 {
 .fullscreen-number {
   font-size: 20rem;
   font-weight: 900;
-  color: var(--white);
+  color: #ffffff;
   line-height: 1;
   text-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: numberPulse 1s ease-in-out infinite;
@@ -692,10 +830,6 @@ h2 {
     font-size: 5.5rem;
   }
 
-  .title {
-    font-size: 3rem;
-  }
-
   .time-segment {
     min-width: 70px;
     padding: 10px 16px;
@@ -724,7 +858,8 @@ h2 {
     height: 130px;
     font-size: 3.5rem;
   }
-  x .fullscreen-number {
+
+  .fullscreen-number {
     font-size: 15rem;
   }
 }
@@ -734,11 +869,6 @@ h2 {
     width: 110px;
     height: 110px;
     font-size: 3rem;
-  }
-
-  .title {
-    font-size: 1.8rem;
-    letter-spacing: 3px;
   }
 
   h2 {

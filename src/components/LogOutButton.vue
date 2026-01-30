@@ -1,6 +1,10 @@
 <template>
   <!-- LOGOUT BUTTON -->
-  <button type="button" class="logout-fab" @click="openConfirm">Chiqish</button>
+  <button type="button" class="logout-fab" @click="openConfirm">
+    <q-icon name="logout" size="22px" />
+
+    Chiqish
+  </button>
 
   <!-- CONFIRM DIALOG -->
   <div v-if="showConfirm" class="confirm-backdrop" @click.self="closeConfirm">

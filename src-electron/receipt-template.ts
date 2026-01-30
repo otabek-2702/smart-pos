@@ -54,7 +54,7 @@ function formatDate(): string {
 export function generateReceiptHtml(
   data: ReceiptData,
   logoBase64: string,
-  settings: ReceiptSettings
+  settings: ReceiptSettings,
 ): string {
   const orderTypeLabel = ORDER_TYPE_LABELS[data.orderType] || data.orderType;
 
@@ -66,7 +66,7 @@ export function generateReceiptHtml(
         <td class="item-qty">${item.quantity}</td>
         <td class="item-price">${formatPrice(item.price * item.quantity)}</td>
       </tr>
-    `
+    `,
     )
     .join('');
 
@@ -76,9 +76,10 @@ export function generateReceiptHtml(
     : '';
 
   // Thank you message section
-  const thankYouHtml = settings.showThankYouMessage && settings.thankYouMessage
-    ? `<div class="thank-you">${settings.thankYouMessage}</div>`
-    : '';
+  const thankYouHtml =
+    settings.showThankYouMessage && settings.thankYouMessage
+      ? `<div class="thank-you">${settings.thankYouMessage}</div>`
+      : '';
 
   // Client info sections
   const descriptionHtml = data.description
@@ -94,29 +95,34 @@ export function generateReceiptHtml(
     ? `
       <div class="client-info">
         <span class="client-label">Mijoz tel:</span>
-        <span class="client-value">${formatPhoneNumber(data.phoneNumber)}</span>
+        <span class="client-value bigger">${formatPhoneNumber(data.phoneNumber)}</span>
       </div>
     `
     : '';
 
   // Footer sections
-  const footerPhoneHtml = settings.showFooterPhone && (settings.footerTitle || settings.footerPhone)
-    ? `
+  const footerPhoneHtml =
+    settings.showFooterPhone && (settings.footerTitle || settings.footerPhone)
+      ? `
       <div class="footer">
         ${settings.footerTitle ? `<div class="footer-title">${settings.footerTitle}</div>` : ''}
         ${settings.footerPhone ? `<div class="footer-phone">${settings.footerPhone}</div>` : ''}
       </div>
     `
-    : '';
+      : '';
 
   // Additional footer (Instagram, address, etc.)
-  const additionalFooterHtml = settings.showAdditionalFooter && settings.additionalFooterText
-    ? `
+  const additionalFooterHtml =
+    settings.showAdditionalFooter && settings.additionalFooterText
+      ? `
       <div class="additional-footer">
-        ${settings.additionalFooterText.split('\n').map(line => `<div>${line}</div>`).join('')}
+        ${settings.additionalFooterText
+          .split('\n')
+          .map((line) => `<div>${line}</div>`)
+          .join('')}
       </div>
     `
-    : '';
+      : '';
 
   return `
     <!DOCTYPE html>
@@ -234,12 +240,10 @@ export function generateReceiptHtml(
             font-weight: bold;
             display: block;
             margin-bottom: 5px;
-            margin-left: 260px;
           }
           .client-value {
-            margin-left: 260px;
             display: block;
-            font-size: 30px;
+            font-size: 36px;
             word-wrap: break-word;
             overflow-wrap: break-word;
             white-space: pre-wrap;
@@ -273,6 +277,27 @@ export function generateReceiptHtml(
             font-weight: bold;
             text-align: center;
             margin: 20px 0;
+          }
+          .brand-stamp {
+            margin-top: 22px;
+            padding-top: 12px;
+            border-top: 2px dashed #000;
+            text-align: center;
+
+          font-size: 18px;
+            color: #111;
+            letter-spacing: 0.6px;
+          }
+
+          .brand-stamp strong {
+            font-weight: 800;
+          }
+
+          .brand-stamp .sub {
+            margin-top: 4px;
+            font-size: 20px;
+            color: #444;
+            letter-spacing: 0.3px;
           }
         </style>
       </head>
@@ -327,6 +352,11 @@ export function generateReceiptHtml(
         
         ${footerPhoneHtml}
         ${additionalFooterHtml}
+
+        <div class="brand-stamp">
+          <div class="sub">RetailFlow tomonidan qo‘llab-quvvatlangan</div>
+          <strong>retailflow.uz</strong>
+        </div>
       </body>
     </html>
   `;

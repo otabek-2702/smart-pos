@@ -12,7 +12,7 @@
 
     <!-- CASHIER -->
     <div class="cashier-row">
-      Kassir: <strong>{{ order.cashier.name }}</strong>
+      Kassir: <strong>{{ order.user?.name }}</strong>
     </div>
 
     <!-- ITEMS -->
@@ -79,6 +79,7 @@ interface Order {
   ready_at: string;
   updated_at: string;
   cashier: Cashier;
+  user: Cashier;
   items: OrderItem[];
 }
 

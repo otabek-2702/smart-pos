@@ -64,6 +64,16 @@ const routes: RouteRecordRaw[] = [
             name: 'settings-printer',
             component: () => import('pages/settings/PrinterSettings.vue'),
           },
+          {
+            path: 'display',
+            name: 'settings-display',
+            component: () => import('pages/settings/DisplaySettings.vue'),
+          },
+          {
+            path: 'categories',
+            name: 'settings-categories',
+            component: () => import('pages/settings/CategoriesSettings.vue'),
+          },
         ],
       },
     ],

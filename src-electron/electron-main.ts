@@ -1,6 +1,6 @@
 // src-electron/electron-main.ts
 
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, ipcMain } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
@@ -43,20 +43,53 @@ function createMainWindow(display: Electron.Display): BrowserWindow {
   return win;
 }
 
-function createClientWindow(display: Electron.Display): BrowserWindow {
-  const win = new BrowserWindow({
-    x: display.bounds.x,
-    y: display.bounds.y,
-    width: display.bounds.width,
-    height: display.bounds.height,
-    fullscreen: true,
-    kiosk: true,
+function createClientWindow(display: Electron.Display | null, isPreview = false): BrowserWindow {
+  const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER ?? 'src-electron';
+  const preloadExt = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION ?? '.js';
+
+  // If preview mode (no second display), show as normal window on primary
+  const primary = screen.getPrimaryDisplay();
+  const targetDisplay = display || primary;
+  
+  // Window options based on mode
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
     icon: path.resolve(currentDir, 'icons/icon.png'),
     webPreferences: {
       contextIsolation: true,
-      sandbox: true,
+      preload: path.resolve(currentDir, path.join(preloadFolder, 'electron-preload' + preloadExt)),
     },
-  });
+  };
+
+  if (isPreview) {
+    // Preview mode: normal window with controls, 16:9 aspect ratio
+    const previewWidth = Math.min(1280, primary.workAreaSize.width - 100);
+    const previewHeight = Math.round(previewWidth * 9 / 16);
+    
+    Object.assign(windowOptions, {
+      width: previewWidth,
+      height: previewHeight,
+      minWidth: 800,
+      minHeight: 450,
+      center: true,
+      fullscreen: false,
+      kiosk: false,
+      frame: true,  // Show window controls
+      resizable: true,
+      title: 'Mijozlar displeyi (Ko\'rish)',
+    });
+  } else {
+    // Second monitor mode: fullscreen kiosk
+    Object.assign(windowOptions, {
+      x: targetDisplay.bounds.x,
+      y: targetDisplay.bounds.y,
+      width: targetDisplay.bounds.width,
+      height: targetDisplay.bounds.height,
+      fullscreen: true,
+      kiosk: true,
+    });
+  }
+
+  const win = new BrowserWindow(windowOptions);
 
   const route = '#/client-display';
 
@@ -69,10 +102,67 @@ function createClientWindow(display: Electron.Display): BrowserWindow {
   return win;
 }
 
-function setupWindows(): void {
+function getSecondaryDisplay(): Electron.Display | null {
   const displays = screen.getAllDisplays();
   const primary = screen.getPrimaryDisplay();
-  const secondary = displays.find((d) => d.id !== primary.id);
+  return displays.find((d) => d.id !== primary.id) || null;
+}
+
+function openClientDisplay(forcePreview = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' } {
+  // If window already exists, just focus it
+  if (clientWindow && !clientWindow.isDestroyed()) {
+    clientWindow.focus();
+    return { success: true, mode: 'focused' };
+  }
+
+  const secondary = getSecondaryDisplay();
+
+  if (secondary && !forcePreview) {
+    // Has second monitor - open fullscreen on it
+    clientWindow = createClientWindow(secondary, false);
+    clientWindow.on('closed', () => {
+      clientWindow = null;
+    });
+    return { success: true, mode: 'secondary' };
+  } else {
+    // No second monitor or force preview - open as preview window
+    clientWindow = createClientWindow(null, true);
+    clientWindow.on('closed', () => {
+      clientWindow = null;
+    });
+    return { success: true, mode: 'preview' };
+  }
+}
+
+function closeClientDisplay(): boolean {
+  if (clientWindow && !clientWindow.isDestroyed()) {
+    clientWindow.close();
+    clientWindow = null;
+    return true;
+  }
+  return false;
+}
+
+function getClientDisplayStatus(): { isOpen: boolean; mode: 'secondary' | 'preview' | 'none'; hasSecondMonitor: boolean } {
+  const secondary = getSecondaryDisplay();
+  
+  if (!clientWindow || clientWindow.isDestroyed()) {
+    return { isOpen: false, mode: 'none', hasSecondMonitor: !!secondary };
+  }
+
+  // Check if it's in fullscreen (secondary monitor) or preview mode
+  const isFullscreen = clientWindow.isFullScreen() || clientWindow.isKiosk();
+  
+  return {
+    isOpen: true,
+    mode: isFullscreen ? 'secondary' : 'preview',
+    hasSecondMonitor: !!secondary,
+  };
+}
+
+function setupWindows(): void {
+  const primary = screen.getPrimaryDisplay();
+  const secondary = getSecondaryDisplay();
 
   // MAIN WINDOW
   if (!mainWindow) {
@@ -82,18 +172,37 @@ function setupWindows(): void {
     });
   }
 
-  // CLIENT DISPLAY (ONLY IF SECOND MONITOR EXISTS)
+  // CLIENT DISPLAY (ONLY IF SECOND MONITOR EXISTS AND NO WINDOW YET)
   if (secondary && !clientWindow) {
-    clientWindow = createClientWindow(secondary);
+    clientWindow = createClientWindow(secondary, false);
     clientWindow.on('closed', () => {
       clientWindow = null;
     });
   }
 }
 
+// Register IPC handlers for client display control
+function registerClientDisplayHandlers(): void {
+  // Open client display
+  ipcMain.handle('client-display:open', (_event, forcePreview?: boolean): { success: boolean; mode: string } => {
+    return openClientDisplay(forcePreview || false);
+  });
+
+  // Close client display
+  ipcMain.handle('client-display:close', (): boolean => {
+    return closeClientDisplay();
+  });
+
+  // Get status
+  ipcMain.handle('client-display:status', (): { isOpen: boolean; mode: string; hasSecondMonitor: boolean } => {
+    return getClientDisplayStatus();
+  });
+}
+
 /* ================= APP LIFECYCLE ================= */
 
 void app.whenReady().then(() => {
+  registerClientDisplayHandlers();
   setupWindows();
 
   // React to monitor plug/unplug

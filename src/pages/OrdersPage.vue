@@ -92,15 +92,16 @@
     <!-- Footer -->
     <footer class="page-footer">
       <div class="footer-left">
-        <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
+        <!-- <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
           Kassa
-        </button>
+        </button> -->
+        <AdminSettingsButton show-label />
       </div>
-
-      <AdminSettingsButton show-label />
 
       <div class="footer-right">
         <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
+          <q-icon name="monitor" size="22px" />
+
           Monitor
         </button>
 
@@ -273,7 +274,7 @@ async function fetchOrders(): Promise<void> {
   if (status.value === 'UNPAID') {
     params = { payment_status: status.value };
   } else {
-    params = { status: status.value };
+    params = { statuses: status.value };
   }
 
   try {

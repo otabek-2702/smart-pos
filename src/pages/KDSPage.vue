@@ -83,6 +83,7 @@ interface Order {
   ready_at: string;
   updated_at: string;
   cashier: Cashier;
+  user: Cashier;
   items: OrderItem[];
 }
 

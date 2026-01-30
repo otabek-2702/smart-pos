@@ -138,7 +138,11 @@
                 :key="product.id"
                 type="button"
                 class="product-item"
-                :style="{ backgroundColor: product.category.color[0] }"
+                :style="{
+                  backgroundColor: product.category.color?.[0] || '#f8fafc',
+                  borderBottomColor: product.color?.[0] || '#e2e5e9',
+                  borderBottomWidth: product.color?.[0] ? '4px' : '1px',
+                }"
                 @click="addProduct(product)"
               >
                 <div class="product-name">
@@ -167,7 +171,7 @@
         </div>
         <div class="vk-row">
           <button type="button" class="btn secondary" @click="onCancel">Bekor qilish</button>
-          <button type="button" class="vk-key wide" @click="onKeyPress('space')">Bo'sh joy</button>
+          <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
           <button
             type="button"
             class="btn primary"
@@ -243,6 +247,7 @@ interface ApiProduct {
     slug: string;
     color: string[];
   };
+  color: string[];
 }
 
 interface ProductsResponse {
@@ -1037,6 +1042,7 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 12px;
   border: 1px solid #e2e5e9;
+  // border-bottom: 4px solid transparent;
   color: #1f2937;
   font-weight: bold;
   cursor: pointer;
@@ -1199,12 +1205,12 @@ onMounted(async () => {
 //   transition: all 0.25s ease;
 // }
 
-.product-enter-active{
+.product-enter-active {
   transition: all 0.25s ease;
 }
 
 .product-enter-from {
-  opacity: 0; 
+  opacity: 0;
   transform: scale(0.8);
 }
 

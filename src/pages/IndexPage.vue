@@ -61,7 +61,6 @@ const isLoading = ref(false);
 /* Settings */
 const showSettings = ref(false);
 const serverIpAdress = ref('');
-const printerIpAdress = ref('');
 
 /* ============
  * Methods
@@ -130,18 +129,6 @@ function onKeyboardClear(): void {
   serverIpAdress.value = '';
 }
 
-function onKeyboard2Input(value: string): void {
-  printerIpAdress.value += value;
-}
-
-function onKeyboard2Backspace(): void {
-  printerIpAdress.value = printerIpAdress.value.slice(0, -1);
-}
-
-function onKeyboard2Clear(): void {
-  printerIpAdress.value = '';
-}
-
 function saveSettings(): void {
   if (!serverIpAdress.value.trim()) return;
 
@@ -206,34 +193,18 @@ onMounted(() => {
         <div class="modal-title">Server sozlamalari</div>
 
         <div class="content">
-          <div class="left">
-            <label class="field-label">Ip Adress Server</label>
+          <label class="field-label">Ip Adress Server</label>
 
-            <input class="input-display" v-model="serverIpAdress" />
+          <input class="input-display" v-model="serverIpAdress" />
 
-            <NumericKeyboard
-              dot
-              class="keyboard-numeric"
-              @input="onKeyboardInput"
-              @backspace="onKeyboardBackspace"
-              @clear="onKeyboardClear"
-              style="margin-bottom: 10px"
-            />
-          </div>
-          <div class="right">
-            <label class="field-label">Ip Adress Server</label>
-
-            <input class="input-display" v-model="serverIpAdress" />
-
-            <NumericKeyboard
-              dot
-              class="keyboard-numeric"
-              @input="onKeyboard2Input"
-              @backspace="onKeyboard2Backspace"
-              @clear="onKeyboard2Clear"
-              style="margin-bottom: 10px"
-            />
-          </div>
+          <NumericKeyboard
+            dot
+            class="keyboard-numeric"
+            @input="onKeyboardInput"
+            @backspace="onKeyboardBackspace"
+            @clear="onKeyboardClear"
+            style="margin-bottom: 10px"
+          />
         </div>
         <q-toggle v-model="vk" color="green" label="Virtual klaviatura" left-label />
 
@@ -374,11 +345,9 @@ onMounted(() => {
 
 .content {
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  .left,
-  .right {
-    width: 270px;
-  }
+  width: 270px;
 }
 
 .field-label {

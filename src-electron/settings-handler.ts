@@ -1,6 +1,6 @@
 // src-electron/settings-handler.ts
 
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -22,9 +22,18 @@ export interface PrinterSettings {
   paperWidth: 58 | 80;
 }
 
+export interface DisplaySettings {
+  companyName: string;
+  titleFontSize: 'small' | 'medium' | 'large' | 'xlarge';
+  brandColor: string;
+  readyColor: string;
+  headerTextColor: string;
+}
+
 export interface AppSettings {
   receipt: ReceiptSettings;
   printer: PrinterSettings;
+  display: DisplaySettings;
 }
 
 const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
@@ -45,9 +54,18 @@ const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   paperWidth: 80,
 };
 
+const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
+  companyName: 'SMART FOOD',
+  titleFontSize: 'large',
+  brandColor: '#ff6b00',
+  readyColor: '#16a34a',
+  headerTextColor: '#ffffff',
+};
+
 const DEFAULT_APP_SETTINGS: AppSettings = {
   receipt: DEFAULT_RECEIPT_SETTINGS,
   printer: DEFAULT_PRINTER_SETTINGS,
+  display: DEFAULT_DISPLAY_SETTINGS,
 };
 
 function getSettingsPath(): string {
@@ -67,6 +85,7 @@ function loadSettings(): AppSettings {
       return {
         receipt: { ...DEFAULT_RECEIPT_SETTINGS, ...parsed.receipt },
         printer: { ...DEFAULT_PRINTER_SETTINGS, ...parsed.printer },
+        display: { ...DEFAULT_DISPLAY_SETTINGS, ...parsed.display },
       };
     }
   } catch (error) {
@@ -103,6 +122,14 @@ export function getSettings(): AppSettings {
   return cachedSettings;
 }
 
+// Broadcast display settings to all windows (for live update)
+function broadcastDisplaySettings(displaySettings: DisplaySettings): void {
+  const windows = BrowserWindow.getAllWindows();
+  for (const win of windows) {
+    win.webContents.send('display-settings-updated', displaySettings);
+  }
+}
+
 export function registerSettingsHandler(): void {
   // Get all settings
   ipcMain.handle('settings:get', (): AppSettings => {
@@ -116,7 +143,7 @@ export function registerSettingsHandler(): void {
       try {
         const success = saveSettings(settings);
         if (success) {
-          cachedSettings = settings; // Update cache
+          cachedSettings = settings;
         }
         return { success };
       } catch (error) {
@@ -171,6 +198,35 @@ export function registerSettingsHandler(): void {
         const success = saveSettings(updated);
         if (success) {
           cachedSettings = updated;
+        }
+        return { success };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: errorMessage };
+      }
+    }
+  );
+
+  // Get display settings only
+  ipcMain.handle('settings:getDisplay', (): DisplaySettings => {
+    return getSettings().display;
+  });
+
+  // Save display settings only (with broadcast for live update)
+  ipcMain.handle(
+    'settings:saveDisplay',
+    (_event, displaySettings: DisplaySettings): { success: boolean; error?: string } => {
+      try {
+        const current = getSettings();
+        const updated: AppSettings = {
+          ...current,
+          display: displaySettings,
+        };
+        const success = saveSettings(updated);
+        if (success) {
+          cachedSettings = updated;
+          // Broadcast to all windows for live update
+          broadcastDisplaySettings(displaySettings);
         }
         return { success };
       } catch (error) {

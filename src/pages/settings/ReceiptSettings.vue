@@ -426,8 +426,8 @@ function resetToDefaults(): void {
 <style scoped lang="scss">
 .receipt-settings {
   display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 24px;
+  grid-template-columns: 1fr 300px;
+  gap: 12px;
   height: 100%;
 }
 
@@ -723,7 +723,7 @@ function resetToDefaults(): void {
 
 .preview-container {
   flex: 1;
-  padding: 20px;
+  padding: 12px;
   overflow-y: auto;
   background: #e5e5e5;
   display: flex;
