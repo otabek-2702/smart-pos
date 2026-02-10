@@ -57,7 +57,7 @@
       </div>
 
       <!-- Paper Settings -->
-      <div class="form-section">
+      <!-- <div class="form-section">
         <h3 class="form-section-title">
           <q-icon name="straighten" size="20px" />
           Qog'oz sozlamalari
@@ -104,7 +104,7 @@
             </label>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <!-- Actions -->
       <div class="form-actions">
@@ -507,9 +507,9 @@ function resetToDefaults(): void {
 .form-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border-color);
+  // margin-top: 24px;
+  // padding-top: 24px;
+  // border-top: 1px solid var(--border-color);
 }
 
 // Buttons

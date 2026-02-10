@@ -197,6 +197,7 @@ export default defineConfig((/* ctx */) => {
 
         win: {
           target: 'nsis',
+          icon: 'src-electron/icons/icon.ico',
         },
 
         nsis: {

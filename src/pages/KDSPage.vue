@@ -163,6 +163,7 @@ async function fetchOrders(): Promise<void> {
   const response = await api.get<OrdersResponse>('/orders', {
     params: {
       statuses: currentMode.value,
+      per_page: 100000
     },
   });
 

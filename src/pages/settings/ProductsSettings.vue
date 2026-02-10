@@ -1,14 +1,37 @@
 <template>
-  <div class="categories-settings">
+  <div class="products-settings">
     <!-- Header -->
     <div class="page-header">
       <div class="header-left">
-        <h2 class="page-title">Kategoriyalar</h2>
-        <span class="category-count">{{ categories.length }} ta</span>
+        <h2 class="page-title">Mahsulotlar</h2>
+        <span class="product-count">{{ filteredProducts.length }} ta</span>
       </div>
       <button type="button" class="btn-add" @click="openCreateDialog">
         <q-icon name="add" size="20px" />
         Qo'shish
+      </button>
+    </div>
+
+    <!-- Category Filter Tabs -->
+    <div class="category-tabs">
+      <button
+        type="button"
+        class="tab-btn"
+        :class="{ active: selectedCategoryId === null }"
+        @click="selectedCategoryId = null"
+      >
+        Barchasi
+      </button>
+      <button
+        v-for="category in categories"
+        :key="category.id"
+        type="button"
+        class="tab-btn"
+        :class="{ active: selectedCategoryId === category.id }"
+        :style="{ '--tab-color': category.colors?.[0] || 'var(--accent-primary)' }"
+        @click="selectedCategoryId = category.id"
+      >
+        {{ category.name }}
       </button>
     </div>
 
@@ -19,65 +42,45 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="categories.length === 0" class="empty-state">
-      <q-icon name="category" size="64px" />
-      <h3>Kategoriyalar yo'q</h3>
-      <p>Birinchi kategoriyani qo'shing</p>
+    <div v-else-if="filteredProducts.length === 0" class="empty-state">
+      <q-icon name="inventory_2" size="64px" />
+      <h3>Mahsulotlar yo'q</h3>
+      <p>{{ selectedCategoryId ? 'Bu kategoriyada mahsulot yo\'q' : 'Birinchi mahsulotni qo\'shing' }}</p>
       <button type="button" class="btn-add" @click="openCreateDialog">
         <q-icon name="add" size="20px" />
-        Kategoriya qo'shish
+        Mahsulot qo'shish
       </button>
     </div>
 
-    <!-- Categories Grid -->
-    <draggable
-      v-else
-      v-model="categories"
-      item-key="id"
-      ghost-class="drag-ghost"
-      drag-class="drag-active"
-      chosen-class="drag-chosen"
-      animation="300"
-      class="categories-grid"
-      @start="onDragStart"
-      @end="onDragEnd"
-    >
-      <template #item="{ element }">
-        <div
-          class="category-card"
-          :style="{ '--card-color': element.colors?.[0] || '#e2e5e9' }"
-          @click="openEditDialog(element)"
-        >
-          <div class="card-color-bar"></div>
-          <div class="card-body">
-            <div
-              class="card-color-dot"
-              :style="{ backgroundColor: element.colors?.[0] || '#e2e5e9' }"
-            ></div>
-            <span class="card-name">{{ element.name }}</span>
-          </div>
-          <div class="card-footer">
-            <span class="card-status" :class="element.status.toLowerCase()">
-              {{ element.status === 'ACTIVE' ? 'Faol' : 'Nofaol' }}
-            </span>
-            <q-icon name="drag_indicator" size="18px" class="drag-icon" />
-          </div>
+    <!-- Products Grid -->
+    <div v-else class="products-grid">
+      <div
+        v-for="product in filteredProducts"
+        :key="product.id"
+        class="product-card"
+        :style="{ '--product-color': product.color?.[0] || 'transparent' }"
+        @click="openEditDialog(product)"
+      >
+        <div class="product-info">
+          <span class="product-name">{{ product.name }}</span>
+          <span class="product-price">{{ formatPrice(product.price) }}</span>
         </div>
-      </template>
-    </draggable>
+        <div class="product-color-bar"></div>
+      </div>
+    </div>
 
     <!-- Create/Edit Dialog -->
-    <q-dialog v-model="showDialog" class="category-dialog-wrapper">
-      <div class="category-dialog" @click.stop>
+    <q-dialog v-model="showDialog">
+      <div class="product-dialog" @click.stop>
         <div class="dialog-header">
-          <h3>{{ isEditing ? 'Kategoriyani tahrirlash' : "Kategoriya qo'shish" }}</h3>
+          <h3>{{ isEditing ? 'Mahsulotni tahrirlash' : 'Mahsulot qo\'shish' }}</h3>
           <button type="button" class="btn-close" @click="closeDialog">
             <q-icon name="close" size="24px" />
           </button>
         </div>
 
         <div class="dialog-body">
-          <!-- Name Input -->
+          <!-- Name -->
           <div class="form-group">
             <label class="form-label">Nomi</label>
             <input
@@ -85,17 +88,46 @@
               type="text"
               v-model="form.name"
               class="form-input"
-              placeholder="Kategoriya nomi"
-              maxlength="50"
+              placeholder="Mahsulot nomi"
+              maxlength="100"
             />
           </div>
 
-          <!-- Color Picker -->
+          <!-- Price -->
           <div class="form-group">
-            <label class="form-label">Rang</label>
+            <label class="form-label">Narxi (so'm)</label>
+            <input
+              type="text"
+              v-model="form.priceDisplay"
+              class="form-input price-input"
+              placeholder="0"
+              inputmode="numeric"
+              @input="onPriceInput"
+            />
+          </div>
+
+          <!-- Category -->
+          <div class="form-group">
+            <label class="form-label">Kategoriya</label>
+            <div class="category-selector">
+              <button
+                v-for="category in categories"
+                :key="category.id"
+                type="button"
+                class="category-btn"
+                :class="{ active: form.category_id === category.id }"
+                :style="{ '--cat-color': category.colors?.[0] || 'var(--accent-primary)' }"
+                @click="form.category_id = category.id"
+              >
+                {{ category.name }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Color -->
+          <div class="form-group">
+            <label class="form-label">Rang (ixtiyoriy)</label>
             <div class="color-picker-section">
-              <!-- Preset Colors -->
-              <!-- Preset Colors -->
               <div class="preset-colors">
                 <button
                   type="button"
@@ -115,19 +147,14 @@
                   @click="form.color = color"
                 />
               </div>
-              <!-- Custom Color -->
               <div class="custom-color">
                 <div class="color-input-wrapper">
                   <input type="color" v-model="form.color" class="color-input" />
-                  <div class="color-preview" :style="{ backgroundColor: form.color }"></div>
+                  <div 
+                    class="color-preview" 
+                    :style="{ backgroundColor: form.color || '#e2e5e9' }"
+                  ></div>
                 </div>
-                <input
-                  type="text"
-                  v-model="form.color"
-                  class="form-input hex-input"
-                  placeholder="#ffffff"
-                  maxlength="7"
-                />
               </div>
             </div>
           </div>
@@ -135,8 +162,15 @@
           <!-- Preview -->
           <div class="form-group">
             <label class="form-label">Ko'rinishi</label>
-            <div class="category-preview" :style="{ backgroundColor: form.color }">
-              {{ form.name || 'Kategoriya nomi' }}
+            <div 
+              class="product-preview"
+              :style="{ '--preview-color': form.color || 'transparent' }"
+            >
+              <div class="preview-info">
+                <span class="preview-name">{{ form.name || 'Mahsulot nomi' }}</span>
+                <span class="preview-price">{{ formatPrice(form.price || 0) }}</span>
+              </div>
+              <div class="preview-color-bar"></div>
             </div>
           </div>
         </div>
@@ -156,11 +190,11 @@
             <button
               type="button"
               class="btn-save"
-              @click="saveCategory"
-              :disabled="!form.name.trim() || saving"
+              @click="saveProduct"
+              :disabled="!isFormValid || saving"
             >
               <q-spinner v-if="saving" size="18px" color="white" />
-              <span v-else>{{ isEditing ? 'Saqlash' : "Qo'shish" }}</span>
+              <span v-else>{{ isEditing ? 'Saqlash' : 'Qo\'shish' }}</span>
             </button>
           </div>
         </div>
@@ -173,18 +207,13 @@
         <div class="confirm-icon">
           <q-icon name="warning" size="48px" color="negative" />
         </div>
-        <h3>Kategoriyani o'chirish</h3>
-        <p>"{{ editingCategory?.name }}" kategoriyasini o'chirishni xohlaysizmi?</p>
+        <h3>Mahsulotni o'chirish</h3>
+        <p>"{{ editingProduct?.name }}" ni o'chirishni xohlaysizmi?</p>
         <div class="confirm-actions">
           <button type="button" class="btn-cancel" @click="showDeleteConfirm = false">
             Bekor qilish
           </button>
-          <button
-            type="button"
-            class="btn-delete-confirm"
-            @click="deleteCategory"
-            :disabled="deleting"
-          >
+          <button type="button" class="btn-delete-confirm" @click="deleteProduct" :disabled="deleting">
             <q-spinner v-if="deleting" size="18px" color="white" />
             <span v-else>O'chirish</span>
           </button>
@@ -195,8 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue';
-import draggable from 'vuedraggable';
+import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { api } from 'boot/axios';
 import { toast } from 'vue3-toastify';
 
@@ -204,11 +232,28 @@ import { toast } from 'vue3-toastify';
 interface Category {
   id: number;
   name: string;
-  sort_order: number;
-  colors: string[];
-  status: 'ACTIVE' | 'INACTIVE';
   slug: string;
+  colors: string[];
+}
+
+interface Product {
+  id: number;
+  name: string;
   description: string;
+  price: string;
+  color: string[];
+  category: Category;
+  popularity: number;
+}
+
+interface ProductsResponse {
+  success: boolean;
+  data: {
+    products: Product[];
+    pagination: {
+      total_products: number;
+    };
+  };
 }
 
 interface CategoriesResponse {
@@ -218,7 +263,15 @@ interface CategoriesResponse {
   };
 }
 
+// Preset colors
+const presetColors = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#6b7280', '#78716c',
+];
+
 // State
+const products = ref<Product[]>([]);
 const categories = ref<Category[]>([]);
 const loading = ref(true);
 const saving = ref(false);
@@ -226,61 +279,95 @@ const deleting = ref(false);
 const showDialog = ref(false);
 const showDeleteConfirm = ref(false);
 const isEditing = ref(false);
-const editingCategory = ref<Category | null>(null);
-const isDragging = ref(false);
+const editingProduct = ref<Product | null>(null);
+const selectedCategoryId = ref<number | null>(null);
 const nameInputRef = ref<HTMLInputElement | null>(null);
 
 // Form
 const form = reactive({
   name: '',
+  price: 0,
+  priceDisplay: '',
+  category_id: null as number | null,
   color: '',
 });
 
-// Preset colors
-const presetColors = [
-  '#ff6b00',
-  '#e53935',
-  '#d81b60',
-  '#8e24aa',
-  '#5e35b1',
-  '#3949ab',
-  '#1e88e5',
-  '#00acc1',
-  '#00897b',
-  '#43a047',
-  '#7cb342',
-  '#fdd835',
-  '#fb8c00',
-  '#6d4c41',
-  '#546e7a',
-  '#78909c',
-];
+// Computed
+const filteredProducts = computed(() => {
+  if (selectedCategoryId.value === null) {
+    return products.value;
+  }
+  return products.value.filter(p => p.category.id === selectedCategoryId.value);
+});
+
+const isFormValid = computed(() => {
+  return (
+    form.name.trim() !== '' &&
+    form.price > 0 &&
+    form.category_id !== null
+  );
+});
+
+// Methods
+function formatPrice(price: number | string): string {
+  const num = typeof price === 'string' ? parseFloat(price) : price;
+  return num.toLocaleString('uz-UZ') + ' so\'m';
+}
+
+function onPriceInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  // Remove non-digits
+  const raw = input.value.replace(/\D/g, '');
+  const num = parseInt(raw, 10) || 0;
+  form.price = num;
+  // Format with spaces
+  form.priceDisplay = num > 0 ? num.toLocaleString('uz-UZ') : '';
+}
+
+// Fetch products
+async function fetchProducts(): Promise<void> {
+  try {
+    const response = await api.get<ProductsResponse>('/products', {
+      params: { per_page: 500 }
+    });
+    products.value = response.data.data.products;
+  } catch (error) {
+    console.error('Failed to fetch products:', error);
+    toast.error('Mahsulotlarni yuklashda xatolik');
+  }
+}
 
 // Fetch categories
 async function fetchCategories(): Promise<void> {
-  loading.value = true;
   try {
     const response = await api.get<CategoriesResponse>('/categories', {
-      params: { per_page: 100 },
+      params: { per_page: 100 }
     });
-    categories.value = response.data.data.categories.sort((a, b) => a.sort_order - b.sort_order);
+    categories.value = response.data.data.categories;
   } catch (error) {
     console.error('Failed to fetch categories:', error);
     toast.error('Kategoriyalarni yuklashda xatolik');
-  } finally {
-    loading.value = false;
   }
+}
+
+// Load data
+async function loadData(): Promise<void> {
+  loading.value = true;
+  await Promise.all([fetchProducts(), fetchCategories()]);
+  loading.value = false;
 }
 
 // Open create dialog
 async function openCreateDialog(): Promise<void> {
   isEditing.value = false;
-  editingCategory.value = null;
+  editingProduct.value = null;
   form.name = '';
+  form.price = 0;
+  form.priceDisplay = '';
+  form.category_id = selectedCategoryId.value || (categories.value[0]?.id ?? null);
   form.color = '';
   showDialog.value = true;
 
-  // Focus input after dialog opens
   await nextTick();
   setTimeout(() => {
     nameInputRef.value?.focus();
@@ -288,13 +375,14 @@ async function openCreateDialog(): Promise<void> {
 }
 
 // Open edit dialog
-async function openEditDialog(category: Category): Promise<void> {
-  if (isDragging.value) return; // Don't open if dragging
-
+async function openEditDialog(product: Product): Promise<void> {
   isEditing.value = true;
-  editingCategory.value = category;
-  form.name = category.name;
-  form.color = category.colors?.[0] || '';
+  editingProduct.value = product;
+  form.name = product.name;
+  form.price = parseFloat(product.price);
+  form.priceDisplay = parseFloat(product.price).toLocaleString('uz-UZ');
+  form.category_id = product.category.id;
+  form.color = product.color?.[0] || '';
   showDialog.value = true;
 
   await nextTick();
@@ -306,39 +394,43 @@ async function openEditDialog(category: Category): Promise<void> {
 // Close dialog
 function closeDialog(): void {
   showDialog.value = false;
-  editingCategory.value = null;
+  editingProduct.value = null;
 }
 
-// Save category (create or update)
-async function saveCategory(): Promise<void> {
-  if (!form.name.trim()) return;
+// Save product
+async function saveProduct(): Promise<void> {
+  if (!isFormValid.value) return;
 
   saving.value = true;
   try {
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: form.name.trim(),
-      colors: [form.color],
+      price: form.price,
+      category_id: form.category_id,
     };
 
-    if (isEditing.value && editingCategory.value) {
-      // Update
-      await api.put(`/categories/${editingCategory.value.id}/update`, payload);
-      toast.success('Kategoriya yangilandi');
+    // Add color if set
+    if (form.color) {
+      payload.colors = [form.color];
     } else {
-      // Create
-      const maxOrder = categories.value.reduce((max, c) => Math.max(max, c.sort_order), -1);
-      await api.post('/categories/create', {
-        ...payload,
-        sort_order: maxOrder + 1,
-      });
-      toast.success("Kategoriya qo'shildi");
+      payload.colors = [];
+    }
+
+    if (isEditing.value && editingProduct.value) {
+      await api.put(`/products/${editingProduct.value.id}/update`, payload);
+      toast.success('Mahsulot yangilandi');
+    } else {
+      await api.post('/products/create', payload);
+      toast.success('Mahsulot qo\'shildi');
     }
 
     closeDialog();
-    await fetchCategories();
-  } catch (error) {
-    console.error('Failed to save category:', error);
-    toast.error('Xatolik yuz berdi');
+    await fetchProducts();
+  } catch (error: unknown) {
+    console.error('Failed to save product:', error);
+    const err = error as { response?: { data?: { message?: string } } };
+    const message = err.response?.data?.message || 'Xatolik yuz berdi';
+    toast.error(message);
   } finally {
     saving.value = false;
   }
@@ -349,71 +441,33 @@ function confirmDelete(): void {
   showDeleteConfirm.value = true;
 }
 
-// Delete category
-async function deleteCategory(): Promise<void> {
-  if (!editingCategory.value) return;
+// Delete product
+async function deleteProduct(): Promise<void> {
+  if (!editingProduct.value) return;
 
   deleting.value = true;
   try {
-    await api.delete(`/categories/${editingCategory.value.id}/delete`);
-    toast.success("Kategoriya o'chirildi");
+    await api.delete(`/products/${editingProduct.value.id}/delete`);
+    toast.success('Mahsulot o\'chirildi');
     showDeleteConfirm.value = false;
     closeDialog();
-    await fetchCategories();
+    await fetchProducts();
   } catch (error) {
-    console.error('Failed to delete category:', error);
-    toast.error("O'chirishda xatolik");
+    console.error('Failed to delete product:', error);
+    toast.error('O\'chirishda xatolik');
   } finally {
     deleting.value = false;
   }
 }
 
-// Drag handlers
-function onDragStart(): void {
-  isDragging.value = true;
-}
-
-// Handle drag end - update sort orders
-async function onDragEnd(): Promise<void> {
-  // Small delay to prevent click from firing
-  setTimeout(() => {
-    isDragging.value = false;
-  }, 100);
-
-  // Update sort_order for all categories based on new positions
-  const updates = categories.value.map((category, index) => ({
-    id: category.id,
-    sort_order: index,
-  }));
-
-  // Update locally first for instant feedback
-  categories.value.forEach((cat, index) => {
-    cat.sort_order = index;
-  });
-
-  // Send updates to API
-  try {
-    for (const update of updates) {
-      await api.put(`/categories/${update.id}/update`, {
-        sort_order: update.sort_order,
-      });
-    }
-    toast.success('Tartib saqlandi');
-  } catch (error) {
-    console.error('Failed to update sort order:', error);
-    toast.error('Tartibni saqlashda xatolik');
-    await fetchCategories();
-  }
-}
-
 // Lifecycle
 onMounted(() => {
-  void fetchCategories();
+  void loadData();
 });
 </script>
 
 <style scoped lang="scss">
-.categories-settings {
+.products-settings {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -424,7 +478,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .header-left {
@@ -440,7 +494,7 @@ onMounted(() => {
   margin: 0;
 }
 
-.category-count {
+.product-count {
   font-size: 14px;
   color: var(--text-muted);
   background: var(--bg-surface-2);
@@ -468,6 +522,49 @@ onMounted(() => {
 
   &:active {
     transform: scale(0.97);
+  }
+}
+
+// Category Tabs
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+  }
+}
+
+.tab-btn {
+  --tab-color: var(--accent-primary);
+
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+
+  &.active {
+    background: var(--tab-color);
+    color: white;
+    border-color: var(--tab-color);
   }
 }
 
@@ -500,8 +597,8 @@ onMounted(() => {
   }
 }
 
-// ========== GRID LAYOUT ==========
-.categories-grid {
+// Products Grid
+.products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
@@ -509,12 +606,12 @@ onMounted(() => {
   padding: 4px;
 }
 
-.category-card {
-  --card-color: #e2e5e9;
+.product-card {
+  --product-color: transparent;
 
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   overflow: hidden;
@@ -524,10 +621,6 @@ onMounted(() => {
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-
-    .drag-icon {
-      opacity: 1;
-    }
   }
 
   &:active {
@@ -535,89 +628,35 @@ onMounted(() => {
   }
 }
 
-.card-color-bar {
-  height: 6px;
-  background: var(--card-color);
-}
-
-.card-body {
+.product-info {
   padding: 14px;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
 }
 
-.card-color-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
-.card-name {
-  font-size: 15px;
+.product-name {
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
 }
 
-.card-footer {
-  padding: 10px 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-surface-2);
-}
-
-.card-status {
-  font-size: 12px;
-  font-weight: 500;
-
-  &.active {
-    color: var(--accent-primary);
-  }
-
-  &.inactive {
-    color: var(--text-muted);
-  }
-}
-
-.drag-icon {
+.product-price {
+  font-size: 13px;
   color: var(--text-muted);
-  opacity: 0.5;
-  transition: opacity 0.2s ease;
-  cursor: grab;
-
-  &:active {
-    cursor: grabbing;
-  }
 }
 
-// ========== DRAG STATES ==========
-.drag-ghost {
-  opacity: 0.4;
-  background: var(--bg-surface-2) !important;
-}
-
-.drag-active {
-  opacity: 1 !important;
-  transform: rotate(3deg) scale(1.05);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-}
-
-.drag-chosen {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+.product-color-bar {
+  height: 4px;
+  background: var(--product-color);
 }
 
 // ========== DIALOG ==========
-.category-dialog {
+.product-dialog {
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   background: var(--bg-surface);
   border-radius: 20px;
   overflow: hidden;
@@ -701,24 +740,61 @@ onMounted(() => {
   }
 }
 
+.price-input {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+// Category selector
+.category-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-btn {
+  --cat-color: var(--accent-primary);
+
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+
+  &.active {
+    background: var(--cat-color);
+    color: white;
+    border-color: var(--cat-color);
+  }
+}
+
 // Color picker
 .color-picker-section {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
 }
 
 .preset-colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  flex: 1;
 }
 
 .preset-color {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   cursor: pointer;
   transition: all 0.2s ease;
 
@@ -728,9 +804,7 @@ onMounted(() => {
 
   &.active {
     border-color: var(--text-primary);
-    box-shadow:
-      0 0 0 2px var(--bg-surface),
-      0 0 0 4px var(--text-primary);
+    box-shadow: 0 0 0 2px var(--bg-surface);
   }
 
   &.no-color {
@@ -745,14 +819,13 @@ onMounted(() => {
 
 .custom-color {
   display: flex;
-  gap: 12px;
   align-items: center;
 }
 
 .color-input-wrapper {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 
 .color-input {
@@ -765,25 +838,42 @@ onMounted(() => {
 .color-preview {
   width: 100%;
   height: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid var(--border-color);
   pointer-events: none;
 }
 
-.hex-input {
-  flex: 1;
-  font-family: monospace;
-  text-transform: uppercase;
+// Product preview
+.product-preview {
+  --preview-color: transparent;
+
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-// Category preview
-.category-preview {
-  padding: 14px 18px;
-  border-radius: 12px;
-  font-size: 15px;
+.preview-info {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-name {
+  font-size: 14px;
   font-weight: 600;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+}
+
+.preview-price {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.preview-color-bar {
+  height: 4px;
+  background: var(--preview-color);
 }
 
 // Dialog footer
@@ -800,27 +890,6 @@ onMounted(() => {
   display: flex;
   gap: 10px;
   margin-left: auto;
-}
-
-.btn-cancel {
-  padding: 12px 20px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: var(--bg-surface-2);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
 }
 
 .btn-save {
@@ -906,6 +975,22 @@ onMounted(() => {
   display: flex;
   gap: 10px;
   justify-content: center;
+}
+
+.btn-cancel {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
 }
 
 .btn-delete-confirm {

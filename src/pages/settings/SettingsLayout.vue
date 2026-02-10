@@ -15,11 +15,7 @@
     <div class="settings-container">
       <!-- Overlay backdrop -->
       <Transition name="fade">
-        <div
-          v-if="sidebarOpen"
-          class="sidebar-backdrop"
-          @click="closeSidebar"
-        />
+        <div v-if="sidebarOpen" class="sidebar-backdrop" @click="closeSidebar" />
       </Transition>
 
       <!-- Sidebar -->
@@ -47,22 +43,6 @@
                 size="20px"
                 class="active-indicator"
               />
-            </button>
-
-            <!-- Divider -->
-            <div class="sidebar-divider" />
-
-            <!-- Future items (disabled) -->
-            <button
-              v-for="item in futureItems"
-              :key="item.label"
-              type="button"
-              class="sidebar-item disabled"
-              disabled
-            >
-              <q-icon :name="item.icon" size="22px" />
-              <span>{{ item.label }}</span>
-              <span class="coming-soon">Tez kunda</span>
             </button>
           </div>
         </nav>
@@ -105,7 +85,7 @@ const currentRoute = computed(() => route.name);
 
 // Get current page title
 const currentPageTitle = computed(() => {
-  const item = menuItems.find(m => m.route === currentRoute.value);
+  const item = menuItems.find((m) => m.route === currentRoute.value);
   return item?.label || 'Sozlamalar';
 });
 
@@ -115,21 +95,13 @@ interface MenuItem {
   icon: string;
 }
 
-interface FutureItem {
-  label: string;
-  icon: string;
-}
-
 const menuItems: MenuItem[] = [
   { route: 'settings-receipt', label: 'Chek sozlamalari', icon: 'receipt_long' },
   { route: 'settings-printer', label: 'Printer sozlamalari', icon: 'print' },
   { route: 'settings-display', label: 'Displey sozlamalari', icon: 'tv' },
-  { route: 'settings-categories', label: 'Kategoriyalar', icon: 'category' }, 
-];
-
-const futureItems: FutureItem[] = [
-  { label: 'Mahsulotlar', icon: 'inventory_2' },
-  { label: 'Foydalanuvchilar', icon: 'group' },
+  { route: 'settings-categories', label: 'Kategoriyalar', icon: 'category' },
+  { route: 'settings-users', label: 'Foydalanuvchilar', icon: 'people' },
+  { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2' },
 ];
 
 // Sidebar functions
@@ -157,7 +129,7 @@ function showKeyboard(input: HTMLInputElement | HTMLTextAreaElement, withNumbers
   activeInput.value = input;
   keyboardWithNumbers.value = withNumbers;
   keyboardVisible.value = true;
-  
+
   // Scroll input into view after keyboard animation
   setTimeout(() => {
     scrollInputIntoView(input);
@@ -165,11 +137,11 @@ function showKeyboard(input: HTMLInputElement | HTMLTextAreaElement, withNumbers
 }
 
 function scrollInputIntoView(input: HTMLElement): void {
-  const keyboardHeight = 260; // Approximate keyboard height
+  const keyboardHeight = 220; // Approximate keyboard height
   const inputRect = input.getBoundingClientRect();
   const viewportHeight = window.innerHeight;
   const visibleAreaBottom = viewportHeight - keyboardHeight - 20; // 20px padding
-  
+
   // If input is below visible area, scroll it into view
   if (inputRect.bottom > visibleAreaBottom) {
     input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -186,14 +158,14 @@ function onKeyboardInput(char: string): void {
     const start = activeInput.value.selectionStart || 0;
     const end = activeInput.value.selectionEnd || 0;
     const value = activeInput.value.value;
-    
+
     // Insert character at cursor position
     activeInput.value.value = value.substring(0, start) + char + value.substring(end);
-    
+
     // Move cursor after inserted character
     const newPos = start + char.length;
     activeInput.value.setSelectionRange(newPos, newPos);
-    
+
     // Trigger input event for v-model to update
     activeInput.value.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -204,7 +176,7 @@ function onKeyboardBackspace(): void {
     const start = activeInput.value.selectionStart || 0;
     const end = activeInput.value.selectionEnd || 0;
     const value = activeInput.value.value;
-    
+
     if (start === end && start > 0) {
       // No selection, delete character before cursor
       activeInput.value.value = value.substring(0, start - 1) + value.substring(end);
@@ -214,7 +186,7 @@ function onKeyboardBackspace(): void {
       activeInput.value.value = value.substring(0, start) + value.substring(end);
       activeInput.value.setSelectionRange(start, start);
     }
-    
+
     // Trigger input event for v-model to update
     activeInput.value.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -227,42 +199,50 @@ provide('hideKeyboard', hideKeyboard);
 // Handle focus events globally
 function handleFocusIn(event: FocusEvent): void {
   const target = event.target as HTMLElement;
-  
+
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
     const input = target as HTMLInputElement | HTMLTextAreaElement;
     const inputType = input.getAttribute('type') || 'text';
-    
+
     // Don't show keyboard for color, file, checkbox, radio inputs
     if (['color', 'file', 'checkbox', 'radio', 'range', 'hidden'].includes(inputType)) {
       return;
     }
-    
+
+    // Skip if input has data-no-keyboard attribute
+    if (input.dataset.noKeyboard === 'true') {
+      return;
+    }
+
     // Check if input should have numbers
-    const withNumbers = inputType === 'number' || 
-                        inputType === 'tel' || 
-                        input.dataset.keyboardNums === 'true';
-    
+    const withNumbers =
+      inputType === 'number' || inputType === 'tel' || input.dataset.keyboardNums === 'true';
+
     showKeyboard(input, withNumbers);
   }
 }
 
 function handleFocusOut(event: FocusEvent): void {
   const relatedTarget = event.relatedTarget as HTMLElement;
-  
+
   // Don't hide if focus moved to keyboard or another input
   if (relatedTarget) {
-    if (relatedTarget.closest('.keyboard-container') ||
-        relatedTarget.tagName === 'INPUT' ||
-        relatedTarget.tagName === 'TEXTAREA') {
+    if (
+      relatedTarget.closest('.keyboard-container') ||
+      relatedTarget.tagName === 'INPUT' ||
+      relatedTarget.tagName === 'TEXTAREA'
+    ) {
       return;
     }
   }
-  
+
   // Small delay to allow clicking keyboard buttons
   setTimeout(() => {
-    if (document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA' &&
-        !document.activeElement?.closest('.keyboard-container')) {
+    if (
+      document.activeElement?.tagName !== 'INPUT' &&
+      document.activeElement?.tagName !== 'TEXTAREA' &&
+      !document.activeElement?.closest('.keyboard-container')
+    ) {
       hideKeyboard();
     }
   }, 100);
@@ -270,11 +250,13 @@ function handleFocusOut(event: FocusEvent): void {
 
 function handleClickOutside(event: MouseEvent): void {
   const target = event.target as HTMLElement;
-  
+
   // If clicking outside keyboard and not on an input, hide keyboard
-  if (!target.closest('.keyboard-container') &&
-      target.tagName !== 'INPUT' &&
-      target.tagName !== 'TEXTAREA') {
+  if (
+    !target.closest('.keyboard-container') &&
+    target.tagName !== 'INPUT' &&
+    target.tagName !== 'TEXTAREA'
+  ) {
     hideKeyboard();
   }
 }
@@ -352,7 +334,7 @@ watch(currentRoute, () => {
 .back-btn {
   display: flex;
   align-items: center;
-  // gap: 8px;
+  gap: 8px;
   padding: 10px 16px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
@@ -502,7 +484,7 @@ watch(currentRoute, () => {
   transition: padding-bottom 0.3s ease;
 
   &.keyboard-open {
-    padding-bottom: 300px; // Height of keyboard + some extra space
+    padding-bottom: 240px; // Height of keyboard + some extra space
   }
 }
 
@@ -512,7 +494,7 @@ watch(currentRoute, () => {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 500;
+  z-index: 500000;
   padding: 8px 12px 12px;
   background: var(--bg-app);
   border-top: 1px solid var(--border-color);

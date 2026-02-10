@@ -74,6 +74,16 @@ const routes: RouteRecordRaw[] = [
             name: 'settings-categories',
             component: () => import('pages/settings/CategoriesSettings.vue'),
           },
+          {
+            path: 'users',
+            name: 'settings-users',
+            component: () => import('pages/settings/UsersSettings.vue'),
+          },
+          {
+            path: 'products',
+            name: 'settings-products',
+            component: () => import('pages/settings/ProductsSettings.vue'),
+          },
         ],
       },
     ],

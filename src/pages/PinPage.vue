@@ -1,59 +1,66 @@
 <template>
   <q-page class="page-pin flex flex-center">
-    <!-- Back -->
-    <button type="button" class="back-button" aria-label="Go back" @click="goBack">
-      <q-icon name="arrow_back" size="24px" />
-    </button>
+    <div 
+      ref="focusRef"
+      tabindex="0"
+      class="pin-focus-wrapper"
+      @keydown="onPhysicalKeyPress"
+    >
+      <!-- Back -->
+      <button type="button" class="back-button" aria-label="Go back" @click="goBack">
+        <q-icon name="arrow_back" size="24px" />
+      </button>
 
-    <div class="pin-wrapper">
-      <div class="user-name">{{ userName }}</div>
+      <div class="pin-wrapper">
+        <div class="user-name">{{ userName }}</div>
 
-      <!-- PIN dots -->
-      <div class="pin-dots">
-        <span
-          v-for="index in PIN_LENGTH"
-          :key="index"
-          class="dot"
-          :class="{ filled: pin.length >= index }"
-        />
-      </div>
+        <!-- PIN dots -->
+        <div class="pin-dots">
+          <span
+            v-for="index in PIN_LENGTH"
+            :key="index"
+            class="dot"
+            :class="{ filled: pin.length >= index }"
+          />
+        </div>
 
-      <!-- Error -->
-      <div v-if="errorMessage" class="error-text">
-        {{ errorMessage }}
-      </div>
+        <!-- Error -->
+        <div v-if="errorMessage" class="error-text">
+          {{ errorMessage }}
+        </div>
 
-      <!-- Keypad -->
-      <div class="keypad">
-        <button
-          v-for="key in numberKeys"
-          :key="key"
-          type="button"
-          class="key"
-          :disabled="isLoading"
-          @click="onKeyPress(key)"
-        >
-          {{ key }}
-        </button>
+        <!-- Keypad -->
+        <div class="keypad">
+          <button
+            v-for="key in numberKeys"
+            :key="key"
+            type="button"
+            class="key"
+            :disabled="isLoading"
+            @click="onKeyPress(key)"
+          >
+            {{ key }}
+          </button>
 
-        <button type="button" class="key key-clear" :disabled="isLoading" @click="removeLast">
-          ⌫
-        </button>
+          <button type="button" class="key key-clear" :disabled="isLoading" @click="removeLast">
+            ⌫
+          </button>
 
-        <button type="button" class="key key-zero" :disabled="isLoading" @click="onKeyPress(0)">
-          0
-        </button>
+          <button type="button" class="key key-zero" :disabled="isLoading" @click="onKeyPress(0)">
+            0
+          </button>
 
-        <button type="button" class="key key-cancel" :disabled="isLoading" @click="goBack">
-          Bekor qilish
-        </button>
+          <button type="button" class="key key-cancel" :disabled="isLoading" @click="goBack">
+            Bekor qilish
+          </button>
+        </div>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 
@@ -96,6 +103,7 @@ const route = useRoute();
  * State
  * ============ */
 
+const focusRef = ref<HTMLDivElement | null>(null);
 const pin = ref<string>('');
 const isLoading = ref<boolean>(false);
 const errorMessage = ref<string>('');
@@ -134,6 +142,44 @@ function onKeyPress(key: number): void {
 function removeLast(): void {
   if (isLoading.value) return;
   pin.value = pin.value.slice(0, -1);
+  errorMessage.value = '';
+}
+
+// Handle physical keyboard input
+function onPhysicalKeyPress(event: KeyboardEvent): void {
+  if (isLoading.value) return;
+
+  // Number keys (0-9)
+  if (/^[0-9]$/.test(event.key)) {
+    event.preventDefault();
+    onKeyPress(parseInt(event.key, 10));
+    return;
+  }
+
+  // Backspace
+  if (event.key === 'Backspace') {
+    event.preventDefault();
+    removeLast();
+    return;
+  }
+
+  // Escape - go back
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    goBack();
+    return;
+  }
+}
+
+// Keep focus on wrapper for keyboard input
+function maintainFocus(): void {
+  if (focusRef.value && document.activeElement !== focusRef.value) {
+    // Only refocus if not clicking on a button
+    const active = document.activeElement;
+    if (!active || !active.closest('.keypad')) {
+      focusRef.value.focus();
+    }
+  }
 }
 
 async function submitPin(): Promise<void> {
@@ -158,8 +204,10 @@ async function submitPin(): Promise<void> {
     void router.replace({ name: 'orders' });
   } catch (error) {
     console.error(error);
-    errorMessage.value = 'PIN noto‘g‘ri';
+    errorMessage.value = 'PIN noto\'g\'ri';
     pin.value = '';
+    // Refocus after error
+    focusRef.value?.focus();
   } finally {
     isLoading.value = false;
   }
@@ -170,12 +218,28 @@ function goBack(): void {
 }
 
 /* ============
- * Guard
+ * Lifecycle
  * ============ */
 
+let focusInterval: ReturnType<typeof setInterval> | null = null;
+
 onMounted(() => {
+  // Guard: redirect if no email
   if (!userEmail.value) {
     void router.replace({ name: 'users' });
+    return;
+  }
+
+  // Initial focus
+  focusRef.value?.focus();
+
+  // Maintain focus periodically (for when clicking outside)
+  focusInterval = setInterval(maintainFocus, 500);
+});
+
+onUnmounted(() => {
+  if (focusInterval) {
+    clearInterval(focusInterval);
   }
 });
 </script>
@@ -183,6 +247,16 @@ onMounted(() => {
 <style scoped lang="scss">
 .page-pin {
   background: var(--bg-app);
+  position: relative;
+}
+
+.pin-focus-wrapper {
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
   position: relative;
 }
 
@@ -242,10 +316,12 @@ onMounted(() => {
   border-radius: 50%;
   background: var(--bg-surface-2);
   border: 1px solid var(--border-color);
+  transition: all 0.15s ease;
 
   &.filled {
     background: var(--accent-primary);
     border-color: var(--accent-primary);
+    transform: scale(1.1);
   }
 }
 
@@ -273,6 +349,7 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 
   &:active {
     transform: scale(0.96);
