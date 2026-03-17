@@ -10,5 +10,9 @@ declare global {
         on(channel: string, func: (...args: unknown[]) => void): void;
       };
     };
+    backend: {
+      onError: (callback: (msg: string) => void) => void
+      onLog: (callback: (msg: string) => void) => void
+    };
   }
 }

@@ -39,3 +39,11 @@ contextBridge.exposeInMainWorld('electron', {
     },
   },
 });
+
+contextBridge.exposeInMainWorld('backend', {
+  onError: (callback: (msg: string) => void) =>
+    ipcRenderer.on('backend-error', (_, msg) => callback(msg)),
+
+  onLog: (callback: (msg: string) => void) =>
+    ipcRenderer.on('backend-log', (_, msg) => callback(msg))
+})

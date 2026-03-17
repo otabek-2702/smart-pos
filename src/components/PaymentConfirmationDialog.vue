@@ -102,7 +102,7 @@
                 class="quick-btn"
                 @click="setQuickAmount(amount)"
               >
-                {{ formatQuickAmount(amount) }}
+               + {{ formatQuickAmount(amount) }}
               </button>
             </div>
 

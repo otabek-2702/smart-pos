@@ -49,17 +49,28 @@
       </Transition>
 
       <!-- Content -->
-      <div class="settings-content" :class="{ 'keyboard-open': keyboardVisible }">
+      <div class="settings-content" :class="{ 'keyboard-open': keyboardVisible || numpadVisible }">
         <router-view />
       </div>
 
-      <!-- Virtual Keyboard -->
+      <!-- Virtual Keyboard (for text inputs) -->
       <Transition name="keyboard-slide">
-        <div v-if="keyboardVisible && virtualKeyboardEnabled" class="keyboard-container">
+        <div v-if="keyboardVisible && virtualKeyboardEnabled && !numpadVisible" class="keyboard-container">
           <VirtualKeyboard
             :nums_on="keyboardWithNumbers"
             @input="onKeyboardInput"
             @backspace="onKeyboardBackspace"
+          />
+        </div>
+      </Transition>
+
+      <!-- Virtual Numpad (for numeric inputs) -->
+      <Transition name="keyboard-slide">
+        <div v-if="numpadVisible && virtualKeyboardEnabled" class="keyboard-container">
+          <VirtualNumpad
+            @input="onNumpadInput"
+            @backspace="onNumpadBackspace"
+            @clear="onNumpadClear"
           />
         </div>
       </Transition>
@@ -71,6 +82,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, provide } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
+import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 
 const router = useRouter();
@@ -78,6 +90,7 @@ const route = useRoute();
 
 const sidebarOpen = ref(false);
 const keyboardVisible = ref(false);
+const numpadVisible = ref(false);
 const keyboardWithNumbers = ref(false);
 const activeInput = ref<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
@@ -124,11 +137,34 @@ function goBack(): void {
   void router.push({ name: 'orders' });
 }
 
+// Check if input should show numpad (numbers only)
+function isNumericInput(input: HTMLInputElement | HTMLTextAreaElement): boolean {
+  const inputMode = input.getAttribute('inputmode');
+  const type = input.getAttribute('type');
+  const dataNumpad = input.dataset.numpad;
+  
+  return (
+    inputMode === 'numeric' ||
+    inputMode === 'decimal' ||
+    type === 'number' ||
+    type === 'tel' ||
+    dataNumpad === 'true'
+  );
+}
+
 // Keyboard functions
 function showKeyboard(input: HTMLInputElement | HTMLTextAreaElement, withNumbers = false): void {
   activeInput.value = input;
-  keyboardWithNumbers.value = withNumbers;
-  keyboardVisible.value = true;
+  
+  // Determine if we should show numpad or keyboard
+  if (isNumericInput(input)) {
+    numpadVisible.value = true;
+    keyboardVisible.value = false;
+  } else {
+    keyboardWithNumbers.value = withNumbers;
+    keyboardVisible.value = true;
+    numpadVisible.value = false;
+  }
 
   // Scroll input into view after keyboard animation
   setTimeout(() => {
@@ -150,9 +186,11 @@ function scrollInputIntoView(input: HTMLElement): void {
 
 function hideKeyboard(): void {
   keyboardVisible.value = false;
+  numpadVisible.value = false;
   activeInput.value = null;
 }
 
+// Text keyboard handlers
 function onKeyboardInput(char: string): void {
   if (activeInput.value) {
     const start = activeInput.value.selectionStart || 0;
@@ -192,6 +230,36 @@ function onKeyboardBackspace(): void {
   }
 }
 
+// Numpad handlers
+function onNumpadInput(digit: string): void {
+  if (activeInput.value) {
+    const start = activeInput.value.selectionStart || 0;
+    const end = activeInput.value.selectionEnd || 0;
+    const value = activeInput.value.value;
+
+    // Insert digit at cursor position
+    activeInput.value.value = value.substring(0, start) + digit + value.substring(end);
+
+    // Move cursor after inserted digit
+    const newPos = start + 1;
+    activeInput.value.setSelectionRange(newPos, newPos);
+
+    // Trigger input event for v-model to update
+    activeInput.value.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function onNumpadBackspace(): void {
+  onKeyboardBackspace(); // Same logic as keyboard backspace
+}
+
+function onNumpadClear(): void {
+  if (activeInput.value) {
+    activeInput.value.value = '';
+    activeInput.value.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
 // Provide keyboard functions to child components
 provide('showKeyboard', showKeyboard);
 provide('hideKeyboard', hideKeyboard);
@@ -214,7 +282,7 @@ function handleFocusIn(event: FocusEvent): void {
       return;
     }
 
-    // Check if input should have numbers
+    // Check if input should have numbers (for text keyboard)
     const withNumbers =
       inputType === 'number' || inputType === 'tel' || input.dataset.keyboardNums === 'true';
 
@@ -251,12 +319,16 @@ function handleFocusOut(event: FocusEvent): void {
 function handleClickOutside(event: MouseEvent): void {
   const target = event.target as HTMLElement;
 
+  // If clicking on keyboard/numpad, keep focus on active input
+  if (target.closest('.keyboard-container')) {
+    if (activeInput.value) {
+      activeInput.value.focus();
+    }
+    return;
+  }
+
   // If clicking outside keyboard and not on an input, hide keyboard
-  if (
-    !target.closest('.keyboard-container') &&
-    target.tagName !== 'INPUT' &&
-    target.tagName !== 'TEXTAREA'
-  ) {
+  if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
     hideKeyboard();
   }
 }
@@ -458,23 +530,6 @@ watch(currentRoute, () => {
   opacity: 0.7;
 }
 
-.coming-soon {
-  margin-left: auto;
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: var(--bg-surface-2);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sidebar-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 8px 0;
-}
-
 // Content
 .settings-content {
   flex: 1;
@@ -484,7 +539,7 @@ watch(currentRoute, () => {
   transition: padding-bottom 0.3s ease;
 
   &.keyboard-open {
-    padding-bottom: 240px; // Height of keyboard + some extra space
+    padding-bottom: 280px; // Height of keyboard/numpad + extra space
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { app, BrowserWindow, screen, ipcMain } from 'electron';
 import path from 'path';
+import { spawn } from 'child_process'
 import os from 'os';
 import { fileURLToPath } from 'url';
 
@@ -14,6 +15,7 @@ registerPrintHandler();
 
 const platform = process.platform || os.platform();
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
+let backendProcess = null
 
 let mainWindow: BrowserWindow | null = null;
 let clientWindow: BrowserWindow | null = null;
@@ -100,6 +102,37 @@ function createClientWindow(display: Electron.Display | null, isPreview = false)
   }
 
   return win;
+}
+
+
+function startBackend() {
+  const backendPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'backend')
+    : path.join(process.cwd(), 'backend')
+
+  const pythonPath = path.join(
+    backendPath,
+    '.venv',
+    'Scripts',
+    'python.exe'
+  )
+
+  backendProcess = spawn(
+    pythonPath,
+    ['manage.py', 'runserver', '127.0.0.1:8000', '--noreload'],
+    {
+      cwd: backendPath,
+      windowsHide: true
+    }
+  )
+
+  backendProcess.stdout.on('data', (data) => {
+    console.log(`Backend: ${data}`)
+  })
+
+  backendProcess.stderr.on('data', (data) => {
+    console.error(`Backend Error: ${data}`)
+  })
 }
 
 function getSecondaryDisplay(): Electron.Display | null {
@@ -202,6 +235,7 @@ function registerClientDisplayHandlers(): void {
 /* ================= APP LIFECYCLE ================= */
 
 void app.whenReady().then(() => {
+  // startBackend()
   registerClientDisplayHandlers();
   setupWindows();
 
