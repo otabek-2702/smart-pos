@@ -8,6 +8,7 @@ import NetworkDiagnostics from 'src/components/NetworkDiagnostics.vue';
 import { virtualKeyboardEnabled, setVirtualKeyboardEnabled } from 'boot/virtual-keyboard';
 import { read, write } from 'src/utils/storage';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+import { usePinHandoffStore } from 'src/stores/pin-handoff';
 
 // Reactive network state — populated by polling the configured baseURL.
 // Used on the manual login page to show the user whether the server is
@@ -181,6 +182,7 @@ const vk = computed({
  * ============ */
 
 const router = useRouter();
+const pinHandoff = usePinHandoffStore();
 
 const users = ref<User[]>([]);
 const isLoading = ref(false);
@@ -256,13 +258,8 @@ function reloadUsers(): void {
 }
 
 function goToPin(user: User): void {
-  void router.push({
-    name: 'pin',
-    query: {
-      email: user.email,
-      name: `${user.firstName} ${user.lastName}`,
-    },
-  });
+  pinHandoff.set(user.email, `${user.firstName} ${user.lastName}`);
+  void router.push({ name: 'pin' });
 }
 
 /* MANUAL LOGIN — used when no users are cached and /users is unavailable.
@@ -306,10 +303,8 @@ function submitManualLogin(): void {
   const email = manualEmail.value.trim();
   if (!email) return;
 
-  void router.push({
-    name: 'pin',
-    query: { email, name: email.split('@')[0] || 'User' },
-  });
+  pinHandoff.set(email, email.split('@')[0] || 'User');
+  void router.push({ name: 'pin' });
 }
 
 /* Virtual-keyboard handlers for the manual login email input */

@@ -64,6 +64,7 @@ import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { read, write } from 'src/utils/storage';
+import { usePinHandoffStore } from 'src/stores/pin-handoff';
 import type { AxiosError } from 'axios';
 
 /* ============
@@ -100,6 +101,7 @@ const PIN_LENGTH = 4;
 
 const router = useRouter();
 const route = useRoute();
+const pinHandoff = usePinHandoffStore();
 
 /* ============
  * State
@@ -116,12 +118,16 @@ const numberKeys: ReadonlyArray<number> = [1, 2, 3, 4, 5, 6, 7, 8, 9];
  * Computed
  * ============ */
 
+// Handoff comes from the Pinia store (set by the picker). Fall back to route
+// query for any legacy/external navigation that still passes them.
 const userEmail = computed<string | null>(() => {
+  if (pinHandoff.email) return pinHandoff.email;
   const value = route.query.email;
   return typeof value === 'string' ? value : null;
 });
 
 const userName = computed<string>(() => {
+  if (pinHandoff.name) return pinHandoff.name;
   const name = route.query.name;
   return typeof name === 'string' && name.length > 0 ? name : 'User';
 });

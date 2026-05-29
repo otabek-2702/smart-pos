@@ -105,6 +105,12 @@
       </div>
 
       <div class="footer-right">
+        <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
+          <q-icon name="account_balance_wallet" size="22px" />
+
+          Kassa
+        </button>
+
         <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
           <q-icon name="monitor" size="22px" />
 
@@ -195,13 +201,14 @@ const STATUSES: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'UNPAID', label: "To'lanmagan" },
   { value: 'PREPARING', label: 'Jarayonda' },
   { value: '', label: 'Hammasi' },
+  { value: 'CANCELLED', label: 'Bekor qilingan' },
   // { value: 'PAID', label: "To'langan" },
-  // { value: 'CANCELLED', label: 'Bekor qilingan' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
   PREPARING: 'Jarayonda',
   READY: 'Tayyor',
+  CANCELLED: 'Bekor qilingan',
 };
 
 const ORDER_TYPE_LABELS: Record<string, string> = {
