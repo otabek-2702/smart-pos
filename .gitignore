@@ -7,6 +7,10 @@ node_modules
 /dist
 /quasar.config.*.temporary.compiled*
 
+# Playwright / test output
+/test-results
+/playwright-report
+
 # Cordova related directories and files
 /src-cordova/node_modules
 /src-cordova/platforms
