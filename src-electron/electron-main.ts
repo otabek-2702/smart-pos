@@ -7,11 +7,9 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 
 import { registerPrintHandler } from './print-handler';
-import { registerSettingsHandler } from './settings-handler';
-
-// Register handlers
-registerSettingsHandler();
-registerPrintHandler();
+import { registerSettingsHandler, getSettings } from './settings-handler';
+import { registerKvHandlers } from './kv-store';
+import { registerSystemHandler } from './system-handler';
 
 const platform = process.platform || os.platform();
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
@@ -19,6 +17,22 @@ const currentDir = fileURLToPath(new URL('.', import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 let clientWindow: BrowserWindow | null = null;
+
+// Enforce single instance — repeated launcher clicks must focus the
+// existing window instead of spawning a new process. Multiple processes
+// race on the same localStorage (Chromium LevelDB) and silently lose
+// settings like the saved server IP.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 function createMainWindow(display: Electron.Display): BrowserWindow {
   const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER ?? 'src-electron';
@@ -33,6 +47,15 @@ function createMainWindow(display: Electron.Display): BrowserWindow {
     webPreferences: {
       contextIsolation: true,
       preload: path.resolve(currentDir, path.join(preloadFolder, 'electron-preload' + preloadExt)),
+      // Backend ships django-cors-headers per task #12 but the response
+      // headers observed in DevTools (2026-05-11) do not include
+      // Access-Control-Allow-Origin — either the backend isn't running
+      // with DEBUG=True (their conditional only enables CORS_ALLOW_ALL_
+      // ORIGINS in DEBUG) or CORS_ALLOWED_ORIGINS doesn't include
+      // localhost:9300 / file://. Until that's verified working in
+      // their actual run env, keep the bypass on. Trusted kiosk app,
+      // closed-LAN deployment — safe.
+      webSecurity: false,
     },
   });
 
@@ -52,13 +75,16 @@ function createClientWindow(display: Electron.Display | null, isPreview = false)
   // If preview mode (no second display), show as normal window on primary
   const primary = screen.getPrimaryDisplay();
   const targetDisplay = display || primary;
-  
+
   // Window options based on mode
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     icon: path.resolve(currentDir, 'icons/icon.png'),
     webPreferences: {
       contextIsolation: true,
       preload: path.resolve(currentDir, path.join(preloadFolder, 'electron-preload' + preloadExt)),
+      // Mirror the main window's CORS bypass — same reason. See
+      // createMainWindow for the rationale.
+      webSecurity: false,
     },
   };
 
@@ -93,10 +119,15 @@ function createClientWindow(display: Electron.Display | null, isPreview = false)
 
   const win = new BrowserWindow(windowOptions);
 
-  const route = '#/client-display';
-
+  // Build the URL via the URL constructor so the slash before the hash is
+  // guaranteed regardless of whether APP_URL ends with '/' or not. In dev
+  // we observed that `${APP_URL}#/client-display` (no slash before #) made
+  // Vite's HMR-aware page initialize at `/` first, then the SPA didn't
+  // pick up the hash route — both windows ended up on IndexPage.
   if (process.env.DEV) {
-    void win.loadURL(`${process.env.APP_URL}${route}`);
+    const url = new URL(process.env.APP_URL);
+    url.hash = '#/client-display';
+    void win.loadURL(url.href);
   } else {
     void win.loadFile('index.html', { hash: '/client-display' });
   }
@@ -141,7 +172,12 @@ function getSecondaryDisplay(): Electron.Display | null {
   return displays.find((d) => d.id !== primary.id) || null;
 }
 
-function openClientDisplay(forcePreview = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' } {
+function openClientDisplay(forcePreview = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' | 'disabled' } {
+  // Hard block — the user explicitly turned the feature off.
+  if (!getSettings().display.clientDisplayEnabled) {
+    return { success: false, mode: 'disabled' };
+  }
+
   // If window already exists, just focus it
   if (clientWindow && !clientWindow.isDestroyed()) {
     clientWindow.focus();
@@ -205,14 +241,50 @@ function setupWindows(): void {
     });
   }
 
-  // CLIENT DISPLAY (ONLY IF SECOND MONITOR EXISTS AND NO WINDOW YET)
-  if (secondary && !clientWindow) {
+  // CLIENT DISPLAY — only auto-open if:
+  //   1. a second monitor is connected,
+  //   2. no client window already exists,
+  //   3. the user hasn't disabled the feature in display settings.
+  // Setting check is the new gate added for the toggle on IndexPage modal.
+  const clientDisplayEnabled = getSettings().display.clientDisplayEnabled;
+  if (secondary && !clientWindow && clientDisplayEnabled) {
     clientWindow = createClientWindow(secondary, false);
     clientWindow.on('closed', () => {
       clientWindow = null;
     });
   }
 }
+
+// Called by settings-handler whenever display settings are saved. If the
+// toggle flipped to OFF and a client window is open, close it. If it flipped
+// to ON and a second monitor is connected, open it. Both directions take
+// effect immediately without an app restart.
+export function applyClientDisplayEnabled(enabled: boolean): void {
+  if (!enabled) {
+    if (clientWindow && !clientWindow.isDestroyed()) {
+      clientWindow.close();
+      clientWindow = null;
+    }
+    return;
+  }
+  // Enabled: if there's a secondary monitor and no window yet, open it.
+  if (!clientWindow) {
+    const secondary = getSecondaryDisplay();
+    if (secondary) {
+      clientWindow = createClientWindow(secondary, false);
+      clientWindow.on('closed', () => {
+        clientWindow = null;
+      });
+    }
+  }
+}
+
+// Register handlers AFTER applyClientDisplayEnabled is in scope so
+// settings-handler can wire its broadcast hook to it.
+registerSettingsHandler(applyClientDisplayEnabled);
+registerPrintHandler();
+registerKvHandlers();
+registerSystemHandler();
 
 // Register IPC handlers for client display control
 function registerClientDisplayHandlers(): void {

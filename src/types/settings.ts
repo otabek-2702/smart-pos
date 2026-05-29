@@ -31,7 +31,11 @@ export interface DisplaySettings {
   brandColor: string;
   readyColor: string;
   headerTextColor: string;
-} 
+  // When false, the client display window is never auto-opened — even if a
+  // second monitor is connected — and any open one gets closed immediately.
+  // Default true to preserve existing behavior on upgrade.
+  clientDisplayEnabled: boolean;
+}
 
 export interface AppSettings {
   receipt: ReceiptSettings;
@@ -62,7 +66,8 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   titleFontSize: 'large',
   brandColor: '#ff6b00',
   readyColor: '#16a34a',
-  headerTextColor: '#ffffff', // NEW: Default white
+  headerTextColor: '#ffffff',
+  clientDisplayEnabled: true,
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {

@@ -60,9 +60,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
+import { read, write } from 'src/utils/storage';
+import type { AxiosError } from 'axios';
 
 /* ============
  * Types
@@ -189,24 +191,42 @@ async function submitPin(): Promise<void> {
   }
 
   isLoading.value = true;
+  const enteredPin = pin.value;
 
   try {
     const response = await api.post<LoginResponse>('/auth-login', {
       email: userEmail.value,
-      password: +pin.value,
+      password: +enteredPin,
     });
 
     const { token, user } = response.data.data;
 
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
+    // Await both so a redirect + next-page-fetch can't race the writes
+    // (axios's request interceptor would otherwise read an empty token
+    // from the in-memory cache).
+    await write('auth_token', token);
+    await write('auth_user', user);
+
+    await cacheUserForPicker(user);
 
     void router.replace({ name: 'orders' });
+    return;
   } catch (error) {
-    console.error(error);
-    errorMessage.value = 'PIN noto\'g\'ri';
+    const axiosErr = error as AxiosError;
+    const status = axiosErr.response?.status;
+
+    // Local backend answered with an auth/server response → wrong PIN.
+    if (status !== undefined) {
+      errorMessage.value = "PIN noto'g'ri";
+      pin.value = '';
+      focusRef.value?.focus();
+      return;
+    }
+
+    // No response = local backend unreachable. The system requires the
+    // local backend to operate; block login with a clear message.
+    errorMessage.value = "Server bilan aloqa yo'q. Lokal serverni tekshiring.";
     pin.value = '';
-    // Refocus after error
     focusRef.value?.focus();
   } finally {
     isLoading.value = false;
@@ -215,6 +235,36 @@ async function submitPin(): Promise<void> {
 
 function goBack(): void {
   void router.replace({ name: 'users' });
+}
+
+interface CachedUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  email: string;
+}
+
+const CACHED_USERS_KEY = 'pos:cachedUsers';
+
+async function cacheUserForPicker(
+  user: LoginResponse['data']['user'],
+): Promise<void> {
+  try {
+    const list = read<CachedUser[]>(CACHED_USERS_KEY) ?? [];
+    const next: CachedUser = {
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      email: user.email,
+    };
+    const dedup = list.filter((u) => u.email !== next.email);
+    dedup.push(next);
+    await write(CACHED_USERS_KEY, dedup);
+  } catch (e) {
+    console.warn('Failed to cache user for picker:', e);
+  }
 }
 
 /* ============

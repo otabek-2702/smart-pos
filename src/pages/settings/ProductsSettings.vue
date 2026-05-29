@@ -327,7 +327,7 @@ function onPriceInput(event: Event): void {
 // Fetch products
 async function fetchProducts(): Promise<void> {
   try {
-    const response = await api.get<ProductsResponse>('/products', {
+    const response = await api.get<ProductsResponse>('/api/admins/products', {
       params: { per_page: 500 }
     });
     products.value = response.data.data.products;
@@ -340,7 +340,7 @@ async function fetchProducts(): Promise<void> {
 // Fetch categories
 async function fetchCategories(): Promise<void> {
   try {
-    const response = await api.get<CategoriesResponse>('/categories', {
+    const response = await api.get<CategoriesResponse>('/api/admins/categories', {
       params: { per_page: 100 }
     });
     categories.value = response.data.data.categories;
@@ -417,10 +417,10 @@ async function saveProduct(): Promise<void> {
     }
 
     if (isEditing.value && editingProduct.value) {
-      await api.put(`/products/${editingProduct.value.id}/update`, payload);
+      await api.put(`/api/admins/products/${editingProduct.value.id}`, payload);
       toast.success('Mahsulot yangilandi');
     } else {
-      await api.post('/products/create', payload);
+      await api.post('/api/admins/products', payload);
       toast.success('Mahsulot qo\'shildi');
     }
 
@@ -447,7 +447,7 @@ async function deleteProduct(): Promise<void> {
 
   deleting.value = true;
   try {
-    await api.delete(`/products/${editingProduct.value.id}/delete`);
+    await api.delete(`/api/admins/products/${editingProduct.value.id}`);
     toast.success('Mahsulot o\'chirildi');
     showDeleteConfirm.value = false;
     closeDialog();

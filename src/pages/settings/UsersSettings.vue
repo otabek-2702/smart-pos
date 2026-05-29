@@ -6,10 +6,29 @@
         <h2 class="page-title">Foydalanuvchilar</h2>
         <span class="user-count">{{ users.length }} ta</span>
       </div>
-      <button type="button" class="btn-add" @click="openCreateDialog">
+      <button
+        type="button"
+        class="btn-add"
+        :disabled="!apiAvailable"
+        :title="apiAvailable ? '' : 'Backend hali tayyor emas'"
+        @click="openCreateDialog"
+      >
         <q-icon name="add" size="20px" />
         Qo'shish
       </button>
+    </div>
+
+    <!-- Backend-not-ready notice -->
+    <div v-if="!apiAvailable" class="api-banner">
+      <q-icon name="info" size="22px" class="api-banner__icon" />
+      <div class="api-banner__body">
+        <div class="api-banner__title">Foydalanuvchilarni boshqarish hali mavjud emas</div>
+        <div class="api-banner__text">
+          Server <code>/users</code> endpointini hali qo'llab-quvvatlamaydi.
+          Foydalanuvchilarni hozircha Django admin paneli orqali qo'shing
+          (<code>http://&lt;server&gt;:8000/admin/</code>).
+        </div>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -19,7 +38,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="users.length === 0" class="empty-state">
+    <div v-else-if="users.length === 0 && apiAvailable" class="empty-state">
       <q-icon name="people" size="64px" />
       <h3>Foydalanuvchilar yo'q</h3>
       <p>Birinchi foydalanuvchini qo'shing</p>
@@ -266,6 +285,12 @@ const editingUser = ref<User | null>(null);
 const firstNameRef = ref<HTMLInputElement | null>(null);
 const pinDisplayRef = ref<HTMLDivElement | null>(null);
 
+// Backend ships /api/admins/users CRUD now. apiAvailable is kept as a
+// safety net: a deployment where the backend is older than this build
+// would still 404, in which case we degrade gracefully to a read-only
+// banner instead of throwing per-row errors.
+const apiAvailable = ref(true);
+
 // Form
 const form = reactive({
   first_name: '',
@@ -345,13 +370,21 @@ function onPinKeydown(event: KeyboardEvent): void {
 async function fetchUsers(): Promise<void> {
   loading.value = true;
   try {
-    const response = await api.get<UsersResponse>('/users', {
+    const response = await api.get<UsersResponse>('/api/admins/users', {
       params: { per_page: 100 }
     });
     users.value = response.data.data.users;
-  } catch (error) {
-    console.error('Failed to fetch users:', error);
-    toast.error('Foydalanuvchilarni yuklashda xatolik');
+    apiAvailable.value = true;
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      // Endpoint not implemented on backend yet — switch to read-only banner.
+      apiAvailable.value = false;
+    } else {
+      console.error('Failed to fetch users:', error);
+      toast.error('Foydalanuvchilarni yuklashda xatolik');
+    }
+    users.value = [];
   } finally {
     loading.value = false;
   }
@@ -416,10 +449,10 @@ async function saveUser(): Promise<void> {
     }
 
     if (isEditing.value && editingUser.value) {
-      await api.put(`/users/${editingUser.value.id}/update`, payload);
+      await api.patch(`/api/admins/users/${editingUser.value.id}`, payload);
       toast.success('Foydalanuvchi yangilandi');
     } else {
-      await api.post('/users/create', payload);
+      await api.post('/api/admins/users', payload);
       toast.success('Foydalanuvchi qo\'shildi');
     }
 
@@ -446,7 +479,7 @@ async function deleteUser(): Promise<void> {
 
   deleting.value = true;
   try {
-    await api.delete(`/users/${editingUser.value.id}/delete`);
+    await api.delete(`/api/admins/users/${editingUser.value.id}`);
     toast.success('Foydalanuvchi o\'chirildi');
     showDeleteConfirm.value = false;
     closeDialog();
@@ -515,12 +548,60 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
 
-  &:hover {
+  &:hover:not(:disabled) {
     opacity: 0.9;
   }
 
-  &:active {
+  &:active:not(:disabled) {
     transform: scale(0.97);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+/* Backend-unavailable banner */
+.api-banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: rgba(255, 184, 0, 0.08);
+  border: 1px solid rgba(255, 184, 0, 0.35);
+  border-radius: 12px;
+  color: var(--text-primary);
+}
+
+.api-banner__icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.api-banner__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.api-banner__title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.api-banner__text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+
+  code {
+    background: var(--bg-surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-primary);
   }
 }
 

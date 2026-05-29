@@ -14,6 +14,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { read } from 'src/utils/storage';
 
 interface Props {
   showLabel?: boolean;
@@ -35,15 +36,8 @@ interface AuthUser {
 }
 
 const isAdmin = computed<boolean>(() => {
-  try {
-    const authUserStr = localStorage.getItem('auth_user');
-    if (!authUserStr) return false;
-
-    const user = JSON.parse(authUserStr) as AuthUser;
-    return user.role === 'ADMIN';
-  } catch {
-    return false;
-  }
+  const user = read<AuthUser>('auth_user');
+  return user?.role === 'ADMIN';
 });
 
 function goToSettings(): void {

@@ -26,6 +26,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
+import { remove } from 'src/utils/storage';
 
 const router = useRouter();
 const showConfirm = ref<boolean>(false);
@@ -46,8 +47,10 @@ async function confirmLogout(): Promise<void> {
   } catch {
     // backend failure is ignored on purpose
   } finally {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    // Await the deletes so the in-memory cache is empty before the router
+    // navigates to a page that would re-issue requests.
+    await remove('auth_token');
+    await remove('auth_user');
 
     void router.replace({ name: 'users' });
   }

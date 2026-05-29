@@ -232,8 +232,7 @@ watch(settings, () => {
 
 async function loadSettings(): Promise<void> {
   try {
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    const result = await electron.ipcRenderer.invoke('settings:getReceipt') as ReceiptSettings;
+    const result = await window.electron.settings.getReceipt() as ReceiptSettings;
     Object.assign(settings, result);
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -243,8 +242,7 @@ async function loadSettings(): Promise<void> {
 async function saveSettings(): Promise<void> {
   saving.value = true;
   try {
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    const result = await electron.ipcRenderer.invoke('settings:saveReceipt', { ...settings }) as IpcResult;
+    const result = await window.electron.settings.saveReceipt({ ...settings }) as IpcResult;
 
     if (result.success) {
       alert('Sozlamalar saqlandi!');
@@ -374,11 +372,10 @@ async function testPrint(): Promise<void> {
   testPrinting.value = true;
   try {
     // First save current settings
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    await electron.ipcRenderer.invoke('settings:saveReceipt', { ...settings });
+    await window.electron.settings.saveReceipt({ ...settings });
 
     // Then test print
-    const result = await electron.ipcRenderer.invoke('print-test') as IpcResult;
+    const result = await window.electron.printer.test() as IpcResult;
 
     if (result.success) {
       alert('Test chop etildi!');

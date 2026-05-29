@@ -215,8 +215,7 @@ onMounted(async () => {
 
 async function loadSettings(): Promise<void> {
   try {
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    const result = await electron.ipcRenderer.invoke('settings:getPrinter') as PrinterSettings;
+    const result = await window.electron.settings.getPrinter() as PrinterSettings;
     Object.assign(settings, result);
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -228,8 +227,7 @@ async function saveSettings(): Promise<void> {
 
   saving.value = true;
   try {
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    const result = await electron.ipcRenderer.invoke('settings:savePrinter', { ...settings }) as IpcResult;
+    const result = await window.electron.settings.savePrinter({ ...settings }) as IpcResult;
 
     if (result.success) {
       alert('Sozlamalar saqlandi!');
@@ -250,11 +248,10 @@ async function testConnection(): Promise<void> {
 
   try {
     // First save current settings
-    const electron = (window as unknown as { electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } } }).electron;
-    await electron.ipcRenderer.invoke('settings:savePrinter', { ...settings });
+    await window.electron.settings.savePrinter({ ...settings });
 
     // Try to print test
-    const result = await electron.ipcRenderer.invoke('print-test') as IpcResult;
+    const result = await window.electron.printer.test() as IpcResult;
 
     if (result.success) {
       connectionStatus.value = 'success';

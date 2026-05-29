@@ -57,7 +57,8 @@
       <Transition name="keyboard-slide">
         <div v-if="keyboardVisible && virtualKeyboardEnabled && !numpadVisible" class="keyboard-container">
           <VirtualKeyboard
-            :nums_on="keyboardWithNumbers"
+            position="inline"
+            :numbers="keyboardWithNumbers"
             @input="onKeyboardInput"
             @backspace="onKeyboardBackspace"
           />

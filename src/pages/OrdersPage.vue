@@ -92,10 +92,16 @@
     <!-- Footer -->
     <footer class="page-footer">
       <div class="footer-left">
-        <!-- <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
-          Kassa
-        </button> -->
         <AdminSettingsButton show-label />
+      </div>
+
+      <!-- Center: clock + internet icon. Empty space here was wasted before;
+           a live clock is the kind of glance-info cashiers want during a
+           shift, and the internet icon sits next to it without stealing
+           focus (only renders when offline). -->
+      <div class="footer-center">
+        <AppClock size="md" />
+        <InternetStatusIcon :network="network" />
       </div>
 
       <div class="footer-right">
@@ -112,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.vue';
@@ -121,6 +127,11 @@ import OrderInfoDialog from 'src/components/OrderInfoDialog.vue';
 import { formatPhoneNumber } from 'src/utils';
 import LogOutButton from 'src/components/LogOutButton.vue';
 import AdminSettingsButton from 'src/components/AdminSettingsButton.vue';
+import AppClock from 'src/components/AppClock.vue';
+import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
+import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+
+const network = useNetworkStatus();
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -267,8 +278,8 @@ function mapOrderItems(items: ApiOrderItem[]): ReceiptItem[] {
   }));
 }
 
-async function fetchOrders(): Promise<void> {
-  loading.value = true;
+async function fetchOrders(showSpinner = true): Promise<void> {
+  if (showSpinner) loading.value = true;
 
   let params;
   if (status.value === 'UNPAID') {
@@ -286,9 +297,9 @@ async function fetchOrders(): Promise<void> {
     orders.value = ordersData.map(mapOrder);
   } catch (error) {
     console.error('Failed to fetch orders:', error);
-    orders.value = [];
+    if (showSpinner) orders.value = [];
   } finally {
-    loading.value = false;
+    if (showSpinner) loading.value = false;
   }
 }
 
@@ -326,8 +337,44 @@ function resetSelection(): void {
   selectedOrderItems.value = [];
 }
 
+/* ============
+ * Polling
+ * ============
+ * Cashiers stare at this page constantly and need new orders / status
+ * changes to show up without manual refresh. We poll every 3 seconds.
+ * Suspended while a dialog is open so the list doesn't reshuffle under
+ * the cashier's finger mid-payment. Background polls don't show a
+ * spinner or clear the list on transient failure. */
+
+const POLL_INTERVAL_MS = 3000;
+let pollHandle: ReturnType<typeof setInterval> | null = null;
+
+const dialogOpen = computed<boolean>(
+  () => showPaymentDialog.value || showInfoDialog.value,
+);
+
+function startPolling(): void {
+  if (pollHandle) return;
+  pollHandle = setInterval(() => {
+    if (dialogOpen.value) return;
+    void fetchOrders(false);
+  }, POLL_INTERVAL_MS);
+}
+
+function stopPolling(): void {
+  if (pollHandle) {
+    clearInterval(pollHandle);
+    pollHandle = null;
+  }
+}
+
 onMounted(() => {
   void fetchOrders();
+  startPolling();
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 
@@ -361,6 +408,22 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* Offline-mode badge — sits next to the page title */
+.offline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: help;
 }
 
 .create-button {
@@ -513,7 +576,7 @@ onMounted(() => {
 
 /* Footer */
 .page-footer {
-  // position: absolute;
+  position: relative; /* anchor for .footer-center */
   bottom: 0;
   left: 0;
   width: 100%;
@@ -533,7 +596,21 @@ onMounted(() => {
   position: relative; /* above watermark */
   z-index: 1;
   display: flex;
+  align-items: center;
   gap: 15px;
+}
+
+/* Absolutely centered so left/right widths don't push the clock off-axis.
+   Both left and right sides can grow without shifting the time. */
+.footer-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1;
 }
 
 .btn {

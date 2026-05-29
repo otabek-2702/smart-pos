@@ -28,6 +28,7 @@ export interface DisplaySettings {
   brandColor: string;
   readyColor: string;
   headerTextColor: string;
+  clientDisplayEnabled: boolean;
 }
 
 export interface AppSettings {
@@ -60,6 +61,7 @@ const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   brandColor: '#ff6b00',
   readyColor: '#16a34a',
   headerTextColor: '#ffffff',
+  clientDisplayEnabled: true,
 };
 
 const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -130,7 +132,12 @@ function broadcastDisplaySettings(displaySettings: DisplaySettings): void {
   }
 }
 
-export function registerSettingsHandler(): void {
+export function registerSettingsHandler(
+  // Optional callback fired whenever display.clientDisplayEnabled changes.
+  // electron-main passes a function that closes/opens the client window in
+  // response. Optional so this module remains usable in isolation.
+  onClientDisplayEnabledChange?: (enabled: boolean) => void,
+): void {
   // Get all settings
   ipcMain.handle('settings:get', (): AppSettings => {
     return getSettings();
@@ -218,6 +225,7 @@ export function registerSettingsHandler(): void {
     (_event, displaySettings: DisplaySettings): { success: boolean; error?: string } => {
       try {
         const current = getSettings();
+        const previousEnabled = current.display.clientDisplayEnabled;
         const updated: AppSettings = {
           ...current,
           display: displaySettings,
@@ -227,6 +235,14 @@ export function registerSettingsHandler(): void {
           cachedSettings = updated;
           // Broadcast to all windows for live update
           broadcastDisplaySettings(displaySettings);
+          // React to the auto-open toggle changing — close window if turned
+          // off, open window (if a 2nd monitor is connected) if turned on.
+          if (
+            previousEnabled !== displaySettings.clientDisplayEnabled &&
+            onClientDisplayEnabledChange
+          ) {
+            onClientDisplayEnabledChange(displaySettings.clientDisplayEnabled);
+          }
         }
         return { success };
       } catch (error) {

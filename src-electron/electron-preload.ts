@@ -30,13 +30,63 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Channel-specific, typed IPC surface. The renderer can ONLY reach the
+// channels enumerated below — there is no generic `ipcRenderer.invoke(anyString)`
+// passthrough, so a compromised renderer can't reach arbitrary main-process
+// handlers. Grouped by domain (kv / system / settings / clientDisplay / printer).
+const invoke = <T = unknown>(channel: string, ...args: unknown[]): Promise<T> =>
+  ipcRenderer.invoke(channel, ...args) as Promise<T>;
+
 contextBridge.exposeInMainWorld('electron', {
-  ipcRenderer: {
-    invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
-    send: (channel: string, ...args: unknown[]) => ipcRenderer.send(channel, ...args),
-    on: (channel: string, func: (...args: unknown[]) => void) => {
-      ipcRenderer.on(channel, (_event, ...args) => func(...args));
+  // Persistent key-value store backed by electron-store in the main process
+  // (atomic writes, single source of truth across windows). Used to replace
+  // localStorage for IP, auth token, cached users, etc.
+  kv: {
+    get: <T>(key: string): Promise<T | null> => invoke<T | null>('kv:get', key),
+    set: <T>(key: string, value: T): Promise<boolean> => invoke<boolean>('kv:set', key, value),
+    delete: (key: string): Promise<boolean> => invoke<boolean>('kv:delete', key),
+    clear: (): Promise<boolean> => invoke<boolean>('kv:clear'),
+    getAll: (): Promise<Record<string, unknown>> =>
+      invoke<Record<string, unknown>>('kv:getAll'),
+  },
+
+  // OS deep-links (WiFi/network/printer panels) + LAN discovery used to find
+  // the kitchen "main computer" running the backend.
+  system: {
+    openWifi: () => invoke('system:openWifi'),
+    openNetwork: () => invoke('system:openNetwork'),
+    openPrinters: () => invoke('system:openPrinters'),
+    getLocalIps: () => invoke('system:getLocalIps'),
+    probeTcp: (host: string, port: number, timeoutMs: number) =>
+      invoke('system:probeTcp', host, port, timeoutMs),
+    scanForServers: (subnet: string, port: number) =>
+      invoke('system:scanForServers', subnet, port),
+    cancelScan: () => invoke('system:cancelScan'),
+  },
+
+  // Persisted display / receipt / printer settings (main-process JSON files).
+  settings: {
+    getDisplay: () => invoke('settings:getDisplay'),
+    saveDisplay: (settings: unknown) => invoke('settings:saveDisplay', settings),
+    getReceipt: () => invoke('settings:getReceipt'),
+    saveReceipt: (settings: unknown) => invoke('settings:saveReceipt', settings),
+    getPrinter: () => invoke('settings:getPrinter'),
+    savePrinter: (settings: unknown) => invoke('settings:savePrinter', settings),
+  },
+
+  // Second-monitor customer display window.
+  clientDisplay: {
+    status: () => invoke('client-display:status'),
+    open: () => invoke('client-display:open'),
+    onSettingsUpdated: (callback: (settings: unknown) => void) => {
+      ipcRenderer.on('display-settings-updated', (_event, settings) => callback(settings));
     },
+  },
+
+  // Receipt printer.
+  printer: {
+    test: () => invoke('print-test'),
+    printReceipt: (data: unknown) => invoke('print-receipt', data),
   },
 });
 

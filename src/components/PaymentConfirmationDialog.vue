@@ -157,11 +157,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
+import { suppressInternetWarningWhile } from 'src/composables/useInternetWarningSuppress';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -215,6 +216,13 @@ const isOpen = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 });
+
+// Don't pop the internet warning while the cashier is on the payment
+// screen — they're handling money and shouldn't have a modal land on top
+// of theirs. The suppress composable defers (doesn't drop) the warning;
+// the moment this dialog closes, if internet is still down the warning
+// pops normally.
+suppressInternetWarningWhile(toRef(props, 'modelValue'));
 
 // Reset calculator when dialog opens
 watch(isOpen, (newValue) => {

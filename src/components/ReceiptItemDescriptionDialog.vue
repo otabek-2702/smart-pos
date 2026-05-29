@@ -7,7 +7,7 @@
       <textarea v-model="localDescription" placeholder="Tavsif" class="description-box"></textarea>
 
       <!-- VIRTUAL KEYBOARD -->
-      <VirtualKeyboard class="keyboard" nums_on @input="onInput" @backspace="onBackspace" />
+      <VirtualKeyboard class="keyboard" position="inline" numbers @input="onInput" @backspace="onBackspace" />
 
       <!-- ACTIONS -->
       <!-- <div class="actions">

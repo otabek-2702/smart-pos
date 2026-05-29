@@ -260,7 +260,7 @@ const presetColors = [
 async function fetchCategories(): Promise<void> {
   loading.value = true;
   try {
-    const response = await api.get<CategoriesResponse>('/categories', {
+    const response = await api.get<CategoriesResponse>('/api/admins/categories', {
       params: { per_page: 100 },
     });
     categories.value = response.data.data.categories.sort((a, b) => a.sort_order - b.sort_order);
@@ -321,13 +321,13 @@ async function saveCategory(): Promise<void> {
     };
 
     if (isEditing.value && editingCategory.value) {
-      // Update
-      await api.put(`/categories/${editingCategory.value.id}/update`, payload);
+      // Update — backend expects PUT/PATCH on resource (no /update suffix)
+      await api.put(`/api/admins/categories/${editingCategory.value.id}`, payload);
       toast.success('Kategoriya yangilandi');
     } else {
-      // Create
+      // Create — backend expects POST on collection (no /create suffix)
       const maxOrder = categories.value.reduce((max, c) => Math.max(max, c.sort_order), -1);
-      await api.post('/categories/create', {
+      await api.post('/api/admins/categories', {
         ...payload,
         sort_order: maxOrder + 1,
       });
@@ -355,7 +355,7 @@ async function deleteCategory(): Promise<void> {
 
   deleting.value = true;
   try {
-    await api.delete(`/categories/${editingCategory.value.id}/delete`);
+    await api.delete(`/api/admins/categories/${editingCategory.value.id}`);
     toast.success("Kategoriya o'chirildi");
     showDeleteConfirm.value = false;
     closeDialog();
@@ -380,24 +380,21 @@ async function onDragEnd(): Promise<void> {
     isDragging.value = false;
   }, 100);
 
-  // Update sort_order for all categories based on new positions
-  const updates = categories.value.map((category, index) => ({
-    id: category.id,
-    sort_order: index,
-  }));
-
   // Update locally first for instant feedback
   categories.value.forEach((cat, index) => {
     cat.sort_order = index;
   });
 
-  // Send updates to API
+  // Backend's reorder endpoint expects { orders: [{id, sort_order}, ...] }
+  // (see alpha_pos/admins/services/category_service.py:268). One round-trip
+  // instead of N PUTs.
   try {
-    for (const update of updates) {
-      await api.put(`/categories/${update.id}/update`, {
-        sort_order: update.sort_order,
-      });
-    }
+    await api.post('/api/admins/categories/reorder', {
+      orders: categories.value.map((c, index) => ({
+        id: c.id,
+        sort_order: index,
+      })),
+    });
     toast.success('Tartib saqlandi');
   } catch (error) {
     console.error('Failed to update sort order:', error);

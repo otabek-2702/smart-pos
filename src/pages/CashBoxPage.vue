@@ -21,6 +21,18 @@
       </div>
     </div>
 
+    <!-- Backend-not-ready notice -->
+    <div v-if="!apiAvailable" class="api-banner">
+      <q-icon name="info" size="22px" class="api-banner__icon" />
+      <div class="api-banner__body">
+        <div class="api-banner__title">Inkassa moduli hali mavjud emas</div>
+        <div class="api-banner__text">
+          Server <code>/inkassa/*</code> endpointlarini hali qo'llab-quvvatlamaydi.
+          Ushbu sahifa backend tayyor bo'lganda ishlaydi.
+        </div>
+      </div>
+    </div>
+
     <div class="kassa-layout">
       <!-- LEFT SIDE: Balance & Stats -->
       <div class="left-section">
@@ -286,11 +298,12 @@
 
           <!-- Action Buttons -->
           <div class="inkassa-actions">
-            <button type="button" class="btn secondary" @click="resetPayments">Tozalash</button>
+            <button type="button" class="btn secondary" :disabled="!apiAvailable" @click="resetPayments">Tozalash</button>
             <button
               type="button"
               class="btn primary"
-              :disabled="performingInkassa || totalInkassa === 0"
+              :disabled="!apiAvailable || performingInkassa || totalInkassa === 0"
+              :title="apiAvailable ? '' : 'Backend hali tayyor emas'"
               @click="performInkassa"
             >
               <span v-if="performingInkassa">Yuklanmoqda...</span>
@@ -551,6 +564,12 @@ const balance = ref<number>(0);
 const balanceUpdated = ref<string>('');
 const stats = ref<Stats | null>(null);
 
+// Backend ships /api/admins/inkassa/* now. apiAvailable is kept as a
+// safety net for older backend deployments — if /balance 404s, the page
+// degrades to a read-only banner instead of error-toasting on every
+// interaction.
+const apiAvailable = ref(true);
+
 const activeField = ref<PaymentField>('cash');
 const paymentInputs = ref<Record<PaymentField, string>>({
   cash: '',
@@ -651,17 +670,24 @@ function resetPayments(): void {
 // API calls
 async function loadBalance(): Promise<void> {
   try {
-    const response = await api.get('/inkassa/balance');
+    const response = await api.get('/api/admins/inkassa/balance');
     balance.value = parseFloat(response.data.data.balance) || 0;
     balanceUpdated.value = response.data.data.last_updated;
-  } catch (error) {
-    console.error('Failed to load balance:', error);
+    apiAvailable.value = true;
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      apiAvailable.value = false;
+    } else {
+      console.error('Failed to load balance:', error);
+    }
   }
 }
 
 async function loadStats(): Promise<void> {
+  if (!apiAvailable.value) return;
   try {
-    const response = await api.get('/inkassa/stats');
+    const response = await api.get('/api/admins/inkassa/stats');
     stats.value = response.data.data;
   } catch (error) {
     console.error('Failed to load stats:', error);
@@ -671,7 +697,7 @@ async function loadStats(): Promise<void> {
 async function loadHistory(page = 1): Promise<void> {
   historyLoading.value = true;
   try {
-    const response = await api.get('/inkassa/history', { params: { page } });
+    const response = await api.get('/api/admins/inkassa/history', { params: { page } });
     history.value = response.data.data.inkassas;
     historyPagination.value = response.data.data.pagination;
   } catch (error) {
@@ -683,7 +709,7 @@ async function loadHistory(page = 1): Promise<void> {
 
 async function showInkassaDetail(id: number): Promise<void> {
   try {
-    const response = await api.get(`/inkassa/${id}`);
+    const response = await api.get(`/api/admins/inkassa/${id}`);
     selectedInkassa.value = response.data.data;
     showDetail.value = true;
   } catch (error) {
@@ -711,7 +737,7 @@ async function performInkassa(): Promise<void> {
       payload.payme = paymentAmounts.value.payme;
     }
 
-    const response = await api.post('/inkassa/perform', payload);
+    const response = await api.post('/api/admins/inkassa/perform', payload);
     lastInkassaResult.value = response.data.data;
 
     // Reset and refresh
@@ -728,7 +754,10 @@ async function performInkassa(): Promise<void> {
 }
 
 async function refreshData(): Promise<void> {
-  await Promise.all([loadBalance(), loadStats()]);
+  // loadBalance() must run first because it sets apiAvailable, which
+  // loadStats() checks before making its own request.
+  await loadBalance();
+  await loadStats();
 }
 
 // Watch history dialog
@@ -759,6 +788,49 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+/* Backend-unavailable banner */
+.api-banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: rgba(255, 184, 0, 0.08);
+  border: 1px solid rgba(255, 184, 0, 0.35);
+  border-radius: 12px;
+  color: var(--text-primary);
+}
+
+.api-banner__icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.api-banner__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.api-banner__title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.api-banner__text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+
+  code {
+    background: var(--bg-surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
 }
 
 .header-actions {

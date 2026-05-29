@@ -14,9 +14,10 @@
 
           <VirtualKeyboard
             class="keyboard-text"
+            position="inline"
+            numbers
             @input="onTextInput"
             @backspace="onTextBackspace"
-            nums_on
           />
         </div>
 

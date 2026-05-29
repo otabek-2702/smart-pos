@@ -253,16 +253,10 @@ function hexToRgb(hex: string): string {
 async function loadSettings(): Promise<void> {
   try {
     // Check if running in Electron
-    const electron = (
-      window as unknown as {
-        electron?: {
-          ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> };
-        };
-      }
-    ).electron;
+    const electron = window.electron;
 
     if (electron) {
-      const result = (await electron.ipcRenderer.invoke('settings:getDisplay')) as DisplaySettings;
+      const result = (await electron.settings.getDisplay()) as DisplaySettings;
       Object.assign(displaySettings, result);
       console.log('Display settings loaded:', result);
     }
@@ -273,18 +267,10 @@ async function loadSettings(): Promise<void> {
 
 function setupSettingsListener(): void {
   try {
-    const electron = (
-      window as unknown as {
-        electron?: {
-          ipcRenderer: {
-            on: (channel: string, callback: (...args: unknown[]) => void) => void;
-          };
-        };
-      }
-    ).electron;
+    const electron = window.electron;
 
     if (electron) {
-      electron.ipcRenderer.on('display-settings-updated', (newSettings: unknown) => {
+      electron.clientDisplay.onSettingsUpdated((newSettings: unknown) => {
         console.log('Display settings updated:', newSettings);
         Object.assign(displaySettings, newSettings as DisplaySettings);
       });
@@ -386,7 +372,7 @@ async function addToNotificationQueue(displayIds: number[]): Promise<void> {
 
 async function fetchData(): Promise<void> {
   try {
-    const res = await api.get('/display/client');
+    const res = await api.get('/orders/client-display');
     const data = res.data.data;
 
     processing.value = data.processing || [];

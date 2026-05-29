@@ -215,6 +215,14 @@ import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.
 import { formatPrice } from 'src/utils/formatPrice';
 import ReceiptItemDescriptionDialog from 'src/components/ReceiptItemDescriptionDialog.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
+import { read } from 'src/utils/storage';
+import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
+
+// While the cashier is mid-order, an internet-down modal would steal
+// focus and risk losing the receipt being built. Suppress for the whole
+// page lifetime — the dialog defers (doesn't drop) the notification, so
+// it pops the moment the cashier navigates back to OrdersPage.
+suppressInternetWarningOnPage();
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -390,10 +398,7 @@ function selectCategory(categoryId: number | null): void {
 
 // Add this function to your script setup
 async function printReceipt(displayId: number): Promise<void> {
-  const authUserStr = localStorage.getItem('auth_user');
-  const authUser = authUserStr
-    ? (JSON.parse(authUserStr) as { first_name: string; last_name: string })
-    : null;
+  const authUser = read<{ first_name: string; last_name: string }>('auth_user');
   const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
 
   // const logoUrl = new URL('../assets/logo-black.jpg', import.meta.url).href;
@@ -427,14 +432,7 @@ async function printReceipt(displayId: number): Promise<void> {
   };
 
   try {
-    type PrintResult = { success: boolean; error?: string };
-    const result = await (
-      window as unknown as {
-        electron: {
-          ipcRenderer: { invoke: (channel: string, data: unknown) => Promise<PrintResult> };
-        };
-      }
-    ).electron.ipcRenderer.invoke('print-receipt', printData);
+    const result = await window.electron.printer.printReceipt(printData);
 
     if (!result.success) {
       console.error('Print failed:', result.error);

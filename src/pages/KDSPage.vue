@@ -41,6 +41,14 @@
         </button>
       </div>
 
+      <!-- Center: live clock + internet badge (kitchen staff appreciate
+           the time-of-day reference while plating). Internet badge auto-
+           hides when up. -->
+      <div class="footer-center">
+        <AppClock size="md" />
+        <InternetStatusIcon :network="network" />
+      </div>
+
       <div class="footer-right">
         <button type="button" class="btn secondary" @click="router.push({ name: 'orders' })">
           Buyurtmalar
@@ -58,6 +66,11 @@ import { api } from 'src/boot/axios';
 import { useRouter } from 'vue-router';
 import OrderCard from 'src/components/OrderCard.vue';
 import LogOutButton from 'src/components/LogOutButton.vue';
+import AppClock from 'src/components/AppClock.vue';
+import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
+import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+
+const network = useNetworkStatus();
 
 /* ================= TYPES ================= */
 
@@ -191,10 +204,14 @@ function handleStatusChanged(): void {
 
 /* ================= POLLING ================= */
 
+// 3s to match the cashier OrdersPage cadence and the product spec — the
+// kitchen needs new tickets to appear about as fast as the cashier sees them.
+const POLL_INTERVAL_MS = 3000;
+
 function startPolling(): void {
   pollingInterval = window.setInterval(() => {
     void fetchOrders();
-  }, 5000);
+  }, POLL_INTERVAL_MS);
 }
 
 function stopPolling(): void {
@@ -338,6 +355,7 @@ onUnmounted(() => {
 
 /* FOOTER */
 .page-footer {
+  position: relative; /* anchor for .footer-center */
   padding: 12px 16px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -351,7 +369,21 @@ onUnmounted(() => {
 
 .footer-right {
   display: flex;
+  align-items: center;
   gap: 12px;
+}
+
+/* Absolutely centered so the tabs (left) and buttons (right) can grow
+   without nudging the clock off-axis. */
+.footer-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1;
 }
 
 .btn {

@@ -6,6 +6,32 @@
         Mijozlar displeyi ko'rinishini sozlang
       </p>
 
+      <!-- Auto-open Toggle Section -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="desktop_windows" size="20px" />
+          Mijozlar displeyi
+        </h3>
+
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-title">Avtomatik ochish</div>
+            <div class="toggle-hint">
+              {{
+                settings.clientDisplayEnabled
+                  ? "Yoqilgan: ikkinchi monitor ulansa, displey avtomatik ochiladi"
+                  : "O'chirilgan: ochiq displey yopiladi va avtomatik ochilmaydi"
+              }}
+            </div>
+          </div>
+          <q-toggle
+            v-model="settings.clientDisplayEnabled"
+            color="green"
+            size="lg"
+          />
+        </div>
+      </div>
+
       <!-- Company Name Section -->
       <div class="form-section">
         <h3 class="form-section-title">
@@ -254,7 +280,8 @@
           type="button"
           class="btn-open-display"
           @click="openClientDisplay"
-          :disabled="displayLoading"
+          :disabled="displayLoading || !settings.clientDisplayEnabled"
+          :title="openButtonTitle"
         >
           <q-icon :name="displayStatus.isOpen ? 'visibility' : 'open_in_new'" size="18px" />
           <span v-if="displayLoading">Yuklanmoqda...</span>
@@ -402,9 +429,7 @@ interface PresetColor {
 
 // Electron IPC helper
 function getElectron() {
-  return (window as unknown as {
-    electron: { ipcRenderer: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } }
-  }).electron;
+  return window.electron;
 }
 
 // State
@@ -482,6 +507,11 @@ const computedColors = computed(() => {
   return generateDisplayColors(settings.brandColor, settings.readyColor);
 });
 
+// Tooltip on the "open display" button when the auto-open toggle is OFF.
+const openButtonTitle = computed(() =>
+  settings.clientDisplayEnabled ? '' : "Avval 'Avtomatik ochish' ni yoqing",
+);
+
 
 
 // Load settings on mount
@@ -492,7 +522,7 @@ onMounted(async () => {
 
 async function loadSettings(): Promise<void> {
   try {
-    const result = await getElectron().ipcRenderer.invoke('settings:getDisplay') as DisplaySettings;
+    const result = await getElectron().settings.getDisplay() as DisplaySettings;
     Object.assign(settings, result);
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -502,7 +532,7 @@ async function loadSettings(): Promise<void> {
 async function saveSettings(): Promise<void> {
   saving.value = true;
   try {
-    const result = await getElectron().ipcRenderer.invoke('settings:saveDisplay', { ...settings }) as IpcResult;
+    const result = await getElectron().settings.saveDisplay({ ...settings }) as IpcResult;
 
     if (result.success) {
       alert('Sozlamalar saqlandi! Displey avtomatik yangilandi.');
@@ -526,7 +556,7 @@ function resetToDefaults(): void {
 // Client display control
 async function checkDisplayStatus(): Promise<void> {
   try {
-    const result = await getElectron().ipcRenderer.invoke('client-display:status') as DisplayStatusResult;
+    const result = await getElectron().clientDisplay.status() as DisplayStatusResult;
     Object.assign(displayStatus, result);
   } catch (error) {
     console.error('Failed to check display status:', error);
@@ -536,7 +566,7 @@ async function checkDisplayStatus(): Promise<void> {
 async function openClientDisplay(): Promise<void> {
   displayLoading.value = true;
   try {
-    await getElectron().ipcRenderer.invoke('client-display:open');
+    await getElectron().clientDisplay.open();
     await checkDisplayStatus();
   } catch (error) {
     console.error('Failed to open client display:', error);
@@ -628,6 +658,36 @@ async function openClientDisplay(): Promise<void> {
   &::placeholder {
     color: var(--text-muted);
   }
+}
+
+// Toggle row (auto-open client display)
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--bg-surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.toggle-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.toggle-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 // Size options
