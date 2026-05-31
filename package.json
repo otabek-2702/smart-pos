@@ -12,6 +12,7 @@
     "type-check": "vue-tsc --noEmit",
     "build:electron": "quasar build -m electron --skip-pkg",
     "test": "echo \"No test specified\" && exit 0",
+    "test:unit": "vitest run",
     "dev": "quasar dev",
     "build": "quasar build",
     "postinstall": "quasar prepare"
@@ -45,6 +46,7 @@
     "prettier": "^3.3.3",
     "typescript": "^5.9.2",
     "vite-plugin-checker": "^0.11.0",
+    "vitest": "^4.1.7",
     "vue-eslint-parser": "^10.2.0",
     "vue-tsc": "^3.0.7"
   },

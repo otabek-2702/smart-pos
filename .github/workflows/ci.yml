@@ -30,6 +30,17 @@ jobs:
       - run: npm ci
       - run: npm run type-check
 
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:unit
+
   build:
     # Electron build smoke: verifies the renderer + Electron main/preload
     # compile and bundle (catches the breakage a boot test would, without the

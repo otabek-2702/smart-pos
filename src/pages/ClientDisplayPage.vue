@@ -11,7 +11,15 @@
       >
         <div class="fullscreen-content">
           <div class="fullscreen-label">BUYURTMA TAYYOR!</div>
-          <div class="fullscreen-number">{{ formatId(currentFullscreenOrder) }}</div>
+          <div class="fullscreen-number">{{ formatId(currentFullscreenOrder?.display_id ?? 0) }}</div>
+          <!-- Total appears only when the backend includes it in the
+               /orders/client-display payload; the animation gives it a
+               beat of attention so the customer registers the amount.
+               No total -> the notification looks exactly like before. -->
+          <div v-if="fullscreenTotal" class="fullscreen-total">
+            <span class="fullscreen-total-label">Jami</span>
+            <span class="fullscreen-total-amount">{{ fullscreenTotal }} so'm</span>
+          </div>
           <div class="fullscreen-hint">Iltimos, buyurtmangizni oling</div>
         </div>
         <div class="fullscreen-bg-pulse"></div>
@@ -130,11 +138,18 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'boot/axios';
 import { useOrderStream } from 'src/composables/useOrderStream';
+import { formatPrice } from 'src/utils/formatPrice';
 
 // Types
 interface DisplayOrder {
   id: number;
   display_id: number;
+  // Optional — backend may extend /orders/client-display with the order
+  // total so the customer notification can show "Jami: 84 000 so'm".
+  // When absent, the notification just shows the order number (today's
+  // behavior). Backend uses string-encoded decimals (matches the rest of
+  // the order shape).
+  total_amount?: string;
 }
 
 interface DisplaySettings {
@@ -171,10 +186,11 @@ const previousFinishedIds = new Set<number>();
 const newlyFinishedIds = ref<Set<number>>(new Set());
 let firstLoad = true;
 
-// Fullscreen notification
+// Fullscreen notification — holds the full order so the polished total
+// animation (when backend ships total_amount) renders alongside the number.
 const showFullscreenNotification = ref(false);
-const currentFullscreenOrder = ref<number>(0);
-const notificationQueue = ref<number[]>([]);
+const currentFullscreenOrder = ref<DisplayOrder | null>(null);
+const notificationQueue = ref<DisplayOrder[]>([]);
 let isProcessingQueue = false;
 
 /* ================= COMPUTED COLORS ================= */
@@ -203,6 +219,16 @@ const displayStyles = computed(() => ({
 }));
 
 const fontSizeValue = computed(() => FONT_SIZE_MAP[displaySettings.titleFontSize]);
+
+// Pre-formatted total for the notification (only when the backend payload
+// includes total_amount). Empty string = render nothing — no invented data.
+const fullscreenTotal = computed<string>(() => {
+  const raw = currentFullscreenOrder.value?.total_amount;
+  if (!raw) return '';
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  return formatPrice(num);
+});
 
 /* ================= COLOR HELPERS ================= */
 
@@ -346,8 +372,8 @@ async function processNotificationQueue(): Promise<void> {
   isProcessingQueue = true;
 
   while (notificationQueue.value.length > 0) {
-    const displayId = notificationQueue.value.shift()!;
-    currentFullscreenOrder.value = displayId;
+    const order = notificationQueue.value.shift()!;
+    currentFullscreenOrder.value = order;
     showFullscreenNotification.value = true;
 
     playReadySound();
@@ -364,8 +390,8 @@ async function processNotificationQueue(): Promise<void> {
   isProcessingQueue = false;
 }
 
-async function addToNotificationQueue(displayIds: number[]): Promise<void> {
-  notificationQueue.value.push(...displayIds);
+async function addToNotificationQueue(orders: DisplayOrder[]): Promise<void> {
+  notificationQueue.value.push(...orders);
   await processNotificationQueue();
 }
 
@@ -401,7 +427,7 @@ function detectNewFinished(list: DisplayOrder[]): void {
     const newIds = new Set(newOnes.map((o) => o.id));
     newlyFinishedIds.value = newIds;
 
-    void addToNotificationQueue(newOnes.map((o) => o.display_id));
+    void addToNotificationQueue(newOnes);
 
     setTimeout(() => {
       newlyFinishedIds.value = new Set();
@@ -756,6 +782,51 @@ h2 {
   }
   50% {
     transform: scale(1.02);
+  }
+}
+
+/* Total amount, shown beneath the big order number when the backend
+   includes total_amount in /orders/client-display. Slides in with a
+   small delay so the eye lands on the order number first, then the
+   total; the soft pill background keeps it visually subordinate. */
+.fullscreen-total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 36px;
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+  animation: totalAppear 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+}
+
+.fullscreen-total-label {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 4px;
+  color: rgba(255, 255, 255, 0.78);
+  text-transform: uppercase;
+}
+
+.fullscreen-total-amount {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes totalAppear {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
