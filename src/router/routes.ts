@@ -42,13 +42,19 @@ const routes: RouteRecordRaw[] = [
         path: '/cash-box',
         name: 'cash-box',
         component: () => import('pages/CashBoxPage.vue'),
+        meta: { permissions: ['inkassa.manage'] },
       },
 
-      // Settings routes (Admin only)
+      // Settings routes — per-permission access. Admins (role=ADMIN or
+      // '*' permission) pass everything; non-admin power users get
+      // access to the specific child whose permission they hold. The
+      // parent gates the tree itself on `settings.view`; the sidebar
+      // also hides child entries the user can't reach so they don't
+      // bounce off the guard.
       {
         path: '/settings',
         component: () => import('pages/settings/SettingsLayout.vue'),
-        meta: { requiresAdmin: true },
+        meta: { permissions: ['settings.view'] },
         children: [
           {
             path: '',
@@ -58,31 +64,45 @@ const routes: RouteRecordRaw[] = [
             path: 'receipt',
             name: 'settings-receipt',
             component: () => import('pages/settings/ReceiptSettings.vue'),
+            meta: { permissions: ['receipt.manage'] },
           },
           {
             path: 'printer',
             name: 'settings-printer',
             component: () => import('pages/settings/PrinterSettings.vue'),
+            meta: { permissions: ['printer.manage'] },
           },
           {
             path: 'display',
             name: 'settings-display',
             component: () => import('pages/settings/DisplaySettings.vue'),
+            meta: { permissions: ['display.manage'] },
           },
           {
             path: 'categories',
             name: 'settings-categories',
             component: () => import('pages/settings/CategoriesSettings.vue'),
+            meta: { permissions: ['categories.manage'] },
           },
           {
             path: 'users',
             name: 'settings-users',
             component: () => import('pages/settings/UsersSettings.vue'),
+            meta: { permissions: ['users.manage'] },
           },
           {
             path: 'products',
             name: 'settings-products',
             component: () => import('pages/settings/ProductsSettings.vue'),
+            meta: { permissions: ['products.manage'] },
+          },
+          {
+            path: 'roles',
+            name: 'settings-roles',
+            component: () => import('pages/settings/RolesSettings.vue'),
+            // Editing roles is an admin-only superpower — gated by '*'
+            // (i.e. only admins / users with all perms).
+            meta: { permissions: ['*'] },
           },
         ],
       },

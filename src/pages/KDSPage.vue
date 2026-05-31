@@ -69,6 +69,7 @@ import LogOutButton from 'src/components/LogOutButton.vue';
 import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+import { useOrderStream } from 'src/composables/useOrderStream';
 
 const network = useNetworkStatus();
 
@@ -231,6 +232,14 @@ function handleUserInteraction(): void {
   initAudioContext();
   document.removeEventListener('click', handleUserInteraction);
 }
+
+// SSE makes new tickets appear immediately for the kitchen. Polling stays
+// on as fallback (backend BE-3 spec) — either path triggers fetchOrders().
+useOrderStream({
+  onEvent: () => {
+    void fetchOrders();
+  },
+});
 
 onMounted(() => {
   document.addEventListener('click', handleUserInteraction);

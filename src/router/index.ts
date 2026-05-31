@@ -2,15 +2,11 @@ import { defineRouter } from '#q-app/wrappers';
 import {
   createMemoryHistory,
   createRouter,
-  createWebHashHistory,
   createWebHistory,
+  createWebHashHistory,
 } from 'vue-router';
 import routes from './routes';
-import { read } from 'src/utils/storage';
-
-interface AuthUser {
-  role: 'ADMIN' | 'CASHIER' | 'MANAGER';
-}
+import { hasAllPermissions, getAuthUser } from 'src/composables/usePermissions';
 
 /*
  * If not building with SSR mode, you can
@@ -38,17 +34,34 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  // Short-term role check. Will swap to a per-permission system once the
-  // admin-editable permissions feature lands (route meta moves from
-  // `requiresAdmin: true` to `permissions: [...]`).
+  // Per-route access control. Two layers:
+  //   1. meta.permissions: string[]  — checked via hasAllPermissions
+  //      (ADMIN role and '*' bypass everything; see usePermissions).
+  //   2. meta.requiresAdmin: true    — legacy gate, kept for any route
+  //      that hasn't been migrated to meta.permissions yet.
+  // A route may carry both; the user must satisfy whichever apply.
   Router.beforeEach((to) => {
+    const required: string[] = to.matched.flatMap(
+      (r) => (r.meta as { permissions?: string[] }).permissions ?? [],
+    );
     const requiresAdmin = to.matched.some((r) => r.meta.requiresAdmin);
-    if (!requiresAdmin) return true;
 
-    const user = read<AuthUser>('auth_user');
-    if (user?.role === 'ADMIN') return true;
+    if (!requiresAdmin && required.length === 0) return true;
 
-    return { name: user ? 'orders' : 'users' };
+    const user = getAuthUser();
+    if (!user) return { name: 'users' };
+
+    if (requiresAdmin) {
+      const isAdmin =
+        user.role === 'ADMIN' || (user.permissions ?? []).includes('*');
+      if (!isAdmin) return { name: 'orders' };
+    }
+
+    if (required.length > 0 && !hasAllPermissions(required)) {
+      return { name: 'orders' };
+    }
+
+    return true;
   });
 
   return Router;

@@ -129,6 +129,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'boot/axios';
+import { useOrderStream } from 'src/composables/useOrderStream';
 
 // Types
 interface DisplayOrder {
@@ -422,6 +423,15 @@ function formatId(id: number): string {
 
 let poll: number | undefined;
 let clockTimer: number | undefined;
+
+// Push refresh when an order status changes — keeps the customer's "TAYYOR"
+// column near-instant instead of waiting up to 3s for the next poll. The
+// poll below stays on as the safety net (backend BE-3 spec).
+useOrderStream({
+  onEvent: () => {
+    void fetchData();
+  },
+});
 
 onMounted(async () => {
   // Load settings first

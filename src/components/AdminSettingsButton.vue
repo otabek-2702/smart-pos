@@ -14,7 +14,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { read } from 'src/utils/storage';
+import { hasPermission } from 'src/composables/usePermissions';
 
 interface Props {
   showLabel?: boolean;
@@ -26,19 +26,10 @@ withDefaults(defineProps<Props>(), {
 
 const router = useRouter();
 
-interface AuthUser {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: 'ADMIN' | 'CASHIER' | 'MANAGER';
-  status: 'ACTIVE' | 'INACTIVE';
-}
-
-const isAdmin = computed<boolean>(() => {
-  const user = read<AuthUser>('auth_user');
-  return user?.role === 'ADMIN';
-});
+// Show the settings entry to anyone with `settings.view` (or implicit
+// access via ADMIN role / '*'). Per-child gating happens inside the
+// settings tree via meta.permissions.
+const isAdmin = computed<boolean>(() => hasPermission('settings.view'));
 
 function goToSettings(): void {
   void router.push({ name: 'settings-receipt' });

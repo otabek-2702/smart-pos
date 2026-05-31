@@ -85,6 +85,10 @@ interface LoginResponse {
       last_name: string;
       role: UserRole;
       status: 'ACTIVE' | 'INACTIVE';
+      // Granular permission keys; '*' means all. Per-route gating reads
+      // this from the cached auth_user (see usePermissions composable).
+      // Optional on the wire for backward compat with older builds.
+      permissions?: string[];
     };
   };
 }

@@ -78,6 +78,7 @@
       :navigate-on-close="false"
       @paid="onOrderPaid"
       @cancel="onPaymentCancel"
+      @cancelled="onOrderCancelled"
       :order-description="selectedOrder?.description ?? ''"
     />
     <OrderInfoDialog
@@ -105,7 +106,12 @@
       </div>
 
       <div class="footer-right">
-        <button type="button" class="btn secondary" @click="router.push({ name: 'cash-box' })">
+        <button
+          v-if="canSeeCashBox"
+          type="button"
+          class="btn secondary"
+          @click="router.push({ name: 'cash-box' })"
+        >
           <q-icon name="account_balance_wallet" size="22px" />
 
           Kassa
@@ -136,6 +142,12 @@ import AdminSettingsButton from 'src/components/AdminSettingsButton.vue';
 import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+import { hasPermission } from 'src/composables/usePermissions';
+import { useOrderStream } from 'src/composables/useOrderStream';
+
+// Hide the cash-box entry when the current user lacks the permission.
+// The /cash-box route is guarded too — this just avoids the dead click.
+const canSeeCashBox = computed<boolean>(() => hasPermission('inkassa.manage'));
 
 const network = useNetworkStatus();
 
@@ -339,6 +351,11 @@ function onPaymentCancel(): void {
   resetSelection();
 }
 
+function onOrderCancelled(): void {
+  void fetchOrders();
+  resetSelection();
+}
+
 function resetSelection(): void {
   selectedOrder.value = null;
   selectedOrderItems.value = [];
@@ -374,6 +391,17 @@ function stopPolling(): void {
     pollHandle = null;
   }
 }
+
+// SSE keeps the cashier list near-instantaneous. The poll remains as a
+// fallback (per backend BE-3) and as a guard against missed events; we
+// still respect dialog-open suspension so the list doesn't reshuffle
+// while the cashier is taking payment.
+useOrderStream({
+  onEvent: () => {
+    if (dialogOpen.value) return;
+    void fetchOrders(false);
+  },
+});
 
 onMounted(() => {
   void fetchOrders();

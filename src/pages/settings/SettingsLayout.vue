@@ -85,6 +85,7 @@ import { useRouter, useRoute } from 'vue-router';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
+import { hasPermission } from 'src/composables/usePermissions';
 
 const router = useRouter();
 const route = useRoute();
@@ -97,9 +98,11 @@ const activeInput = ref<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
 const currentRoute = computed(() => route.name);
 
-// Get current page title
+// Get current page title — pick from the full menu so the title still
+// resolves even on items the user is currently on but technically lacks
+// the perm for (shouldn't happen via guard, but defensive).
 const currentPageTitle = computed(() => {
-  const item = menuItems.find((m) => m.route === currentRoute.value);
+  const item = ALL_MENU_ITEMS.find((m) => m.route === currentRoute.value);
   return item?.label || 'Sozlamalar';
 });
 
@@ -107,16 +110,26 @@ interface MenuItem {
   route: string;
   label: string;
   icon: string;
+  // Permission key the user must hold to see this entry. ADMIN role and
+  // '*' permission both bypass the check (see usePermissions).
+  permission: string;
 }
 
-const menuItems: MenuItem[] = [
-  { route: 'settings-receipt', label: 'Chek sozlamalari', icon: 'receipt_long' },
-  { route: 'settings-printer', label: 'Printer sozlamalari', icon: 'print' },
-  { route: 'settings-display', label: 'Displey sozlamalari', icon: 'tv' },
-  { route: 'settings-categories', label: 'Kategoriyalar', icon: 'category' },
-  { route: 'settings-users', label: 'Foydalanuvchilar', icon: 'people' },
-  { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2' },
+const ALL_MENU_ITEMS: MenuItem[] = [
+  { route: 'settings-receipt', label: 'Chek sozlamalari', icon: 'receipt_long', permission: 'receipt.manage' },
+  { route: 'settings-printer', label: 'Printer sozlamalari', icon: 'print', permission: 'printer.manage' },
+  { route: 'settings-display', label: 'Displey sozlamalari', icon: 'tv', permission: 'display.manage' },
+  { route: 'settings-categories', label: 'Kategoriyalar', icon: 'category', permission: 'categories.manage' },
+  { route: 'settings-users', label: 'Foydalanuvchilar', icon: 'people', permission: 'users.manage' },
+  { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2', permission: 'products.manage' },
+  { route: 'settings-roles', label: 'Rollar va ruxsatlar', icon: 'admin_panel_settings', permission: '*' },
 ];
+
+// Sidebar only shows entries the current user can actually open. Avoids
+// the dead-click-then-redirect UX a non-admin would otherwise see.
+const menuItems = computed<MenuItem[]>(() =>
+  ALL_MENU_ITEMS.filter((m) => hasPermission(m.permission)),
+);
 
 // Sidebar functions
 function toggleSidebar(): void {

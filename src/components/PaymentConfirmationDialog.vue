@@ -139,18 +139,34 @@
       </div>
 
       <div class="dialog-actions">
-        <button type="button" class="btn secondary" :disabled="payLoading" @click="onCancel">
-          Keyinroq to'lash
-        </button>
         <button
           type="button"
-          class="btn primary"
-          :disabled="payLoading || !orderId"
-          @click="onConfirmPayment"
+          class="btn danger"
+          :disabled="payLoading || cancelLoading || !orderId"
+          @click="onCancelOrder"
         >
-          <span v-if="payLoading">Yuklanmoqda...</span>
-          <span v-else>To'landi</span>
+          <span v-if="cancelLoading">Bekor qilinmoqda...</span>
+          <span v-else>Buyurtmani bekor qilish</span>
         </button>
+        <div class="actions-right">
+          <button
+            type="button"
+            class="btn secondary"
+            :disabled="payLoading || cancelLoading"
+            @click="onCancel"
+          >
+            Keyinroq to'lash
+          </button>
+          <button
+            type="button"
+            class="btn primary"
+            :disabled="payLoading || cancelLoading || !orderId"
+            @click="onConfirmPayment"
+          >
+            <span v-if="payLoading">Yuklanmoqda...</span>
+            <span v-else>To'landi</span>
+          </button>
+        </div>
       </div>
     </div>
   </q-dialog>
@@ -193,10 +209,12 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   paid: [];
   cancel: [];
+  cancelled: [];
 }>();
 
 const router = useRouter();
 const payLoading = ref(false);
+const cancelLoading = ref(false);
 
 // Cash calculator state
 const givenAmountInput = ref<string>('');
@@ -318,6 +336,34 @@ function onCancel(): void {
 
   if (props.navigateOnClose) {
     void router.push({ name: 'orders' });
+  }
+}
+
+// Cancel the underlying order (not just close the dialog). Backed by
+// POST /orders/:id/cancel (idempotent — re-cancelling a CANCELLED order is OK).
+// Requires `orders.cancel` permission server-side; the FE confirms first
+// because this is a destructive, hard-to-reverse action mid-payment flow.
+async function onCancelOrder(): Promise<void> {
+  if (!props.orderId || cancelLoading.value || payLoading.value) return;
+
+  const ok = window.confirm(
+    `#${props.displayId ?? ''} buyurtmasini bekor qilishni tasdiqlaysizmi?`,
+  );
+  if (!ok) return;
+
+  cancelLoading.value = true;
+  try {
+    await api.post(`/orders/${props.orderId}/cancel`);
+    emit('cancelled');
+    isOpen.value = false;
+    if (props.navigateOnClose) {
+      void router.push({ name: 'orders' });
+    }
+  } catch (error) {
+    console.error('Order cancel failed:', error);
+    alert('Buyurtmani bekor qilishda xatolik');
+  } finally {
+    cancelLoading.value = false;
   }
 }
 </script>
@@ -703,9 +749,19 @@ function onCancel(): void {
 /* ACTIONS */
 .dialog-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
+}
+
+/* Right group keeps "Keyinroq" + "To'landi" together at full width while the
+   destructive "Bekor qilish" sits on the left, smaller, so the cashier can't
+   misfire into it. */
+.actions-right {
+  flex: 1;
+  display: flex;
+  gap: 12px;
 }
 
 .btn {
@@ -742,5 +798,20 @@ function onCancel(): void {
 .btn.primary {
   background: var(--accent-primary);
   color: #ffffff;
+}
+
+/* Destructive — muted red, smaller footprint (not flex:1) so it can't be
+   tapped by accident next to "To'landi". Pairs with a confirm() guard. */
+.btn.danger {
+  flex: 0 0 auto;
+  padding: 0 16px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  box-shadow: none;
+
+  &:hover {
+    background: #fecaca;
+  }
 }
 </style>
