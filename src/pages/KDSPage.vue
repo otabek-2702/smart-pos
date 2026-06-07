@@ -2,7 +2,11 @@
   <div class="kds-page">
 
     <!-- ORDERS -->
-    <div v-if="orders.length > 0" class="orders-masonry">
+    <div
+      v-if="orders.length > 0"
+      class="orders-masonry"
+      :style="colsPerRow ? { columnCount: colsPerRow } : undefined"
+    >
       <div v-for="order in orders" :key="order.id" class="order-wrapper">
         <OrderCard :order="order" @status-changed="handleStatusChanged" />
       </div>
@@ -50,6 +54,24 @@
       </div>
 
       <div class="footer-right">
+        <!-- Columns per row (chef picks; Avto = responsive) -->
+        <div class="cols-ctl" role="group" aria-label="Ustunlar soni">
+          <q-icon name="view_column" size="18px" />
+          <button
+            v-for="n in COL_OPTIONS"
+            :key="n"
+            type="button"
+            class="cols-btn"
+            :class="{ active: colsPerRow === n }"
+            @click="setCols(n)"
+          >
+            {{ n }}
+          </button>
+          <button type="button" class="cols-btn" :class="{ active: colsPerRow === null }" @click="setCols(null)">
+            Avto
+          </button>
+        </div>
+
         <button type="button" class="btn secondary" @click="router.push({ name: 'orders' })">
           Buyurtmalar
         </button>
@@ -70,8 +92,19 @@ import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useOrderStream } from 'src/composables/useOrderStream';
+import { read, write } from 'src/utils/storage';
 
 const network = useNetworkStatus();
+
+/* Chef-chosen columns per row (overrides the responsive default). Persisted
+   per-PC; null = automatic (responsive media queries). */
+const KDS_COLS_KEY = 'pos:kdsCols';
+const COL_OPTIONS = [2, 3, 4, 5, 6];
+const colsPerRow = ref<number | null>(read<number>(KDS_COLS_KEY) ?? null);
+function setCols(n: number | null): void {
+  colsPerRow.value = n;
+  void write(KDS_COLS_KEY, n);
+}
 
 /* ================= TYPES ================= */
 
@@ -402,6 +435,33 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
 }
+
+/* columns-per-row selector */
+.cols-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.cols-btn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.cols-btn:hover { background: var(--surface-3); color: var(--ink); }
+.cols-btn.active { background: var(--brand); color: #fff; }
 
 .btn {
   height: 42px;
