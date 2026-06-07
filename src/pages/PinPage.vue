@@ -14,8 +14,11 @@
       <div class="pin-wrapper">
         <div class="user-name">{{ userName }}</div>
 
-        <!-- PIN dots -->
-        <div class="pin-dots">
+        <!-- PIN dots (spinner while verifying) -->
+        <div v-if="isLoading" class="pin-dots pin-dots--loading">
+          <q-spinner color="primary" size="36px" />
+        </div>
+        <div v-else class="pin-dots">
           <span
             v-for="index in PIN_LENGTH"
             :key="index"
@@ -23,6 +26,8 @@
             :class="{ filled: pin.length >= index }"
           />
         </div>
+
+        <!-- spinner row keeps the same height as the dots row -->
 
         <!-- Error -->
         <div v-if="errorMessage" class="error-text">
@@ -392,8 +397,10 @@ onUnmounted(() => {
 .pin-dots {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  min-height: 36px;
 }
 
 .dot {

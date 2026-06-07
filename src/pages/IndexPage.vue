@@ -434,7 +434,7 @@ onMounted(() => {
             @click="goToPin(user)"
           >
             <div class="avatar">
-              <q-icon name="person" size="28px" />
+              <span class="avatar__initials">{{ (user.firstName?.[0] || '') + (user.lastName?.[0] || '') }}</span>
               <span v-if="user.onShift" class="avatar__shift" title="Smenada"></span>
             </div>
 
@@ -671,11 +671,17 @@ onMounted(() => {
   height: 56px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  background: var(--bg-surface-2);
-  color: var(--accent-primary);
+  background: var(--brand-soft);
+  color: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.avatar__initials {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 /* Green dot — cashier already has an ACTIVE shift (from /cashiers on_shift) */
