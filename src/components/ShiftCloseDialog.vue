@@ -132,9 +132,14 @@ async function confirm(): Promise<void> {
   try {
     const countedByMethod: Record<string, number> = {};
     for (const m of methods) countedByMethod[m.value] = parseInt(counted[m.value] || '0', 10) || 0;
-    const ok = await closeShift(countedByMethod, '');
-    if (ok) toast.success('Smena yakunlandi');
-    else toast.warning("Smena yopilmadi — server javob bermadi");
+    const id = shift.value?.id;
+    if (!id) {
+      toast.warning("Ochiq smena topilmadi");
+    } else {
+      const ok = await closeShift(id, countedByMethod, '');
+      if (ok) toast.success('Smena yakunlandi');
+      else toast.warning('Smena yopilmadi — server javob bermadi');
+    }
     emit('update:modelValue', false);
     emit('closed');
   } finally {

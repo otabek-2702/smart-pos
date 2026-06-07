@@ -5,37 +5,37 @@
       <button type="button" class="icon-btn" @click="router.back()">
         <q-icon name="arrow_back" size="22px" />
       </button>
-      <div class="exp__title">Xarajatlar</div>
+      <div class="exp__title">Xarajatlar <span class="exp__sub">(kassadan)</span></div>
       <div class="exp__stats">
         <div class="stat">
-          <div class="stat__label">Jami xarajat</div>
+          <div class="stat__label">Smena xarajati</div>
           <div class="stat__val">{{ formatPrice(totalSpent) }} so'm</div>
         </div>
       </div>
-      <button type="button" class="btn primary" @click="openAdd">
+      <button type="button" class="btn primary" :disabled="!shiftId" @click="openAdd">
         <q-icon name="add" size="18px" /> Yangi xarajat
       </button>
     </header>
 
     <div v-if="!apiAvailable" class="exp__banner">
       <q-icon name="info" size="20px" />
-      <span>Xarajatlar serverda hozircha mavjud emas yoki ruxsat yo'q (faqat menejer/admin).</span>
+      <span>{{ banner }}</span>
     </div>
 
     <template v-else>
       <div class="exp__list">
         <div v-if="loading" class="exp__empty">Yuklanmoqda…</div>
-        <div v-else-if="expenses.length === 0" class="exp__empty">Xarajatlar yo'q</div>
-        <div v-for="e in expenses" :key="e.id" class="exp-row">
-          <div class="exp-row__main">{{ e.description || 'Xarajat' }}</div>
-          <span class="exp-row__date">{{ formatDate(e.expense_date) }}</span>
+        <div v-else-if="rows.length === 0" class="exp__empty">Xarajatlar yo'q</div>
+        <div v-for="e in rows" :key="e.id" class="exp-row">
+          <div class="exp-row__main">{{ e.comment || e.category || 'Xarajat' }}</div>
+          <span class="exp-row__who">{{ e.recipient_user || e.recipient_supplier || '' }}</span>
+          <span class="exp-row__date">{{ formatDate(e.created_at) }}</span>
           <div class="exp-row__amount">−{{ formatPrice(e.amount) }} so'm</div>
-          <span class="exp-row__status" :class="`st-${(e.status || '').toLowerCase()}`">{{ statusLabel(e.status) }}</span>
         </div>
       </div>
     </template>
 
-    <!-- ADD — full-screen takeover (cash from the cashbox) -->
+    <!-- ADD — full-screen, cash from the cashbox drawer -->
     <Transition name="add-fade">
       <div v-if="showAdd" class="add" role="dialog" aria-modal="true">
         <div class="add__panel">
@@ -45,21 +45,17 @@
           </div>
 
           <div class="add__body">
-            <!-- amount → numpad -->
             <div class="add__field" :class="{ active: field === 'amount' }" @click="field = 'amount'">
               <span class="add__label">Summa (so'm)</span>
               <span class="add__value">{{ formatPrice(amountValue) }}</span>
             </div>
-            <!-- description → text keyboard -->
-            <div class="add__field" :class="{ active: field === 'desc' }" @click="field = 'desc'">
+            <div class="add__field" :class="{ active: field === 'comment' }" @click="field = 'comment'">
               <span class="add__label">Izoh</span>
-              <span class="add__value add__value--text">{{ description || '—' }}</span>
+              <span class="add__value add__value--text">{{ comment || '—' }}</span>
             </div>
-
             <div v-if="addError" class="add__err">{{ addError }}</div>
           </div>
 
-          <!-- contextual keyboard at the bottom (full width) -->
           <div class="add__kb">
             <VirtualNumpad
               v-if="field === 'amount'"
@@ -97,41 +93,44 @@ import { toast } from 'vue3-toastify';
 import type { AxiosError } from 'axios';
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
+import { getCurrentShift } from 'src/composables/useShift';
 
 const router = useRouter();
-const HR = '/api/admins/hr';
+const CASHBOX = '/api/admins/cashbox';
 
-interface Expense {
+interface CashboxExpense {
   id: number;
   amount: string;
-  description: string;
-  expense_date: string;
-  status: string;
+  comment: string | null;
+  category: string | null;
+  recipient_user: string | null;
+  recipient_supplier: string | null;
+  created_at: string;
 }
 
 const apiAvailable = ref(true);
+const banner = ref('');
 const loading = ref(false);
-const expenses = ref<Expense[]>([]);
-const totalSpent = ref('0');
+const rows = ref<CashboxExpense[]>([]);
+const shiftId = ref<number | null>(null);
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Kutilmoqda', APPROVED: 'Tasdiqlangan', PAID: "To'langan", REJECTED: 'Rad etilgan',
-};
-function statusLabel(s: string): string { return STATUS_LABELS[s] ?? s; }
+const totalSpent = computed(() =>
+  rows.value.reduce((s, e) => s + (Number(e.amount) || 0), 0),
+);
+
 function formatDate(d: string): string {
-  try { return new Date(d).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+  try { return new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
   catch { return d; }
 }
-function handleError(e: unknown): void {
-  const status = (e as AxiosError)?.response?.status;
-  if (status === 401 || status === 403 || status === 404) apiAvailable.value = false;
-  else console.error('Expenses error:', e);
-}
+function fail(b: string): void { apiAvailable.value = false; banner.value = b; }
 
-async function loadAll(): Promise<void> {
+async function init(): Promise<void> {
   loading.value = true;
   try {
-    await Promise.all([loadExpenses(), loadStats()]);
+    const shift = await getCurrentShift();
+    if (!shift?.id) { fail("Ochiq smena yo'q — avval smenani boshlang."); return; }
+    shiftId.value = shift.id;
+    await loadList();
     apiAvailable.value = true;
   } catch (e) {
     handleError(e);
@@ -139,22 +138,25 @@ async function loadAll(): Promise<void> {
     loading.value = false;
   }
 }
-async function loadExpenses(): Promise<void> {
-  const res = await api.get(`${HR}/expenses/`, { params: { per_page: '100' } });
-  expenses.value = res.data?.data?.expenses ?? [];
+function handleError(e: unknown): void {
+  const status = (e as AxiosError)?.response?.status;
+  if (status === 401 || status === 403) fail("Ruxsat yo'q (faqat xodim).");
+  else if (status === 404) fail("Xarajatlar serverda mavjud emas.");
+  else console.error('Cashbox error:', e);
 }
-async function loadStats(): Promise<void> {
-  const res = await api.get(`${HR}/expenses/stats/`);
-  totalSpent.value = res.data?.data?.total ?? '0';
+async function loadList(): Promise<void> {
+  if (!shiftId.value) return;
+  const res = await api.get(`${CASHBOX}/shifts/${shiftId.value}/expenses/`);
+  rows.value = res.data?.data ?? [];
 }
 
-/* add — cash from cashbox, amount + description only (no category) */
+/* add */
 const showAdd = ref(false);
 const saving = ref(false);
 const addError = ref<string | null>(null);
-const field = ref<'amount' | 'desc'>('amount');
+const field = ref<'amount' | 'comment'>('amount');
 const amountInput = ref('');
-const description = ref('');
+const comment = ref('');
 const amountValue = computed(() => parseInt(amountInput.value, 10) || 0);
 const canAdd = computed(() => amountValue.value > 0);
 
@@ -164,37 +166,32 @@ function onNumInput(v: string): void {
 }
 function onNumBackspace(): void { amountInput.value = amountInput.value.slice(0, -1); }
 function onNumClear(): void { amountInput.value = ''; }
-function onKeyInput(c: string): void { description.value += c; }
-function onKeyBackspace(): void { description.value = description.value.slice(0, -1); }
+function onKeyInput(c: string): void { comment.value += c; }
+function onKeyBackspace(): void { comment.value = comment.value.slice(0, -1); }
 
 function openAdd(): void {
   amountInput.value = '';
-  description.value = '';
+  comment.value = '';
   field.value = 'amount';
   addError.value = null;
   showAdd.value = true;
 }
 async function saveExpense(): Promise<void> {
-  if (!canAdd.value || saving.value) return;
+  if (!canAdd.value || saving.value || !shiftId.value) return;
   saving.value = true;
   addError.value = null;
   try {
     const res = await api.post(
-      `${HR}/expenses/`,
-      {
-        amount: amountValue.value,
-        expense_date: new Date().toISOString().slice(0, 10),
-        description: description.value.trim(),
-        payment_method: 'CASH',
-      },
+      `${CASHBOX}/shifts/${shiftId.value}/expenses/`,
+      { amount: amountValue.value, comment: comment.value.trim() },
       { validateStatus: () => true },
     );
     if (res.status === 200 || res.status === 201) {
       toast.success("Xarajat qo'shildi");
       showAdd.value = false;
-      await loadAll();
+      await loadList();
     } else if (res.status === 403 || res.status === 401) {
-      apiAvailable.value = false;
+      fail("Ruxsat yo'q (faqat xodim).");
       showAdd.value = false;
     } else {
       addError.value = res.data?.message || res.data?.errors?.amount || `Xatolik (HTTP ${res.status})`;
@@ -207,7 +204,7 @@ async function saveExpense(): Promise<void> {
   }
 }
 
-onMounted(() => void loadAll());
+onMounted(() => void init());
 </script>
 
 <style scoped lang="scss">
@@ -222,6 +219,7 @@ onMounted(() => void loadAll());
   &:active { transform: scale(0.95); }
 }
 .exp__title { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+.exp__sub { font-size: 14px; font-weight: 600; color: var(--text-muted); }
 .exp__stats { margin-left: auto; }
 .stat { text-align: right; }
 .stat__label { font-size: 12px; color: var(--text-muted); }
@@ -238,19 +236,15 @@ onMounted(() => void loadAll());
 .exp__empty { padding: 40px; text-align: center; color: var(--text-muted); }
 .exp-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 130px 150px 130px;
+  grid-template-columns: minmax(0, 1fr) 150px 130px 140px;
   gap: 14px; align-items: center;
   padding: 14px 16px; border-radius: 12px;
   background: var(--bg-surface); border: 1px solid var(--border-color);
 }
 .exp-row__main { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-row__who { font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-row__date { font-size: 13px; color: var(--text-muted); }
 .exp-row__amount { font-weight: 800; text-align: right; color: #ef4444; font-variant-numeric: tabular-nums; }
-.exp-row__status { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; }
-.st-pending { background: #fef3c7; color: #b45309; }
-.st-approved { background: #dbeafe; color: #1d4ed8; }
-.st-paid { background: #dcfce7; color: #15803d; }
-.st-rejected { background: #fee2e2; color: #b91c1c; }
 
 .btn {
   height: 44px; padding: 0 18px; border-radius: 12px; border: 1px solid transparent;

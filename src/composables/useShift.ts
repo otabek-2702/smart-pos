@@ -57,18 +57,25 @@ export async function getCurrentShift(): Promise<ShiftCurrent | null> {
   }
 }
 
-/** Close the shift with a per-payment-type counted breakdown + notes. */
+/**
+ * Settle (end) a shift with the cashier's per-payment-type blind count.
+ * Hits the management endpoint (pos_staff-allowed) which freezes the per-type
+ * expected/counted/difference and sets status ENDED. The plain staff
+ * `/shifts/end` ignores counts, so we must use this one with the shift id.
+ *   POST /api/admins/shifts/<id>/end  { counted: {CASH,UZCARD,HUMO,PAYME}, notes }
+ */
 export async function closeShift(
-  countedByMethod: Record<string, number>,
+  shiftId: number,
+  counted: Record<string, number>,
   notes: string,
 ): Promise<boolean> {
   try {
     const r = await api.post(
-      '/shifts/end',
-      { counted_by_method: countedByMethod, notes },
+      `/api/admins/shifts/${shiftId}/end`,
+      { counted, notes },
       { validateStatus: () => true },
     );
-    return r.status === 200;
+    return r.status === 200 || r.status === 201;
   } catch (e) {
     console.warn('[shift] closeShift failed:', e);
     return false;
