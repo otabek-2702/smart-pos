@@ -305,8 +305,8 @@ async function cacheUserForPicker(
 let focusInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
-  // Guard: redirect if no email
-  if (!userEmail.value) {
+  // Guard: need either a user_id (current picker) or an email (legacy) to log in.
+  if (userId.value == null && !userEmail.value) {
     void router.replace({ name: 'users' });
     return;
   }
