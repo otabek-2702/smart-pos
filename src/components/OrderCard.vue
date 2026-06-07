@@ -242,9 +242,10 @@ async function handleBackToPreparing(): Promise<void> {
 
 <style scoped>
 .order-card {
-  background: var(--kds-bg-card);
-  border-radius: var(--kds-radius-md);
-  box-shadow: var(--kds-shadow-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -254,7 +255,8 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .order-card.ready {
-  background: var(--kds-status-ready-bg);
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+  background: var(--ready-bg);
 }
 
 /* HEADER */
@@ -277,13 +279,14 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .order-type {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--kds-text-muted);
-  background: var(--kds-bg-app);
-  padding: 3px 7px;
-  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  background: var(--brand-soft);
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
   text-transform: uppercase;
+  letter-spacing: 0.2px;
 }
 
 /* TIMER */
@@ -291,14 +294,15 @@ async function handleBackToPreparing(): Promise<void> {
   font-size: 13px;
   font-weight: 600;
   color: var(--kds-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .timer-warn {
-  color: #d97706;
+  color: var(--unpaid);
 }
 
 .timer-late {
-  color: #dc2626;
+  color: var(--cancel);
 }
 
 /* CASHIER */
@@ -321,36 +325,36 @@ async function handleBackToPreparing(): Promise<void> {
 
 .item-row {
   position: relative;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--kds-item-bg);
+  padding: 8px 6px;
+  border-bottom: 1px dashed var(--line-strong);
   cursor: pointer;
   user-select: none;
   transition: background-color 0.15s ease;
 }
 
+.item-row:last-child {
+  border-bottom: none;
+}
+
 .item-row:hover {
-  background: var(--kds-item-hover);
+  background: var(--surface-2);
 }
 
-/* DONE STATE - GREEN */
-.item-row.done {
-  background: var(--kds-item-done-bg);
-}
-
+/* DONE STATE — check + strikethrough (no heavy fill) */
 .item-row.done .item-name,
 .item-row.done .item-qty {
-  color: var(--kds-item-done-text);
+  color: var(--ink-3);
+  text-decoration: line-through;
 }
 
 .done-check {
   position: absolute;
-  right: 10px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 16px;
   font-weight: 700;
-  color: var(--kds-item-done-text);
+  color: var(--ready);
 }
 
 .item-main {
@@ -387,11 +391,12 @@ async function handleBackToPreparing(): Promise<void> {
 
 .btn {
   width: 100%;
-  padding: 11px 14px;
+  padding: 0 14px;
+  height: 48px;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition:
     transform 0.1s ease,
@@ -418,12 +423,12 @@ async function handleBackToPreparing(): Promise<void> {
 
 /* BACK BUTTON - warning style */
 .btn-back {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fcd34d;
+  background: var(--unpaid-bg);
+  color: var(--unpaid);
+  border: 1px solid color-mix(in srgb, var(--unpaid) 35%, transparent);
 }
 
 .btn-back:hover:not(:disabled) {
-  background: #fde68a;
+  background: color-mix(in srgb, var(--unpaid) 16%, var(--surface));
 }
 </style>
