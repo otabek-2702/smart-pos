@@ -106,19 +106,6 @@
                   </div>
                   <div v-else-if="promoError" class="disc-error">{{ promoError }}</div>
                 </div>
-
-                <!-- on-screen keyboard for the focused discount field -->
-                <div v-if="activeDiscField === 'percent'" class="disc-kb">
-                  <VirtualNumpad @input="onDiscNum" @backspace="onDiscNumBack" @clear="onDiscNumClear" />
-                </div>
-                <div v-else-if="activeDiscField === 'promo' && !appliedPromo" class="disc-kb">
-                  <VirtualKeyboard
-                    position="inline"
-                    @input="onPromoKey"
-                    @backspace="onPromoBack"
-                    @enter="applyPromo"
-                  />
-                </div>
               </template>
             </div>
 
@@ -137,21 +124,7 @@
               <span class="calc__display-val">{{ formatPrice(amountValue) }}</span>
               <span class="calc__display-cur">so'm</span>
             </div>
-
-            <div class="calc__methods">
-              <button
-                v-for="m in methods"
-                :key="m.code"
-                type="button"
-                class="pm-btn"
-                :style="{ '--pm': m.color }"
-                @click="addPayment(m.code)"
-              >
-                <span class="pm-btn__icon" v-html="m.icon"></span>
-                <span class="pm-btn__label">{{ m.label }}</span>
-              </button>
-            </div>
-
+            
             <!-- payments list — grows to fill, so it rarely needs scrolling -->
             <div class="calc__list">
               <div v-if="payments.length === 0" class="pl__empty">
@@ -167,6 +140,21 @@
                 </button>
               </div>
             </div>
+            
+            <div class="calc__methods">
+              <button
+                v-for="m in methods"
+                :key="m.code"
+                type="button"
+                class="pm-btn"
+                :style="{ '--pm': m.color }"
+                @click="addPayment(m.code)"
+              >
+                <span class="pm-btn__icon" v-html="m.icon"></span>
+                <span class="pm-btn__label">{{ m.label }}</span>
+              </button>
+            </div>
+
 
             <div class="calc__status">
               <template v-if="remaining > 0">
@@ -251,6 +239,37 @@
             </div>
           </div>
         </div>
+
+        <!-- Discount keyboard — bottom sheet (over the panel), so it isn't
+             cramped into the left column next to the calculator. -->
+        <Transition name="disc-sheet-slide">
+          <div v-if="activeDiscField" class="disc-sheet">
+            <div class="disc-sheet__head">
+              <span class="disc-sheet__title">
+                {{ activeDiscField === 'percent' ? 'Promokod (%)' : 'Promokod kodi' }}
+                <strong>{{ activeDiscField === 'percent' ? (discountInput || '0') + '%' : (promoInput || '—') }}</strong>
+              </span>
+              <button type="button" class="disc-sheet__done" @click="activeDiscField = null">
+                <q-icon name="check" size="18px" /> Tayyor
+              </button>
+            </div>
+            <div class="disc-sheet__kb">
+              <VirtualNumpad
+                v-if="activeDiscField === 'percent'"
+                @input="onDiscNum"
+                @backspace="onDiscNumBack"
+                @clear="onDiscNumClear"
+              />
+              <VirtualKeyboard
+                v-else
+                position="inline"
+                @input="onPromoKey"
+                @backspace="onPromoBack"
+                @enter="activeDiscField = null"
+              />
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
   </Transition>
@@ -454,6 +473,7 @@ function formatQuickAmount(amount: number): string {
 /* ============ input ============ */
 
 function onNumpadPress(key: string): void {
+  activeDiscField.value = null; // switching to amount entry → close discount sheet
   if (amountInput.value.length >= 9) return;
   amountInput.value = amountInput.value === '' && key === '0' ? '' : amountInput.value + key;
 }
@@ -515,6 +535,7 @@ async function removePromo(): Promise<void> {
 /* ============ payments list ============ */
 
 function addPayment(method: string): void {
+  activeDiscField.value = null; // close discount sheet when choosing a method
   let amount = amountValue.value > 0 ? amountValue.value : remaining.value;
   if (amount <= 0) return;
   if (method !== 'CASH') amount = Math.min(amount, remaining.value);
@@ -714,7 +735,29 @@ async function onCancelOrder(): Promise<void> {
   &:focus, &.active { outline: none; border-color: var(--accent-primary, #ff7a00); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary, #ff7a00) 22%, transparent); }
   &:disabled { opacity: 0.7; }
 }
-.disc-kb { margin-top: 8px; }
+/* discount keyboard bottom sheet */
+.disc-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--bg-surface); border-top: 1px solid var(--border-color);
+  border-radius: 18px 18px 0 0;
+  padding: 12px 16px 18px;
+  box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.4);
+}
+.disc-sheet__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.disc-sheet__title {
+  font-size: 13px; color: var(--text-muted);
+  strong { margin-left: 8px; font-size: 18px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+}
+.disc-sheet__done {
+  height: 42px; padding: 0 18px; border-radius: 10px; border: none; cursor: pointer;
+  background: var(--accent-primary, #ff7a00); color: #fff; font-weight: 700; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  &:active { transform: scale(0.97); }
+}
+.disc-sheet__kb { max-width: 460px; margin: 0 auto; }
+.disc-sheet-slide-enter-active, .disc-sheet-slide-leave-active { transition: transform 220ms ease, opacity 220ms ease; }
+.disc-sheet-slide-enter-from, .disc-sheet-slide-leave-to { transform: translateY(100%); opacity: 0; }
+
 .disc-input--mono { font-family: ui-monospace, Menlo, monospace; font-weight: 600; letter-spacing: 0.5px; }
 .disc-apply {
   height: 44px;
