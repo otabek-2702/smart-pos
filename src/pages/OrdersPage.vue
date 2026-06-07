@@ -5,16 +5,18 @@
       <div class="left-side">
         <div class="title">Buyurtmalar</div>
 
-        <button
-          v-for="s in STATUSES"
-          :key="s.value"
-          type="button"
-          class="filter"
-          :class="{ active: status === s.value }"
-          @click="changeStatus(s.value)"
-        >
-          {{ s.label }}
-        </button>
+        <div class="filters">
+          <button
+            v-for="s in STATUSES"
+            :key="s.value"
+            type="button"
+            class="filter"
+            :class="{ active: status === s.value }"
+            @click="changeStatus(s.value)"
+          >
+            {{ s.label }}
+          </button>
+        </div>
       </div>
       <div class="right-side">
         <button type="button" class="create-button" @click="createOrder">
@@ -25,14 +27,30 @@
 
     <!-- Status filters -->
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading">Yuklanmoqda…</div>
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="orders-list">
+      <q-skeleton v-for="n in 7" :key="n" type="rect" class="sk-row" />
+    </div>
 
     <!-- Empty state -->
-    <div v-else-if="orders.length === 0" class="empty-state">Buyurtmalar topilmadi</div>
+    <div v-else-if="orders.length === 0" class="empty-state">
+      <q-icon name="receipt_long" size="48px" />
+      <span>Buyurtmalar topilmadi</span>
+    </div>
 
     <!-- Orders list -->
     <div v-else class="orders-list">
+      <!-- sticky column header -->
+      <div class="orders-head">
+        <span>#</span>
+        <span>Tur</span>
+        <span>Mahsulot</span>
+        <span>Izoh</span>
+        <span class="ta-r">Telefon</span>
+        <span class="ta-r">Summa</span>
+        <span class="ta-r">Vaqt</span>
+        <span class="ta-c">Holat</span>
+      </div>
       <div
         v-for="order in orders"
         :key="order.id"
@@ -440,8 +458,8 @@ onUnmounted(() => {
 }
 
 .title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
@@ -476,36 +494,51 @@ onUnmounted(() => {
   }
 }
 
-/* Filters */
+/* Filters — segmented control */
+.filters {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--surface-2);
+  padding: 5px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+}
 .filter {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 10px 16px;
-  color: var(--text-muted);
-  font-weight: 500;
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover { color: var(--ink); }
 
   &.active {
-    color: var(--accent-primary);
-    background: var(--accent-soft);
-    border-color: var(--accent-primary);
+    color: var(--brand);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
   }
 
-  &:active {
-    transform: scale(0.97);
-  }
+  &:active { transform: scale(0.97); }
 }
 
 /* Loading & Empty */
-.loading,
 .empty-state {
   color: var(--text-muted);
   text-align: center;
   padding: 40px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
+.sk-row { height: 56px; border-radius: 12px; }
 
 /* Orders */
 .orders-list {
@@ -517,20 +550,39 @@ onUnmounted(() => {
   flex: 1;
 }
 
+/* sticky column header */
+.orders-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 70px 96px 110px minmax(0, 1fr) 150px 140px 64px 120px;
+  column-gap: 14px;
+  padding: 6px 16px 8px;
+  background: var(--bg-app);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  .ta-r { text-align: right; }
+  .ta-c { text-align: center; }
+}
+
 .order-row {
   display: grid;
   grid-template-columns: 70px 96px 110px minmax(0, 1fr) 150px 140px 64px 120px;
   column-gap: 14px;
-  background-color: var(--danger-bg);
+  /* neutral white rows; unpaid gets an amber left-stripe (SPEC §4) */
+  background: var(--surface);
   border-radius: 12px;
   padding: 14px 16px;
   align-items: center;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--unpaid);
   box-shadow: var(--shadow-sm);
   transition: transform 0.1s ease;
 
-  // Every cell can shrink; text cells truncate instead of pushing the grid
-  // wider than the row (which clipped at 15" before).
   & > * {
     min-width: 0;
   }
@@ -543,7 +595,8 @@ onUnmounted(() => {
     }
   }
   &.paid {
-    background: var(--bg-surface);
+    background: var(--surface);
+    border-left: 3px solid var(--line);
   }
 }
 
@@ -570,8 +623,8 @@ onUnmounted(() => {
 
 .order-amount {
   text-align: right;
-  font-weight: 600;
-  color: var(--danger-text);
+  font-weight: 700;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -579,7 +632,7 @@ onUnmounted(() => {
 }
 
 .order-amount.paid {
-  color: var(--success-text);
+  color: var(--paid);
 }
 
 .order-time {
@@ -592,39 +645,44 @@ onUnmounted(() => {
   padding-inline: 35px;
 }
 
-/* Status */
+/* Status — chip pill */
 .order-status {
-  text-align: center;
-  font-weight: 500;
-  padding: 4px 6px;
-  border-radius: 6px;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  font-weight: 700;
   font-size: 12px;
-  margin: 0 2px;
+  letter-spacing: 0.2px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .order-status.open {
-  color: var(--accent-primary);
-  background: var(--accent-soft);
+  color: var(--unpaid);
+  background: var(--unpaid-bg);
 }
 
 .order-status.paid,
 .order-status.ready {
-  color: var(--success-text);
-  background: #e6f4ea;
+  color: var(--ready);
+  background: var(--ready-bg);
 }
 
 .order-status.cancelled,
 .order-status.cancel {
-  color: #c62828;
-  background: #fdecea;
+  color: var(--cancel);
+  background: var(--cancel-bg);
 }
 
 .order-status.preparing {
-  color: #1565c0;
-  background: #e3f2fd;
+  color: var(--prep);
+  background: var(--prep-bg);
 }
 
 /* Footer */
