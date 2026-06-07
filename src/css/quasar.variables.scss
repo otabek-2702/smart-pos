@@ -12,14 +12,17 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-$primary: #1976d2;
-$secondary: #26a69a;
-$accent: #9c27b0;
+// Unified Alpha POS brand (one green accent) — see _design_ref SPEC §1.
+// Setting $primary greens every built-in Quasar component (q-toggle,
+// q-spinner, q-skeleton shimmer, q-btn color="primary", :rules focus).
+$primary: #16a34a;
+$secondary: #5b6472;
+$accent: #16a34a;
 
 $dark: #1d1d1d;
 $dark-page: #121212;
 
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
-$warning: #f2c037;
+$positive: #15803d;
+$negative: #b91c1c;
+$info: #1d4ed8;
+$warning: #b45309;

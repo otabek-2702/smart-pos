@@ -39,3 +39,6 @@ yarn-error.log*
 
 # backend
 backend
+# design reference (unzipped prototype) — not part of the build
+_design_ref/
+alpha pos design*.zip

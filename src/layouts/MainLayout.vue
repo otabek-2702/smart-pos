@@ -63,7 +63,7 @@ const showWarn = computed(
 
 <style scoped>
 .bg-dark {
-  background: #0f1115;
+  background: var(--bg-app);
 }
 
 /* Reserve space for the fixed LicenseWarnBanner (~38px) so it never covers

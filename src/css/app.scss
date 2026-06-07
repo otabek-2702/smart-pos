@@ -1,64 +1,153 @@
+/* ============================================================
+   ALPHA POS — Unified Design Tokens (single source of truth)
+   Ported from _design_ref/alpha-pos/tokens.css (SPEC §1).
+   Legacy token names used across the existing components are
+   ALIASED to the unified palette at the bottom, so the whole
+   app reskins from this one file without touching every .vue.
+   ============================================================ */
+
 :root {
-  /* === LIGHT GREY CANVAS === */
-  --bg-app: #f1f3f5; /* slightly darker than before */
-  --bg-surface: #ffffff;
-  --bg-surface-2: #f6f7f9; /* cards / items */
-  --danger-bg: #fdecec;
+  /* ---- BRAND (single accent) ---- */
+  --brand: #16a34a;
+  --brand-press: #15893f;
+  --brand-soft: #e7f5ee;
+  --brand-softer: #f1faf4;
 
-  /* === BORDERS === */
-  --border-color: #e2e5e9;
+  /* ---- SURFACES ---- */
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #eef0f3;
 
-  /* === TEXT === */
-  --text-primary: #1f2937;
-  --text-muted: #6b7280;
-  --text-disabled: #9ca3af;
-  --warning-bg: #fff7e6;
-  --warning-text: #92400e;
-  --danger-text: #991b1b;
-  --success-text: #2e7d32;
+  /* ---- BORDERS ---- */
+  --line: #e8eaee;
+  --line-strong: #d8dce2;
 
-  /* === ACCENT === */
-  --accent-primary: #16a34a;
-  --accent-soft: #e7f5ee;
+  /* ---- TEXT ---- */
+  --ink: #111827;
+  --ink-2: #5b6472;
+  --ink-3: #9aa1ad;
 
-  /* === SHADOWS (VERY IMPORTANT) === */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.06);
+  /* ---- STATUS (chips only) ---- */
+  --paid: #15803d;   --paid-bg: #e8f5ec;
+  --unpaid: #b45309; --unpaid-bg: #fdf3e3;
+  --cancel: #b91c1c; --cancel-bg: #fdeaea;
+  --prep: #1d4ed8;   --prep-bg: #e8eefc;
+  --ready: #15803d;  --ready-bg: #e8f5ec;
 
-  /* === BUTTONS === */
-  --btn-secondary-bg: #f1f3f5;
+  /* ---- RADII ---- */
+  --r-xs: 8px; --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
+
+  /* ---- SHADOWS (faint) ---- */
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow-md: 0 6px 18px rgba(17, 24, 39, 0.07);
+  --shadow-lg: 0 18px 48px rgba(17, 24, 39, 0.14);
+
+  /* ---- SPACING (4pt) ---- */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
+
+  /* ---- TYPE ---- */
+  --font: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --t-display: 30px; --t-h1: 22px; --t-h2: 18px; --t-body: 16px; --t-sm: 14px; --t-xs: 12px;
+
+  /* ---- TOUCH ---- */
+  --touch: 48px; --touch-lg: 56px;
+
+  /* ========================================================
+     LEGACY ALIASES — existing components reference these names;
+     map them onto the unified palette so they reskin for free.
+     ======================================================== */
+  --bg-app: #f4f5f7;
+  --bg-surface: var(--surface);
+  --bg-surface-2: var(--surface-2);
+  --border-color: var(--line);
+
+  --text-primary: var(--ink);
+  --text-muted: var(--ink-2);
+  --text-disabled: var(--ink-3);
+
+  --accent-primary: var(--brand);
+  --accent-soft: var(--brand-soft);
+
+  --btn-secondary-bg: var(--surface-2);
   --btn-secondary-text: #374151;
-  /* === BACKGROUNDS === */
-  --kds-bg-app: #eef1f4;
-  --kds-bg-card: #ffffff;
 
-  /* === TEXT === */
-  --kds-text-primary: #1f2937;
-  --kds-text-muted: #6b7280;
+  --danger-bg: var(--cancel-bg);
+  --danger-text: var(--cancel);
+  --warning-bg: var(--unpaid-bg);
+  --warning-text: var(--unpaid);
+  --success-text: var(--paid);
 
-  /* === BORDERS === */
-  --kds-border-color: #e2e5e9;
-
-  /* === STATUS === */
-  --kds-status-ready-bg: #d1fae5;
-
-  /* === ITEM STATES === */
-  --kds-item-bg: #f8f9fa;
-  --kds-item-hover: #f1f3f5;
-  --kds-item-done-bg: #bbf7d0;
-  --kds-item-done-text: #166534;
-
-  /* === BUTTONS === */
-  --kds-btn-primary-bg: #16a34a;
+  /* KDS now shares the unified tokens (SPEC §1: drop the parallel --kds-* set) */
+  --kds-bg-app: var(--bg-app);
+  --kds-bg-card: var(--surface);
+  --kds-text-primary: var(--ink);
+  --kds-text-muted: var(--ink-2);
+  --kds-border-color: var(--line);
+  --kds-status-ready-bg: var(--ready-bg);
+  --kds-item-bg: var(--surface-2);
+  --kds-item-hover: var(--surface-3);
+  --kds-item-done-bg: var(--ready-bg);
+  --kds-item-done-text: var(--ready);
+  --kds-btn-primary-bg: var(--brand);
   --kds-btn-primary-text: #ffffff;
-  --kds-btn-secondary-bg: #ffffff;
-  --kds-btn-secondary-text: #d97706;
-  --kds-btn-secondary-hover: #f3f4f6;
+  --kds-btn-secondary-bg: var(--surface);
+  --kds-btn-secondary-text: var(--ink-2);
+  --kds-btn-secondary-hover: var(--surface-2);
+  --kds-shadow-sm: var(--shadow-sm);
+  --kds-shadow-md: var(--shadow-md);
+  --kds-radius-md: var(--r-sm);
+}
 
-  /* === SHADOWS (subtle, modern) === */
-  --kds-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --kds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+/* ============================================================
+   BASE
+   ============================================================ */
+.tnum { font-variant-numeric: tabular-nums; }
 
-  /* === RADIUS === */
-  --kds-radius-md: 10px;
+/* Accessible focus ring — keyboard users only */
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 45%, white);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   SHARED PRIMITIVES (global utility classes for new markup;
+   existing scoped styles are unaffected)
+   ============================================================ */
+.app-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px;
+  border-radius: var(--r-pill);
+  font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.2px;
+  white-space: nowrap;
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  &--paid   { color: var(--paid);   background: var(--paid-bg); }
+  &--unpaid { color: var(--unpaid); background: var(--unpaid-bg); }
+  &--cancel { color: var(--cancel); background: var(--cancel-bg); }
+  &--prep   { color: var(--prep);   background: var(--prep-bg); }
+  &--ready  { color: var(--ready);  background: var(--ready-bg); }
+}
+
+.segmented {
+  display: inline-flex; gap: 6px;
+  background: var(--surface-2); padding: 5px;
+  border-radius: var(--r-md); border: 1px solid var(--line);
+}
+.seg {
+  height: 40px; padding: 0 18px;
+  border: none; background: transparent; border-radius: var(--r-sm);
+  font-size: var(--t-sm); font-weight: 600; color: var(--ink-2);
+  cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+  display: inline-flex; align-items: center; gap: 8px;
+  &:hover { color: var(--ink); }
+  &.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+  .badge { background: var(--surface-3); color: var(--ink-2); border-radius: 999px; font-size: 11px; padding: 1px 8px; font-weight: 700; }
+  &.active .badge { background: var(--brand-soft); color: var(--brand); }
 }

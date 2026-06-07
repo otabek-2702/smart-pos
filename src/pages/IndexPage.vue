@@ -578,7 +578,6 @@ onMounted(() => {
 .page-users {
   background: var(--bg-app);
   position: relative;
-  --accent-primary: #ff7a00;
 }
 
 /* TOP LEFT */
