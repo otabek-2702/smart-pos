@@ -74,8 +74,23 @@
       </div>
     </header>
 
+    <!-- STANDBY — no cashier logged in on this terminal yet. Branded idle
+         screen instead of an empty board (or a redirect to the login picker). -->
+    <main v-if="isStandby" class="standby">
+      <img :src="displaySettings.logoBase64 || logoUrl" class="standby__logo" alt="logo" />
+      <div class="standby__title" :style="{ color: displaySettings.headerTextColor }">
+        {{ displaySettings.companyName }}
+      </div>
+      <div class="standby__welcome" :style="{ color: displaySettings.headerTextColor }">
+        Xush kelibsiz
+      </div>
+      <div class="standby__hint" :style="{ color: displaySettings.headerTextColor }">
+        Tizim tayyorlanmoqda…
+      </div>
+    </main>
+
     <!-- CONTENT -->
-    <main class="content">
+    <main v-else class="content">
       <!-- PROCESSING -->
       <section class="column processing">
         <h2 :style="{ color: displaySettings.headerTextColor }">JARAYONDA</h2>
@@ -154,6 +169,7 @@ interface DisplayOrder {
 
 interface DisplaySettings {
   companyName: string;
+  logoBase64: string | null;
   titleFontSize: 'small' | 'medium' | 'large' | 'xlarge';
   brandColor: string;
   readyColor: string;
@@ -163,6 +179,7 @@ interface DisplaySettings {
 // Default settings (fallback)
 const DEFAULT_SETTINGS: DisplaySettings = {
   companyName: 'SMART FOOD',
+  logoBase64: null,
   titleFontSize: 'large',
   brandColor: '#ff6b00',
   readyColor: '#16a34a',
@@ -178,6 +195,11 @@ const FONT_SIZE_MAP: Record<DisplaySettings['titleFontSize'], string> = {
 };
 
 // State
+const logoUrl = new URL('../assets/logo.png', import.meta.url).href;
+// Standby = no logged-in session on this terminal yet (the data endpoint is
+// auth-gated). Start true so the customer sees branding, not an empty board,
+// until the cashier logs in. Flipped off on the first successful fetch.
+const isStandby = ref(true);
 const displaySettings = reactive<DisplaySettings>({ ...DEFAULT_SETTINGS });
 const processing = ref<DisplayOrder[]>([]);
 const finished = ref<DisplayOrder[]>([]);
@@ -292,12 +314,14 @@ async function loadSettings(): Promise<void> {
   }
 }
 
+let unsubscribeSettings: (() => void) | null = null;
+
 function setupSettingsListener(): void {
   try {
     const electron = window.electron;
 
     if (electron) {
-      electron.clientDisplay.onSettingsUpdated((newSettings: unknown) => {
+      unsubscribeSettings = electron.clientDisplay.onSettingsUpdated((newSettings: unknown) => {
         console.log('Display settings updated:', newSettings);
         Object.assign(displaySettings, newSettings as DisplaySettings);
       });
@@ -399,13 +423,26 @@ async function addToNotificationQueue(orders: DisplayOrder[]): Promise<void> {
 
 async function fetchData(): Promise<void> {
   try {
-    const res = await api.get('/orders/client-display');
-    const data = res.data.data;
+    // validateStatus:()=>true so a 401 is NOT thrown — otherwise the global
+    // axios interceptor would bounce THIS window to the login picker (that's
+    // the "two copies of the app" bug). We handle auth state locally instead.
+    const res = await api.get('/orders/client-display', {
+      validateStatus: () => true,
+    });
 
-    processing.value = data.processing || [];
-    finished.value = data.finished || [];
-
-    detectNewFinished(data.finished || []);
+    if (res.status === 200 && res.data?.data) {
+      isStandby.value = false;
+      const data = res.data.data;
+      processing.value = data.processing || [];
+      finished.value = data.finished || [];
+      detectNewFinished(data.finished || []);
+    } else if (res.status === 401 || res.status === 403) {
+      // No logged-in session on this terminal → show branded standby.
+      isStandby.value = true;
+      processing.value = [];
+      finished.value = [];
+    }
+    // Other statuses (5xx / license 503): keep the last view, don't flip.
   } catch (e) {
     console.error('Fetch error:', e);
   }
@@ -477,6 +514,11 @@ onMounted(async () => {
 onUnmounted(() => {
   if (poll) clearInterval(poll);
   if (clockTimer) clearInterval(clockTimer);
+  // Detach the IPC settings listener so remounts don't stack handlers.
+  if (unsubscribeSettings) {
+    unsubscribeSettings();
+    unsubscribeSettings = null;
+  }
 });
 </script>
 
@@ -525,9 +567,53 @@ onUnmounted(() => {
 }
 
 .title {
+  /* Center child of a space-between header. flex:1 + min-width:0 keeps a long
+     company name centered and truncated instead of colliding with the date
+     (left) and clock (right). */
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  padding: 0 16px;
   font-weight: 900;
   letter-spacing: 6px;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== STANDBY (no session) ===== */
+.standby {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 40px;
+}
+.standby__logo {
+  height: 140px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 8px;
+  opacity: 0.95;
+}
+.standby__title {
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.standby__welcome {
+  font-size: 2rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.standby__hint {
+  font-size: 1.2rem;
+  opacity: 0.6;
 }
 
 /* ===== FLIP CLOCK ===== */
@@ -631,11 +717,16 @@ h2 {
 }
 
 .order-box {
-  width: 160px;
+  /* min-width (not fixed width) + padding so 3–4 digit order numbers grow
+     the box instead of clipping. Real restaurants pass #99/day. */
+  min-width: 160px;
+  width: auto;
   height: 160px;
+  padding: 0 18px;
   border-radius: 20px;
-  font-size: 4.5rem;
+  font-size: 4.2rem;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   justify-content: center;

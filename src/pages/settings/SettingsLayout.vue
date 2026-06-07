@@ -53,28 +53,33 @@
         <router-view />
       </div>
 
-      <!-- Virtual Keyboard (for text inputs) -->
-      <Transition name="keyboard-slide">
-        <div v-if="keyboardVisible && virtualKeyboardEnabled && !numpadVisible" class="keyboard-container">
-          <VirtualKeyboard
-            position="inline"
-            :numbers="keyboardWithNumbers"
-            @input="onKeyboardInput"
-            @backspace="onKeyboardBackspace"
-          />
-        </div>
-      </Transition>
+      <!-- Keyboards teleported to <body> so they render ABOVE Quasar dialogs
+           (q-dialog teleports to body; a keyboard nested in .settings-content
+           would be trapped under the dialog's stacking context → invisible). -->
+      <Teleport to="body">
+        <!-- Virtual Keyboard (for text inputs) -->
+        <Transition name="keyboard-slide">
+          <div v-if="keyboardVisible && virtualKeyboardEnabled && !numpadVisible" class="keyboard-container">
+            <VirtualKeyboard
+              position="inline"
+              :numbers="keyboardWithNumbers"
+              @input="onKeyboardInput"
+              @backspace="onKeyboardBackspace"
+            />
+          </div>
+        </Transition>
 
-      <!-- Virtual Numpad (for numeric inputs) -->
-      <Transition name="keyboard-slide">
-        <div v-if="numpadVisible && virtualKeyboardEnabled" class="keyboard-container">
-          <VirtualNumpad
-            @input="onNumpadInput"
-            @backspace="onNumpadBackspace"
-            @clear="onNumpadClear"
-          />
-        </div>
-      </Transition>
+        <!-- Virtual Numpad (for numeric inputs) -->
+        <Transition name="keyboard-slide">
+          <div v-if="numpadVisible && virtualKeyboardEnabled" class="keyboard-container">
+            <VirtualNumpad
+              @input="onNumpadInput"
+              @backspace="onNumpadBackspace"
+              @clear="onNumpadClear"
+            />
+          </div>
+        </Transition>
+      </Teleport>
     </div>
   </q-page>
 </template>
@@ -119,6 +124,8 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { route: 'settings-receipt', label: 'Chek sozlamalari', icon: 'receipt_long', permission: 'receipt.manage' },
   { route: 'settings-printer', label: 'Printer sozlamalari', icon: 'print', permission: 'printer.manage' },
   { route: 'settings-display', label: 'Displey sozlamalari', icon: 'tv', permission: 'display.manage' },
+  { route: 'settings-order-types', label: 'Buyurtma turlari', icon: 'restaurant_menu', permission: 'display.manage' },
+  { route: 'settings-discount', label: 'Promokod', icon: 'percent', permission: 'display.manage' },
   { route: 'settings-categories', label: 'Kategoriyalar', icon: 'category', permission: 'categories.manage' },
   { route: 'settings-users', label: 'Foydalanuvchilar', icon: 'people', permission: 'users.manage' },
   { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2', permission: 'products.manage' },

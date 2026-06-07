@@ -20,13 +20,17 @@ export interface ReceiptSettings {
 }
 
 export interface PrinterSettings {
+  connectionType: 'network' | 'usb';
   ip: string;
   port: number;
   paperWidth: 58 | 80;
+  usbPrinterName: string;
 }
 
 export interface DisplaySettings {
   companyName: string;
+  // Index/login + client-display logo (data URL). null = built-in placeholder.
+  logoBase64: string | null;
   titleFontSize: 'small' | 'medium' | 'large' | 'xlarge';
   brandColor: string;
   readyColor: string;
@@ -56,13 +60,16 @@ export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
 };
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
+  connectionType: 'network',
   ip: '192.168.123.100',
   port: 9100,
   paperWidth: 80,
+  usbPrinterName: '',
 };
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   companyName: 'SMART FOOD',
+  logoBase64: null,
   titleFontSize: 'large',
   brandColor: '#ff6b00',
   readyColor: '#16a34a',

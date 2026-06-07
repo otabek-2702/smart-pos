@@ -266,16 +266,27 @@ function updatePreview(): void {
   }
 }
 
+// Escape operator-entered text before it goes into the v-html preview —
+// otherwise a stray "<" breaks the markup and arbitrary HTML is an XSS sink.
+function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generateLocalPreview(): string {
   const thankYouHtml = settings.showThankYouMessage && settings.thankYouMessage
-    ? `<div class="thank-you">${settings.thankYouMessage}</div>`
+    ? `<div class="thank-you">${esc(settings.thankYouMessage)}</div>`
     : '';
 
   const footerPhoneHtml = settings.showFooterPhone
     ? `
       <div class="footer">
-        ${settings.footerTitle ? `<div class="footer-title">${settings.footerTitle}</div>` : ''}
-        ${settings.footerPhone ? `<div class="footer-phone">${settings.footerPhone}</div>` : ''}
+        ${settings.footerTitle ? `<div class="footer-title">${esc(settings.footerTitle)}</div>` : ''}
+        ${settings.footerPhone ? `<div class="footer-phone">${esc(settings.footerPhone)}</div>` : ''}
       </div>
     `
     : '';
@@ -283,7 +294,7 @@ function generateLocalPreview(): string {
   const additionalFooterHtml = settings.showAdditionalFooter && settings.additionalFooterText
     ? `
       <div class="additional-footer">
-        ${settings.additionalFooterText.split('\n').map(line => `<div>${line}</div>`).join('')}
+        ${settings.additionalFooterText.split('\n').map(line => `<div>${esc(line)}</div>`).join('')}
       </div>
     `
     : '';

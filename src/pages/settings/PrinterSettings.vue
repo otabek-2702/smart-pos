@@ -9,11 +9,33 @@
       <!-- Connection Section -->
       <div class="form-section">
         <h3 class="form-section-title">
-          <q-icon name="lan" size="20px" />
-          Tarmoq ulanishi
+          <q-icon name="print" size="20px" />
+          Ulanish turi
         </h3>
 
-        <div class="form-row">
+        <div class="conn-type">
+          <button
+            type="button"
+            class="conn-btn"
+            :class="{ active: settings.connectionType === 'network' }"
+            @click="settings.connectionType = 'network'"
+          >
+            <q-icon name="lan" size="22px" />
+            <span>Tarmoq (IP)</span>
+          </button>
+          <button
+            type="button"
+            class="conn-btn"
+            :class="{ active: settings.connectionType === 'usb' }"
+            @click="selectUsb"
+          >
+            <q-icon name="usb" size="22px" />
+            <span>USB / Windows</span>
+          </button>
+        </div>
+
+        <!-- NETWORK -->
+        <div v-if="settings.connectionType === 'network'" class="form-row">
           <div class="form-group flex-2">
             <label class="form-label">IP manzil</label>
             <input
@@ -39,6 +61,25 @@
           </div>
         </div>
 
+        <!-- USB / Windows printer -->
+        <div v-else class="form-group">
+          <label class="form-label">Windows printeri</label>
+          <div class="usb-row">
+            <select v-model="settings.usbPrinterName" class="form-input">
+              <option value="">Standart printer (Windows)</option>
+              <option v-for="p in printersList" :key="p.name" :value="p.name">
+                {{ p.displayName }}{{ p.isDefault ? ' — standart' : '' }}
+              </option>
+            </select>
+            <button type="button" class="btn btn-outline usb-refresh" @click="loadPrinters" title="Yangilash">
+              <q-icon name="refresh" size="20px" />
+            </button>
+          </div>
+          <span v-if="printersList.length === 0" class="form-hint">
+            Printer topilmadi. Windowsda printer o'rnatilganini tekshiring.
+          </span>
+        </div>
+
         <div class="connection-status" :class="connectionStatus">
           <q-icon :name="connectionIcon" size="20px" />
           <span>{{ connectionText }}</span>
@@ -48,11 +89,11 @@
           type="button"
           class="btn btn-outline"
           @click="testConnection"
-          :disabled="testing || !isValidIp"
+          :disabled="testing || (settings.connectionType === 'network' && !isValidIp)"
         >
-          <q-icon v-if="!testing" name="wifi_find" size="20px" />
+          <q-icon v-if="!testing" name="print" size="20px" />
           <q-spinner-dots v-if="testing" size="20px" />
-          <span>{{ testing ? 'Tekshirilmoqda...' : 'Ulanishni tekshirish' }}</span>
+          <span>{{ testing ? 'Chop etilmoqda...' : 'Test chop etish' }}</span>
         </button>
       </div>
 
@@ -122,7 +163,7 @@
           type="button"
           class="btn btn-primary"
           @click="saveSettings"
-          :disabled="saving || !isValidIp"
+          :disabled="saving || !canSave"
         >
           <q-icon v-if="!saving" name="save" size="20px" />
           <span v-if="saving">Saqlanmoqda...</span>
@@ -185,11 +226,35 @@ const saving = ref(false);
 const testing = ref(false);
 const ipError = ref<string>('');
 const connectionStatus = ref<'idle' | 'success' | 'error'>('idle');
+const printersList = ref<{ name: string; displayName: string; isDefault: boolean }[]>([]);
+
+// Network needs a valid IP; USB just needs a (possibly default) printer.
+const canSave = computed(() => settings.connectionType === 'usb' || isValidIp.value);
+
+async function loadPrinters(): Promise<void> {
+  try {
+    printersList.value = (await window.electron.printer.list()) ?? [];
+  } catch (e) {
+    console.error('Failed to list printers:', e);
+    printersList.value = [];
+  }
+}
+
+function selectUsb(): void {
+  settings.connectionType = 'usb';
+  if (printersList.value.length === 0) void loadPrinters();
+}
 
 // Computed
 const isValidIp = computed(() => {
   const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-  return ipPattern.test(settings.ip);
+  if (!ipPattern.test(settings.ip)) return false;
+  // Bound each octet 0-255 — the regex alone lets 999.1.1.1 through and would
+  // enable Save on an invalid address.
+  return settings.ip.split('.').every((part) => {
+    const n = Number(part);
+    return n >= 0 && n <= 255;
+  });
 });
 
 const connectionIcon = computed(() => {
@@ -217,13 +282,14 @@ async function loadSettings(): Promise<void> {
   try {
     const result = await window.electron.settings.getPrinter() as PrinterSettings;
     Object.assign(settings, result);
+    if (settings.connectionType === 'usb') void loadPrinters();
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
 }
 
 async function saveSettings(): Promise<void> {
-  if (!isValidIp.value) return;
+  if (!canSave.value) return;
 
   saving.value = true;
   try {
@@ -400,6 +466,51 @@ function resetToDefaults(): void {
 }
 
 // Connection status
+.conn-type {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.conn-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &.active {
+    border-color: var(--accent-primary, #ff7a00);
+    color: var(--accent-primary, #ff7a00);
+    background: color-mix(in srgb, var(--accent-primary, #ff7a00) 10%, transparent);
+  }
+  &:active { transform: scale(0.98); }
+}
+.usb-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.usb-row .form-input { flex: 1; min-width: 0; }
+.usb-refresh {
+  width: 48px;
+  flex-shrink: 0;
+  padding: 0;
+}
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .connection-status {
   display: flex;
   align-items: center;

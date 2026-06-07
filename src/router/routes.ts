@@ -33,18 +33,17 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/KDSPage.vue'),
       },
       {
+        path: '/expenses',
+        name: 'expenses',
+        component: () => import('pages/ExpensesPage.vue'),
+        meta: { permissions: ['expenses.manage'] },
+      },
+      {
         path: '/client-display',
         name: 'client-display',
         component: () => import('pages/ClientDisplayPage.vue'),
         meta: { fullscreen: true },
       },
-      {
-        path: '/cash-box',
-        name: 'cash-box',
-        component: () => import('pages/CashBoxPage.vue'),
-        meta: { permissions: ['inkassa.manage'] },
-      },
-
       // Settings routes — per-permission access. Admins (role=ADMIN or
       // '*' permission) pass everything; non-admin power users get
       // access to the specific child whose permission they hold. The
@@ -76,6 +75,18 @@ const routes: RouteRecordRaw[] = [
             path: 'display',
             name: 'settings-display',
             component: () => import('pages/settings/DisplaySettings.vue'),
+            meta: { permissions: ['display.manage'] },
+          },
+          {
+            path: 'order-types',
+            name: 'settings-order-types',
+            component: () => import('pages/settings/OrderTypesSettings.vue'),
+            meta: { permissions: ['display.manage'] },
+          },
+          {
+            path: 'discount',
+            name: 'settings-discount',
+            component: () => import('pages/settings/DiscountSettings.vue'),
             meta: { permissions: ['display.manage'] },
           },
           {

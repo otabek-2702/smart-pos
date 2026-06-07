@@ -3,6 +3,7 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { getPersistDir } from './persist-path';
 
 export interface ReceiptSettings {
   logoBase64: string | null;
@@ -17,13 +18,20 @@ export interface ReceiptSettings {
 }
 
 export interface PrinterSettings {
+  // 'network' = ESC/POS over TCP to ip:port; 'usb' = a Windows-installed
+  // printer (USB or driver) printed via the OS, selected by name.
+  connectionType: 'network' | 'usb';
   ip: string;
   port: number;
   paperWidth: 58 | 80;
+  // Windows printer device name for connectionType 'usb'. '' = OS default.
+  usbPrinterName: string;
 }
 
 export interface DisplaySettings {
   companyName: string;
+  // Index/login + client-display logo. null = built-in placeholder.
+  logoBase64: string | null;
   titleFontSize: 'small' | 'medium' | 'large' | 'xlarge';
   brandColor: string;
   readyColor: string;
@@ -50,13 +58,16 @@ const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
 };
 
 const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
+  connectionType: 'network',
   ip: '192.168.123.100',
   port: 9100,
   paperWidth: 80,
+  usbPrinterName: '',
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   companyName: 'SMART FOOD',
+  logoBase64: null,
   titleFontSize: 'large',
   brandColor: '#ff6b00',
   readyColor: '#16a34a',
@@ -71,11 +82,28 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 function getSettingsPath(): string {
-  const userDataPath = app.getPath('userData');
-  return path.join(userDataPath, 'app-settings.json');
+  // Machine-wide + reinstall-proof (see persist-path.ts).
+  return path.join(getPersistDir(), 'app-settings.json');
+}
+
+// One-time import from the legacy per-user path so existing installs keep their
+// receipt/printer/display settings after the move. Never deletes the old file.
+function migrateLegacySettings(): void {
+  try {
+    const newPath = getSettingsPath();
+    if (fs.existsSync(newPath)) return;
+    const legacy = path.join(app.getPath('userData'), 'app-settings.json');
+    if (legacy === newPath) return;
+    if (fs.existsSync(legacy)) {
+      fs.copyFileSync(legacy, newPath);
+    }
+  } catch {
+    // best-effort
+  }
 }
 
 function loadSettings(): AppSettings {
+  migrateLegacySettings();
   const settingsPath = getSettingsPath();
 
   try {

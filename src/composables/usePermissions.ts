@@ -1,9 +1,15 @@
 // Reads the cached auth_user from kv-store and answers permission checks.
-// Backend now ships `permissions: string[]` on the user (per backend BE-4);
-// `'*'` means "all", and role === 'ADMIN' also grants everything.
+// Backend ships `permissions: string[]` on the user; `'*'` means "all".
 //
-// Used by the router guard and any UI that needs to hide actions the
-// current user can't perform (e.g. the settings sidebar filtering).
+// Role tiers (matches backend role gating):
+//   ADMIN    — full access. (Note: admins can't actually log into the POS;
+//              they use the backend panel. Kept for completeness/safety.)
+//   MANAGER  — the in-app settings tier. Has every granular permission
+//              EXCEPT the superuser-only `'*'` gate (e.g. the Roles editor,
+//              which stays admin-only). Mirrors backend role_required('MANAGER').
+//   others   — only what's in their explicit `permissions` array.
+//
+// Used by the router guard and any UI that hides actions the user can't do.
 
 import { read } from 'src/utils/storage';
 
@@ -28,7 +34,10 @@ export function hasPermission(key: string): boolean {
   if (!user) return false;
   if (user.role === 'ADMIN') return true;
   const perms = user.permissions ?? [];
-  return perms.includes('*') || perms.includes(key);
+  if (perms.includes('*')) return true;
+  // Manager: everything except the superuser-only `'*'` gate.
+  if (user.role === 'MANAGER') return key !== '*';
+  return perms.includes(key);
 }
 
 export function hasAllPermissions(keys: ReadonlyArray<string>): boolean {
@@ -38,5 +47,7 @@ export function hasAllPermissions(keys: ReadonlyArray<string>): boolean {
   if (user.role === 'ADMIN') return true;
   const perms = user.permissions ?? [];
   if (perms.includes('*')) return true;
+  // Manager passes everything except a superuser-only (`'*'`) requirement.
+  if (user.role === 'MANAGER') return keys.every((k) => k !== '*');
   return keys.every((k) => perms.includes(k));
 }

@@ -172,9 +172,10 @@ function getSecondaryDisplay(): Electron.Display | null {
   return displays.find((d) => d.id !== primary.id) || null;
 }
 
-function openClientDisplay(forcePreview = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' | 'disabled' } {
-  // Hard block — the user explicitly turned the feature off.
-  if (!getSettings().display.clientDisplayEnabled) {
+function openClientDisplay(forcePreview = false, manual = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' | 'disabled' } {
+  // The toggle only controls AUTO-open. A manual "open" from Settings works
+  // regardless, so the operator can preview the display any time.
+  if (!manual && !getSettings().display.clientDisplayEnabled) {
     return { success: false, mode: 'disabled' };
   }
 
@@ -290,7 +291,8 @@ registerSystemHandler();
 function registerClientDisplayHandlers(): void {
   // Open client display
   ipcMain.handle('client-display:open', (_event, forcePreview?: boolean): { success: boolean; mode: string } => {
-    return openClientDisplay(forcePreview || false);
+    // Manual open from the Settings button — bypass the auto-open toggle.
+    return openClientDisplay(forcePreview || false, true);
   });
 
   // Close client display

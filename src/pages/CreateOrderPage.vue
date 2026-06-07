@@ -139,9 +139,9 @@
                 type="button"
                 class="product-item"
                 :style="{
-                  backgroundColor: product.category.color?.[0] || '#f8fafc',
-                  borderBottomColor: product.color?.[0] || '#e2e5e9',
-                  borderBottomWidth: product.color?.[0] ? '4px' : '1px',
+                  backgroundColor: '#f8fafc',
+                  borderBottomColor: product.colors?.[0] || '#e2e5e9',
+                  borderBottomWidth: product.colors?.[0] ? '4px' : '1px',
                 }"
                 @click="addProduct(product)"
               >
@@ -217,6 +217,7 @@ import ReceiptItemDescriptionDialog from 'src/components/ReceiptItemDescriptionD
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 import { read } from 'src/utils/storage';
 import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
+import { useOrderTypes } from 'src/composables/useOrderTypes';
 
 // While the cashier is mid-order, an internet-down modal would steal
 // focus and risk losing the receipt being built. Suppress for the whole
@@ -253,9 +254,9 @@ interface ApiProduct {
     id: string;
     name: string;
     slug: string;
-    color: string[];
   };
-  color: string[];
+  // Backend sends `colors` (array). (The nested category carries no color.)
+  colors: string[];
 }
 
 interface ProductsResponse {
@@ -312,11 +313,13 @@ function onKeyPress(key: string): void {
 
 const router = useRouter();
 
-const ORDER_TYPES: ReadonlyArray<{ value: OrderType; label: string }> = [
-  { value: 'HALL', label: 'Zal' },
-  { value: 'PICKUP', label: 'S soboy' },
-  { value: 'DELIVERY', label: 'Dostavka' },
-];
+// Labels come from the shared source so a Settings edit updates them here too.
+const { labels: orderLabels } = useOrderTypes();
+const ORDER_TYPES = computed<ReadonlyArray<{ value: OrderType; label: string }>>(() => [
+  { value: 'HALL', label: orderLabels.value.HALL },
+  { value: 'PICKUP', label: orderLabels.value.PICKUP },
+  { value: 'DELIVERY', label: orderLabels.value.DELIVERY },
+]);
 
 const receiptItems = ref<ReceiptItem[]>([]);
 

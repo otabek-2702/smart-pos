@@ -1,6 +1,6 @@
 <template>
   <q-layout view="hHh lpR fFf" class="bg-dark">
-    <q-page-container>
+    <q-page-container :class="{ 'has-warn-banner': showWarn }">
       <router-view />
     </q-page-container>
 
@@ -26,21 +26,49 @@
       directly to register the install and unblock the rest of the app.
     -->
     <LicenseBlockedScreen />
+
+    <!--
+      Non-blocking prepaid warning banner. Driven by the `warn` flag on
+      /api/licensing/status — shows "top up soon" before the kill switch
+      actually blocks the POS.
+    -->
+    <LicenseWarnBanner />
   </q-layout>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import InternetWarningDialog from 'src/components/InternetWarningDialog.vue';
 import LicenseBlockedScreen from 'src/components/LicenseBlockedScreen.vue';
+import LicenseWarnBanner from 'src/components/LicenseWarnBanner.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useDeviceRole } from 'src/composables/useDeviceRole';
+import { useLicenseStatus } from 'src/composables/useLicenseStatus';
 
 const network = useNetworkStatus();
 const role = useDeviceRole();
+const license = useLicenseStatus();
+const route = useRoute();
+
+// Mirror LicenseWarnBanner's visibility so the page content can reserve the
+// space the fixed banner occupies (otherwise it covers the top of the page).
+const showWarn = computed(
+  () =>
+    license.snapshot.value.warn === true &&
+    license.snapshot.value.is_blocked !== true &&
+    route.meta.fullscreen !== true,
+);
 </script>
 
 <style scoped>
 .bg-dark {
   background: #0f1115;
+}
+
+/* Reserve space for the fixed LicenseWarnBanner (~38px) so it never covers
+   the top of the active page. Matches the banner's height. */
+.has-warn-banner {
+  padding-top: 38px;
 }
 </style>

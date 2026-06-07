@@ -31,6 +31,8 @@ declare global {
         delete(key: string): Promise<boolean>;
         clear(): Promise<boolean>;
         getAll(): Promise<Record<string, unknown>>;
+        // Subscribe to cross-window store changes; returns an unsubscribe fn.
+        onChanged(callback: (all: Record<string, unknown>) => void): () => void;
       };
       system: {
         openWifi(): Promise<IpcResult>;
@@ -52,11 +54,14 @@ declare global {
       clientDisplay: {
         status(): Promise<unknown>;
         open(): Promise<void>;
-        onSettingsUpdated(callback: (settings: unknown) => void): void;
+        // Returns an unsubscribe fn — the renderer MUST call it on unmount,
+        // otherwise each ClientDisplay mount stacks another IPC listener.
+        onSettingsUpdated(callback: (settings: unknown) => void): () => void;
       };
       printer: {
         test(): Promise<IpcResult>;
         printReceipt(data: unknown): Promise<IpcResult>;
+        list(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
       };
     };
     backend: {

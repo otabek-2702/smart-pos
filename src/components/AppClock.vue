@@ -32,7 +32,7 @@ withDefaults(
     /** Visual scale: 'sm' (footer chip), 'md' (default), 'lg' (display wall). */
     size?: 'sm' | 'md' | 'lg';
   }>(),
-  { showSeconds: true, size: 'md' },
+  { showSeconds: false, size: 'md' },
 );
 
 const hours = ref('00');
@@ -82,7 +82,9 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.4em;
+  // Wide enough for two tabular digits so the box never collapses/reflows
+  // while a digit cross-fades (that reflow was the visible "jiggle").
+  min-width: 1.7em;
   padding: 0 4px;
   border-radius: 6px;
   background: var(--bg-surface-2);
@@ -128,35 +130,19 @@ onUnmounted(() => {
   }
 }
 
-/* ============ FLIP ANIMATION ============ */
-.flip-enter-active {
-  animation: flip-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+/* ============ DIGIT CHANGE — clean cross-fade ============
+   No 3D rotate / translate: those wobbled the digit on every tick. A plain
+   opacity fade (leaving glyph absolutely positioned so it doesn't shift the
+   box) reads as a calm swap with zero movement. */
+.flip-enter-active,
+.flip-leave-active {
+  transition: opacity 0.22s ease;
 }
 .flip-leave-active {
-  animation: flip-out 0.32s cubic-bezier(0.4, 0, 0.6, 0.4);
   position: absolute;
 }
-@keyframes flip-in {
-  0% {
-    transform: translateY(-100%) rotateX(50deg);
-    opacity: 0;
-  }
-  60% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) rotateX(0);
-    opacity: 1;
-  }
-}
-@keyframes flip-out {
-  0% {
-    transform: translateY(0) rotateX(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100%) rotateX(-50deg);
-    opacity: 0;
-  }
+.flip-enter-from,
+.flip-leave-to {
+  opacity: 0;
 }
 </style>

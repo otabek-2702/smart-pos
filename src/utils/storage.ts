@@ -32,6 +32,14 @@ export async function initStorage(): Promise<void> {
   if (isElectron) {
     cache = await window.electron.kv.getAll();
 
+    // Keep this renderer's hot cache live when ANOTHER window mutates the
+    // store (e.g. the main window writing the auth token at login while the
+    // customer-display window is already open). Without this, sync read()s
+    // would serve a stale boot-time snapshot forever.
+    window.electron.kv.onChanged((all) => {
+      cache = all;
+    });
+
     // One-time migration from localStorage. Anything in localStorage that's
     // not yet in kv-store wins. After migration we wipe the localStorage key
     // so future reads only consult kv-store.

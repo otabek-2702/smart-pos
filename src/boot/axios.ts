@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance } from 'axios';
 import { boot } from 'quasar/wrappers';
 import { initStorage, read, remove } from 'src/utils/storage';
+import { applyLicenseRefusal, type LicenseRefusalBody } from 'src/composables/useLicenseStatus';
 
 declare module 'vue' {
   interface ComponentCustomProperties {
@@ -44,11 +45,26 @@ export default boot(async ({ app, router }) => {
   api.interceptors.response.use(
     (response) => response,
     (error) => {
-      if (error.response?.status === 401) {
+      const status = error.response?.status;
+
+      if (status === 401) {
+        // Clear BOTH token and user. The router guards key admin access off
+        // auth_user, so leaving it behind lets a revoked session keep
+        // navigating into /settings client-side until the next API call fails.
         void remove('auth_token');
+        void remove('auth_user');
 
         // POS-safe redirect
         void router.push({ name: 'users' });
+      } else if (status === 503) {
+        // License kill switch: every business endpoint 503s with a
+        // `license_*` code until the License row is active. Flip the
+        // LicenseBlockedScreen immediately instead of waiting up to 30s for
+        // the next /status poll.
+        const data = error.response?.data as (LicenseRefusalBody & { code?: string }) | undefined;
+        if (typeof data?.code === 'string' && data.code.startsWith('license_')) {
+          applyLicenseRefusal(data);
+        }
       }
 
       return Promise.reject(error instanceof Error ? error : new Error('Request failed'));

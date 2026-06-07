@@ -48,6 +48,14 @@ contextBridge.exposeInMainWorld('electron', {
     clear: (): Promise<boolean> => invoke<boolean>('kv:clear'),
     getAll: (): Promise<Record<string, unknown>> =>
       invoke<Record<string, unknown>>('kv:getAll'),
+    // Live cross-window sync: fires with the full store whenever any window
+    // mutates it. Returns an unsubscribe fn. Lets a renderer's hot cache stay
+    // current (e.g. customer-display window picking up the token at login).
+    onChanged: (callback: (all: Record<string, unknown>) => void): (() => void) => {
+      const handler = (_event: unknown, all: Record<string, unknown>): void => callback(all);
+      ipcRenderer.on('kv:changed', handler);
+      return () => ipcRenderer.removeListener('kv:changed', handler);
+    },
   },
 
   // OS deep-links (WiFi/network/printer panels) + LAN discovery used to find
@@ -78,8 +86,13 @@ contextBridge.exposeInMainWorld('electron', {
   clientDisplay: {
     status: () => invoke('client-display:status'),
     open: () => invoke('client-display:open'),
-    onSettingsUpdated: (callback: (settings: unknown) => void) => {
-      ipcRenderer.on('display-settings-updated', (_event, settings) => callback(settings));
+    // Returns an unsubscribe fn so the renderer can detach on unmount —
+    // without it, every ClientDisplay mount leaks another listener on the
+    // same channel (eventually MaxListenersExceededWarning + N× handler runs).
+    onSettingsUpdated: (callback: (settings: unknown) => void): (() => void) => {
+      const handler = (_event: unknown, settings: unknown): void => callback(settings);
+      ipcRenderer.on('display-settings-updated', handler);
+      return () => ipcRenderer.removeListener('display-settings-updated', handler);
     },
   },
 
@@ -87,6 +100,8 @@ contextBridge.exposeInMainWorld('electron', {
   printer: {
     test: () => invoke('print-test'),
     printReceipt: (data: unknown) => invoke('print-receipt', data),
+    // Windows-installed printers (for the USB/driver picker in settings).
+    list: () => invoke('printer:list'),
   },
 });
 

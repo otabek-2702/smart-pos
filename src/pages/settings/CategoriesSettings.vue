@@ -57,7 +57,7 @@
             <span class="card-name">{{ element.name }}</span>
           </div>
           <div class="card-footer">
-            <span class="card-status" :class="element.status.toLowerCase()">
+            <span class="card-status" :class="element.status?.toLowerCase()">
               {{ element.status === 'ACTIVE' ? 'Faol' : 'Nofaol' }}
             </span>
             <q-icon name="drag_indicator" size="18px" class="drag-icon" />
@@ -585,7 +585,9 @@ onMounted(() => {
 
 .drag-icon {
   color: var(--text-muted);
-  opacity: 0.5;
+  /* Fully visible by default — a touch monoblock has no hover, so a
+     hover-only reveal left the reorder handle permanently dimmed. */
+  opacity: 0.85;
   transition: opacity 0.2s ease;
   cursor: grab;
 

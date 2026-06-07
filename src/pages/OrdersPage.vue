@@ -36,8 +36,8 @@
       <div
         v-for="order in orders"
         :key="order.id"
-        class="order-row"
-        :class="{ clickable: order.status === 'UNPAID', paid: order.is_paid }"
+        class="order-row clickable"
+        :class="{ paid: order.is_paid }"
         @click="onOrderClick(order)"
       >
         <div class="order-id">#{{ order.displayId }}</div>
@@ -88,6 +88,7 @@
       :items="selectedOrderItems"
       :order-description="selectedOrder?.description || null"
       :total-amount="selectedOrder?.totalAmount ?? 0"
+      :phone-number="selectedOrder?.phone_number ?? null"
     />
 
     <!-- Footer -->
@@ -106,21 +107,21 @@
       </div>
 
       <div class="footer-right">
-        <button
-          v-if="canSeeCashBox"
-          type="button"
-          class="btn secondary"
-          @click="router.push({ name: 'cash-box' })"
-        >
-          <q-icon name="account_balance_wallet" size="22px" />
-
-          Kassa
-        </button>
-
         <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
           <q-icon name="monitor" size="22px" />
 
           Monitor
+        </button>
+
+        <button
+          v-if="canSeeExpenses"
+          type="button"
+          class="btn secondary"
+          @click="router.push({ name: 'expenses' })"
+        >
+          <q-icon name="payments" size="22px" />
+
+          Xarajatlar
         </button>
 
         <LogOutButton />
@@ -142,14 +143,15 @@ import AdminSettingsButton from 'src/components/AdminSettingsButton.vue';
 import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
-import { hasPermission } from 'src/composables/usePermissions';
 import { useOrderStream } from 'src/composables/useOrderStream';
-
-// Hide the cash-box entry when the current user lacks the permission.
-// The /cash-box route is guarded too — this just avoids the dead click.
-const canSeeCashBox = computed<boolean>(() => hasPermission('inkassa.manage'));
+import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { hasPermission } from 'src/composables/usePermissions';
 
 const network = useNetworkStatus();
+const { labelFor } = useOrderTypes();
+
+// Expenses are a manager tool — show the entry only to those who can manage them.
+const canSeeExpenses = computed<boolean>(() => hasPermission('expenses.manage'));
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -223,12 +225,6 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Bekor qilingan',
 };
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
-  HALL: 'Zal',
-  PICKUP: 'S soboy',
-  DELIVERY: 'Dostavka',
-};
-
 const status = ref<string>('UNPAID');
 const orders = ref<Order[]>([]);
 const loading = ref<boolean>(false);
@@ -266,7 +262,7 @@ function getStatusClass(orderStatus: string): string {
 }
 
 function getOrderTypeLabel(type: string): string {
-  return ORDER_TYPE_LABELS[type] || type;
+  return labelFor(type);
 }
 
 function mapOrder(order: ApiOrder): Order {
@@ -276,7 +272,9 @@ function mapOrder(order: ApiOrder): Order {
     orderType: order.order_type || 'HALL',
     status: order.status,
     totalAmount: Number(order.total_amount) || 0,
-    itemsCount: order.items_count || 0,
+    // The list endpoint sends items[] (no items_count) — derive from it; fall
+    // back to items_count for any endpoint that does send it.
+    itemsCount: order.items?.length ?? order.items_count ?? 0,
     time: new Date(order.created_at).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
@@ -325,8 +323,10 @@ async function fetchOrders(showSpinner = true): Promise<void> {
 async function fetchOrderDetails(orderId: number): Promise<ApiOrder | null> {
   try {
     const response = await api.get<OrderDetailResponse>(`/orders/${orderId}`);
-
-    return response.data.data;
+    // Backend wraps the detail as data:{ order:{...} }. Tolerate either shape
+    // so the dialog's item list isn't silently empty.
+    const data = response.data?.data as { order?: ApiOrder } & Partial<ApiOrder>;
+    return (data?.order ?? (data as ApiOrder)) ?? null;
   } catch (error) {
     console.error('Failed to fetch order details:', error);
     return null;
@@ -519,7 +519,8 @@ onUnmounted(() => {
 
 .order-row {
   display: grid;
-  grid-template-columns: 80px 100px 100px 1fr 140px 140px 80px 100px;
+  grid-template-columns: 70px 96px 110px minmax(0, 1fr) 150px 140px 64px 120px;
+  column-gap: 14px;
   background-color: var(--danger-bg);
   border-radius: 12px;
   padding: 14px 16px;
@@ -527,6 +528,12 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
   transition: transform 0.1s ease;
+
+  // Every cell can shrink; text cells truncate instead of pushing the grid
+  // wider than the row (which clipped at 15" before).
+  & > * {
+    min-width: 0;
+  }
 
   &.clickable {
     cursor: pointer;
@@ -538,9 +545,13 @@ onUnmounted(() => {
   &.paid {
     background: var(--bg-surface);
   }
-  // & > :nth-child(8) {
-  //   grid-column: 1 / -1;
-  // }
+}
+
+.order-type,
+.order-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .order-id {
@@ -561,6 +572,10 @@ onUnmounted(() => {
   text-align: right;
   font-weight: 600;
   color: var(--danger-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .order-amount.paid {
@@ -581,10 +596,13 @@ onUnmounted(() => {
 .order-status {
   text-align: center;
   font-weight: 500;
-  padding: 4px 5px;
+  padding: 4px 6px;
   border-radius: 6px;
-  font-size: 13px;
-  margin: 0 10px;
+  font-size: 12px;
+  margin: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .order-status.open {

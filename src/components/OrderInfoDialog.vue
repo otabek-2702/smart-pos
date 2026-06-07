@@ -90,7 +90,7 @@
         <!-- FOOTER -->
         <div class="footer">
           <button class="btn secondary" @click="close">Yopish</button>
-          <!-- <button class="btn primary">
+          <button class="btn primary" :disabled="printing || !items.length" @click="printCheck">
             <svg
               width="18"
               height="18"
@@ -104,8 +104,8 @@
               />
               <rect x="6" y="14" width="12" height="8" />
             </svg>
-            Chop etish
-          </button> -->
+            {{ printing ? 'Chop etilmoqda...' : 'Chek chop etish' }}
+          </button>
         </div>
       </div>
     </div>
@@ -113,12 +113,16 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import { formatPrice } from 'src/utils/formatPrice';
+import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { read } from 'src/utils/storage';
 
 interface ReceiptItem {
   productId: number;
   name: string;
   quantity: number;
+  price?: number;
   description?: string | null;
 }
 
@@ -130,6 +134,7 @@ const props = withDefaults(
     orderDescription?: string | null;
     items: ReceiptItem[];
     totalAmount: number;
+    phoneNumber?: string | null;
   }>(),
   {
     modelValue: false,
@@ -137,8 +142,37 @@ const props = withDefaults(
     orderType: 'HALL',
     orderDescription: null,
     items: () => [],
+    phoneNumber: null,
   },
 );
+
+const printing = ref(false);
+
+// Print the receipt — same payload/handler used when an order is created
+// (CreateOrderPage.printReceipt → window.electron.printer.printReceipt).
+async function printCheck(): Promise<void> {
+  if (printing.value || !props.items.length) return;
+  printing.value = true;
+  try {
+    const authUser = read<{ first_name: string; last_name: string }>('auth_user');
+    const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
+    const printData = {
+      displayId: props.displayId ?? 0,
+      orderType: props.orderType,
+      cashierName,
+      items: props.items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price ?? 0 })),
+      total: props.totalAmount,
+      description: props.orderDescription || undefined,
+      phoneNumber: props.phoneNumber || undefined,
+    };
+    const result = await window.electron?.printer.printReceipt(printData);
+    if (result && !result.success) console.error('Print failed:', result.error);
+  } catch (e) {
+    console.error('Print error:', e);
+  } finally {
+    printing.value = false;
+  }
+}
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
@@ -148,8 +182,10 @@ function close(): void {
   emit('update:modelValue', false);
 }
 
-const orderTypeLabel =
-  props.orderType === 'DELIVERY' ? 'Dostavka' : props.orderType === 'PICKUP' ? 'S soboy' : 'Zal';
+// computed (not a one-shot const): the dialog is reused across orders, so the
+// label must track prop changes — otherwise it shows the previous order's type.
+const { labelFor } = useOrderTypes();
+const orderTypeLabel = computed(() => labelFor(props.orderType));
 </script>
 
 <style scoped lang="scss">
@@ -451,15 +487,25 @@ const orderTypeLabel =
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 
-  &:active {
+  &:active:not(:disabled) {
     transform: scale(0.97);
     box-shadow: none;
   }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 
 .btn.secondary {
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
+}
+
+.btn.primary {
+  background: var(--accent-primary);
+  color: #fff;
 }
 </style>

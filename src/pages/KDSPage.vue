@@ -81,7 +81,8 @@ interface OrderItem {
   id: number;
   product__name: string;
   quantity: number;
-  description?: string | null;
+  // Orders-list serializer sends the item note as `detail`.
+  detail?: string | null;
 }
 
 interface Cashier {
@@ -97,7 +98,6 @@ interface Order {
   ready_at: string;
   updated_at: string;
   cashier: Cashier;
-  user: Cashier;
   items: OrderItem[];
 }
 
@@ -174,20 +174,27 @@ function checkForNewOrders(newOrders: Order[]): void {
 /* ================= API ================= */
 
 async function fetchOrders(): Promise<void> {
-  const response = await api.get<OrdersResponse>('/orders', {
-    params: {
-      statuses: currentMode.value,
-      per_page: 100000
-    },
-  });
+  // Called from a 3s poll AND on every SSE event — must never throw, or it
+  // floods the kitchen display with unhandled rejections. On a transient
+  // failure keep the current list rather than wiping the board.
+  try {
+    const response = await api.get<OrdersResponse>('/orders', {
+      params: {
+        statuses: currentMode.value,
+        per_page: 100000
+      },
+    });
 
-  const newOrders = response.data.data.orders;
+    const newOrders = response.data?.data?.orders ?? [];
 
-  if (currentMode.value === 'PREPARING') {
-    checkForNewOrders(newOrders);
+    if (currentMode.value === 'PREPARING') {
+      checkForNewOrders(newOrders);
+    }
+
+    orders.value = newOrders;
+  } catch (e) {
+    console.error('[KDS] fetchOrders failed:', e);
   }
-
-  orders.value = newOrders;
 }
 
 function switchMode(newMode: OrderStatus): void {
@@ -224,10 +231,6 @@ function stopPolling(): void {
 
 /* ================= LIFECYCLE ================= */
 
-onMounted(() => {
-  initAudioContext();
-});
-
 function handleUserInteraction(): void {
   initAudioContext();
   document.removeEventListener('click', handleUserInteraction);
@@ -242,6 +245,7 @@ useOrderStream({
 });
 
 onMounted(() => {
+  initAudioContext();
   document.addEventListener('click', handleUserInteraction);
   void fetchOrders();
   startPolling();
@@ -257,7 +261,7 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .kds-page {
   height: 100vh;
   background: var(--kds-bg-app);
@@ -278,13 +282,15 @@ onUnmounted(() => {
 .tab-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 8px 18px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--kds-text-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -304,11 +310,10 @@ onUnmounted(() => {
 /* MASONRY */
 .orders-masonry {
   flex: 1;
-  overflow-y: scroll;
+  overflow-y: auto;
   column-count: 6;
   column-gap: 12px;
   padding: 16px;
-
 }
 
 
@@ -319,24 +324,25 @@ onUnmounted(() => {
   }
 }
 
-/* Laptop */
+/* Laptop — fewer columns as the screen narrows (was 6, a typo that put MORE
+   columns at a smaller width than the 1600px rule). */
 @media (max-width: 1400px) {
   .orders-masonry {
-    column-count: 6;
+    column-count: 4;
   }
 }
 
 /* Tablet landscape */
 @media (max-width: 1100px) {
   .orders-masonry {
-    column-count: 5;
+    column-count: 3;
   }
 }
 
 /* Tablet / small screens */
 @media (max-width: 800px) {
   .orders-masonry {
-    column-count: 3;
+    column-count: 2;
   }
 }
 
@@ -364,35 +370,37 @@ onUnmounted(() => {
 
 /* FOOTER */
 .page-footer {
-  position: relative; /* anchor for .footer-center */
   padding: 12px 16px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
 
-  display: flex;
-  justify-content: space-between;
+  // Equal 1fr side columns + auto center: the left tabs and right buttons
+  // each own half the width, so the clock stays dead-center and the footer
+  // never shifts when the tab-count badge appears/disappears or you switch
+  // pages.
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.footer-right {
+.kds-tabs {
+  justify-self: start;
+}
+
+.footer-center {
+  justify-self: center;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-/* Absolutely centered so the tabs (left) and buttons (right) can grow
-   without nudging the clock off-axis. */
-.footer-center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+.footer-right {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 12px;
-  z-index: 1;
 }
 
 .btn {

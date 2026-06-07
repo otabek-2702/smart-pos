@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { ThermalPrinter } from './thermal-printer';
 import { htmlToImage } from './html-to-image';
 import { generateReceiptHtml } from './receipt-template';
@@ -107,6 +107,43 @@ interface PrintResult {
   error?: string;
 }
 
+// Print the receipt HTML to a Windows-installed printer (USB or driver) via the
+// OS print pipeline, in a hidden window. deviceName '' = the OS default printer.
+async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
+  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } });
+  try {
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    // Let layout/images settle before printing.
+    await new Promise((r) => setTimeout(r, 300));
+    return await new Promise<PrintResult>((resolve) => {
+      win.webContents.print(
+        {
+          silent: true,
+          printBackground: true,
+          margins: { marginType: 'none' },
+          ...(deviceName ? { deviceName } : {}),
+        },
+        (success, failureReason) =>
+          resolve(success ? { success: true } : { success: false, error: failureReason }),
+      );
+    });
+  } finally {
+    if (!win.isDestroyed()) win.close();
+  }
+}
+
+// Route a receipt to the configured printer: USB/Windows or network ESC/POS.
+async function doPrint(html: string): Promise<PrintResult> {
+  const printerSettings = getSettings().printer;
+  if (printerSettings.connectionType === 'usb') {
+    return printViaWindows(html, printerSettings.usbPrinterName || '');
+  }
+  const imageBuffer = await htmlToImage(html);
+  const printer = new ThermalPrinter(printerSettings.ip, printerSettings.port);
+  await printer.printImage(imageBuffer);
+  return { success: true };
+}
+
 export function registerPrintHandler(): void {
   // Log on startup to help debug
   console.log('=== Print Handler Registered ===');
@@ -121,7 +158,6 @@ export function registerPrintHandler(): void {
     try {
       const settings = getSettings();
       const receiptSettings = settings.receipt;
-      const printerSettings = settings.printer;
 
       let logoBase64 = '';
 
@@ -137,12 +173,7 @@ export function registerPrintHandler(): void {
       }
 
       const html = generateReceiptHtml(data, logoBase64, receiptSettings);
-      const imageBuffer = await htmlToImage(html);
-
-      const printer = new ThermalPrinter(printerSettings.ip, printerSettings.port);
-      await printer.printImage(imageBuffer);
-
-      return { success: true };
+      return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Print error:', error);
@@ -154,7 +185,6 @@ export function registerPrintHandler(): void {
     try {
       const settings = getSettings();
       const receiptSettings = settings.receipt;
-      const printerSettings = settings.printer;
 
       let logoBase64 = '';
       if (receiptSettings.logoBase64 && !receiptSettings.useDefaultLogo) {
@@ -178,16 +208,28 @@ export function registerPrintHandler(): void {
       };
 
       const html = generateReceiptHtml(testData, logoBase64, receiptSettings);
-      const imageBuffer = await htmlToImage(html);
-
-      const printer = new ThermalPrinter(printerSettings.ip, printerSettings.port);
-      await printer.printImage(imageBuffer);
-
-      return { success: true };
+      return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Test print error:', error);
       return { success: false, error };
+    }
+  });
+
+  // List Windows-installed printers for the USB/driver picker in settings.
+  ipcMain.handle('printer:list', async (): Promise<{ name: string; displayName: string; isDefault: boolean }[]> => {
+    try {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (!win) return [];
+      const printers = await win.webContents.getPrintersAsync();
+      return printers.map((p) => ({
+        name: p.name,
+        displayName: p.displayName || p.name,
+        isDefault: Boolean((p as { isDefault?: boolean }).isDefault),
+      }));
+    } catch (e) {
+      console.error('printer:list failed:', e);
+      return [];
     }
   });
 

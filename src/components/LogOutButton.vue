@@ -13,13 +13,21 @@
 
       <div class="confirm-text">Tizimdan chiqilgandan so‘ng qayta kirish talab qilinadi.</div>
 
+      <button type="button" class="btn shift" @click="openShiftClose">
+        <q-icon name="point_of_sale" size="18px" />
+        Smenani yakunlash va chiqish
+      </button>
+
       <div class="confirm-actions">
         <button type="button" class="btn secondary" @click="closeConfirm">Bekor qilish</button>
 
-        <button type="button" class="btn danger" @click="confirmLogout">Chiqish</button>
+        <button type="button" class="btn danger" @click="confirmLogout">Chiqish (smena ochiq)</button>
       </div>
     </div>
   </div>
+
+  <!-- Shift close (per-payment-type reconciliation) → then logout -->
+  <ShiftCloseDialog v-model="showShiftClose" @closed="doLogout" />
 </template>
 
 <script setup lang="ts">
@@ -27,9 +35,11 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { remove } from 'src/utils/storage';
+import ShiftCloseDialog from 'src/components/ShiftCloseDialog.vue';
 
 const router = useRouter();
 const showConfirm = ref<boolean>(false);
+const showShiftClose = ref<boolean>(false);
 
 function openConfirm(): void {
   showConfirm.value = true;
@@ -39,9 +49,19 @@ function closeConfirm(): void {
   showConfirm.value = false;
 }
 
-async function confirmLogout(): Promise<void> {
+// Open the shift-close (reconciliation) flow; it logs out via @closed → doLogout.
+function openShiftClose(): void {
   showConfirm.value = false;
+  showShiftClose.value = true;
+}
 
+// Plain logout — keeps the shift open so the cashier can resume after re-login.
+function confirmLogout(): void {
+  showConfirm.value = false;
+  void doLogout();
+}
+
+async function doLogout(): Promise<void> {
   try {
     await api.post('/auth-logout');
   } catch {
@@ -127,6 +147,18 @@ async function confirmLogout(): Promise<void> {
   color: var(--text-muted);
 }
 
+.confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+
+  input { width: 18px; height: 18px; cursor: pointer; }
+}
+
 /* ACTIONS */
 .confirm-actions {
   display: flex;
@@ -159,5 +191,15 @@ async function confirmLogout(): Promise<void> {
   background: var(--danger-bg);
   color: var(--danger-text);
   border: 1px solid var(--danger-text);
+}
+
+.btn.shift {
+  width: 100%;
+  background: var(--accent-primary, #ff7a00);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 </style>

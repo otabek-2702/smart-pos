@@ -12,7 +12,7 @@
 
     <!-- CASHIER -->
     <div class="cashier-row">
-      Kassir: <strong>{{ order.user?.name }}</strong>
+      Kassir: <strong>{{ order.cashier?.name }}</strong>
     </div>
 
     <!-- ITEMS -->
@@ -29,8 +29,8 @@
           <span class="item-qty">×{{ item.quantity }}</span>
         </div>
 
-        <div v-if="item.description" class="item-description">
-          {{ item.description }}
+        <div v-if="item.detail" class="item-description">
+          {{ item.detail }}
         </div>
 
         <div v-if="doneItems.has(item.id)" class="done-check">✓</div>
@@ -58,12 +58,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { api } from 'src/boot/axios';
+import { useOrderTypes } from 'src/composables/useOrderTypes';
 
 interface OrderItem {
   id: number;
   product__name: string;
   quantity: number;
-  description?: string | null;
+  // The orders-list serializer sends the item note as `detail`.
+  detail?: string | null;
 }
 
 interface Cashier {
@@ -78,8 +80,8 @@ interface Order {
   created_at: string;
   ready_at: string;
   updated_at: string;
+  // List serializer sends `cashier`; `user` only exists on the detail endpoint.
   cashier: Cashier;
-  user: Cashier;
   items: OrderItem[];
 }
 
@@ -95,14 +97,8 @@ const isLoading = ref<boolean>(false);
 
 /* ================= ORDER TYPE LABEL ================= */
 
-const orderTypeLabel = computed<string>(() => {
-  const labels: Record<string, string> = {
-    HALL: 'ZAL',
-    PICKUP: 'S soboy',
-    DELIVERY: 'Dostavka',
-  };
-  return labels[props.order.order_type] || props.order.order_type;
-});
+const { labelFor } = useOrderTypes();
+const orderTypeLabel = computed<string>(() => labelFor(props.order.order_type));
 
 /* ================= TIMER ================= */
 
@@ -118,13 +114,16 @@ const readyAtTimestamp = computed<number>(() => {
 });
 
 const elapsedSeconds = computed<number>(() => {
-  if (props.order.status === 'READY') {
-    const diff = readyAtTimestamp.value - createdAtTimestamp.value;
-    return Math.max(0, Math.floor(diff / 1000));
+  const created = createdAtTimestamp.value;
+  if (!Number.isFinite(created)) return 0;
+
+  // Only use ready_at when it's a valid date — a READY order with a missing/
+  // bad ready_at would otherwise make the timer render "NaN:NaN".
+  if (props.order.status === 'READY' && Number.isFinite(readyAtTimestamp.value)) {
+    return Math.max(0, Math.floor((readyAtTimestamp.value - created) / 1000));
   }
 
-  const diff = currentTime.value - createdAtTimestamp.value;
-  return Math.max(0, Math.floor(diff / 1000));
+  return Math.max(0, Math.floor((currentTime.value - created) / 1000));
 });
 
 const formattedTime = computed<string>(() => {

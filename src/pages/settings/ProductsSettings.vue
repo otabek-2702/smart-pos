@@ -58,7 +58,7 @@
         v-for="product in filteredProducts"
         :key="product.id"
         class="product-card"
-        :style="{ '--product-color': product.color?.[0] || 'transparent' }"
+        :style="{ '--product-color': product.colors?.[0] || 'transparent' }"
         @click="openEditDialog(product)"
       >
         <div class="product-info">
@@ -241,9 +241,9 @@ interface Product {
   name: string;
   description: string;
   price: string;
-  color: string[];
+  // Backend sends `colors` (array).
+  colors: string[];
   category: Category;
-  popularity: number;
 }
 
 interface ProductsResponse {
@@ -297,7 +297,9 @@ const filteredProducts = computed(() => {
   if (selectedCategoryId.value === null) {
     return products.value;
   }
-  return products.value.filter(p => p.category.id === selectedCategoryId.value);
+  // Optional chaining: a product can be orphaned (category null) after its
+  // category is deleted — without the guard the whole grid throws and blanks.
+  return products.value.filter(p => p.category?.id === selectedCategoryId.value);
 });
 
 const isFormValid = computed(() => {
@@ -381,8 +383,8 @@ async function openEditDialog(product: Product): Promise<void> {
   form.name = product.name;
   form.price = parseFloat(product.price);
   form.priceDisplay = parseFloat(product.price).toLocaleString('uz-UZ');
-  form.category_id = product.category.id;
-  form.color = product.color?.[0] || '';
+  form.category_id = product.category?.id ?? null;
+  form.color = product.colors?.[0] || '';
   showDialog.value = true;
 
   await nextTick();

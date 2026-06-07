@@ -72,6 +72,49 @@
         </div>
       </div>
 
+      <!-- Logo Section -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="image" size="20px" />
+          Logotip
+        </h3>
+
+        <div class="logo-row">
+          <div class="logo-preview">
+            <img
+              :src="settings.logoBase64 || placeholderLogo"
+              :class="{ 'is-placeholder': !settings.logoBase64 }"
+              alt="Logotip"
+            />
+          </div>
+          <div class="logo-actions">
+            <input
+              ref="logoInput"
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              hidden
+              @change="onLogoFile"
+            />
+            <button type="button" class="btn btn-secondary" @click="pickLogo">
+              <q-icon name="upload" size="18px" />
+              Rasm tanlash
+            </button>
+            <button
+              v-if="settings.logoBase64"
+              type="button"
+              class="btn btn-secondary"
+              @click="removeLogo"
+            >
+              <q-icon name="delete" size="18px" />
+              O'chirish
+            </button>
+            <div class="logo-hint">
+              {{ settings.logoBase64 ? 'Saqlash tugmasini bosing' : 'Standart placeholder. PNG / JPG / SVG (≤ 1MB).' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Brand Color Section -->
       <div class="form-section">
         <h3 class="form-section-title">
@@ -280,7 +323,7 @@
           type="button"
           class="btn-open-display"
           @click="openClientDisplay"
-          :disabled="displayLoading || !settings.clientDisplayEnabled"
+          :disabled="displayLoading"
           :title="openButtonTitle"
         >
           <q-icon :name="displayStatus.isOpen ? 'visibility' : 'open_in_new'" size="18px" />
@@ -432,9 +475,38 @@ function getElectron() {
   return window.electron;
 }
 
+// Built-in placeholder until a real logo is uploaded (or shipped as default).
+const placeholderLogo = new URL('../../assets/logo.png', import.meta.url).href;
+const logoInput = ref<HTMLInputElement | null>(null);
+
 // State
 const settings = reactive<DisplaySettings>({ ...DEFAULT_DISPLAY_SETTINGS });
 const saving = ref(false);
+
+function pickLogo(): void {
+  logoInput.value?.click();
+}
+
+function onLogoFile(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ''; // allow re-selecting the same file later
+  if (!file) return;
+  if (file.size > 1_000_000) {
+    alert('Rasm hajmi 1MB dan oshmasligi kerak');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    settings.logoBase64 = typeof reader.result === 'string' ? reader.result : null;
+  };
+  reader.onerror = () => alert('Rasmni o\'qishda xatolik');
+  reader.readAsDataURL(file);
+}
+
+function removeLogo(): void {
+  settings.logoBase64 = null;
+}
 const displayLoading = ref(false);
 const displayStatus = reactive<DisplayStatusResult>({
   isOpen: false,
@@ -507,10 +579,8 @@ const computedColors = computed(() => {
   return generateDisplayColors(settings.brandColor, settings.readyColor);
 });
 
-// Tooltip on the "open display" button when the auto-open toggle is OFF.
-const openButtonTitle = computed(() =>
-  settings.clientDisplayEnabled ? '' : "Avval 'Avtomatik ochish' ni yoqing",
-);
+// Manual open works regardless of the auto-open toggle.
+const openButtonTitle = computed(() => 'Mijozlar displeyini ochish');
 
 
 
@@ -827,6 +897,42 @@ async function openClientDisplay(): Promise<void> {
   height: 36px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+}
+
+// Logo
+.logo-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.logo-preview {
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  img.is-placeholder { opacity: 0.45; }
+}
+.logo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.logo-hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 // Actions

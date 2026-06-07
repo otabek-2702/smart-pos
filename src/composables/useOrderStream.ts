@@ -70,19 +70,27 @@ export function useOrderStream(opts: UseOrderStreamOptions): { connected: Return
 
   function scheduleReconnect(): void {
     if (disposed) return;
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    // Already scheduled — don't stack timers or re-bump the backoff. A
+    // flapping connection fires onerror repeatedly; the backoff must advance
+    // once per actual reconnect attempt, not once per error event.
+    if (reconnectTimer) return;
     const delay = backoffMs;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
+      // Bump for the NEXT attempt as this one fires.
+      backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
       open();
     }, delay);
-    backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
   }
 
   function open(): void {
     if (disposed) return;
     const url = buildUrl();
     if (!url) {
+      // Not an error — just no token / baseURL yet (e.g. before login).
+      // Reset the backoff so the stream connects promptly once logged in,
+      // instead of sitting on an inflated 30s delay.
+      backoffMs = INITIAL_BACKOFF_MS;
       scheduleReconnect();
       return;
     }

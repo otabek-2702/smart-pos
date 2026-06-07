@@ -65,6 +65,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { read, write } from 'src/utils/storage';
 import { usePinHandoffStore } from 'src/stores/pin-handoff';
+import { loadPaymentMethods } from 'src/composables/usePaymentMethods';
+import { ensureShiftStarted } from 'src/composables/useShift';
 import type { AxiosError } from 'axios';
 
 /* ============
@@ -219,6 +221,14 @@ async function submitPin(): Promise<void> {
 
     await cacheUserForPicker(user);
 
+    // Cache the payment-methods catalog once per session (not on the hot
+    // payment path). Fire-and-forget; falls back to built-ins if absent.
+    void loadPaymentMethods();
+
+    // Open the cashier's shift (manual now — login no longer auto-starts it).
+    // Resumes if one's already open. Fire-and-forget.
+    void ensureShiftStarted();
+
     void router.replace({ name: 'orders' });
     return;
   } catch (error) {
@@ -320,11 +330,13 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* Back button */
+/* Back button — fixed to the viewport so it's always at the screen's
+   top-left, regardless of where the centered PIN card sits. */
 .back-button {
-  position: absolute;
+  position: fixed;
   top: 16px;
   left: 16px;
+  z-index: 10;
   width: 44px;
   height: 44px;
   border-radius: 12px;
@@ -360,6 +372,9 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* PIN dots */
@@ -426,6 +441,13 @@ onUnmounted(() => {
 .key-clear,
 .key-cancel {
   color: var(--text-muted);
+}
+
+/* "Bekor qilish" is a long label in a ~100px keypad cell — shrink it so it
+   stays on one line instead of wrapping/clipping. */
+.key-cancel {
+  font-size: 13px;
+  padding: 0 4px;
 }
 
 .key-zero {

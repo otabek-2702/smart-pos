@@ -3,10 +3,9 @@ import { onMounted, ref, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import NumericKeyboard from 'src/components/numeric-keyboard/NumericKeyboard.vue';
-import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 import NetworkDiagnostics from 'src/components/NetworkDiagnostics.vue';
 import { virtualKeyboardEnabled, setVirtualKeyboardEnabled } from 'boot/virtual-keyboard';
-import { read, write } from 'src/utils/storage';
+import { read, write, remove } from 'src/utils/storage';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { usePinHandoffStore } from 'src/stores/pin-handoff';
 
@@ -41,13 +40,6 @@ async function openWifiPanel(): Promise<void> {
     await window.electron?.system.openWifi();
   } catch (e) {
     console.warn('openWifi failed:', e);
-  }
-}
-async function openNetworkSettings(): Promise<void> {
-  try {
-    await window.electron?.system.openNetwork();
-  } catch (e) {
-    console.warn('openNetwork failed:', e);
   }
 }
 
@@ -133,34 +125,56 @@ watch(
  * Constants
  * ============ */
 
-const logoUrl = new URL('../assets/logo.png', import.meta.url).href;
+// Built-in placeholder; the real logo (if set in Settings → Display) overrides
+// it on mount. Replace the asset later when a default logo is provided.
+const placeholderLogo = new URL('../assets/logo.png', import.meta.url).href;
+const logoUrl = ref<string>(placeholderLogo);
+
+async function loadLogo(): Promise<void> {
+  try {
+    const display = (await window.electron?.settings.getDisplay()) as
+      | { logoBase64?: string | null }
+      | undefined;
+    logoUrl.value = display?.logoBase64 || placeholderLogo;
+  } catch {
+    logoUrl.value = placeholderLogo;
+  }
+}
 
 const BASE_URL_KEY = 'pos:IpAdress';
-// Cache for users we've seen log in successfully. Backend has no /users
-// endpoint yet, so we rebuild the picker grid from past logins. PinPage
-// writes to this cache on every successful auth.
+// Local cache of the picker grid. Filled from the public staff endpoint;
+// kept so the grid renders instantly on next boot (and survives a brief
+// backend blip) before the live fetch returns.
 const CACHED_USERS_KEY = 'pos:cachedUsers';
+
+// Public pre-login picker endpoint. Returns POS staff = cashiers + MANAGERs
+// (managers are the on-POS settings tier; admins are NOT here — they use the
+// backend's own /admin panel). Response still keyed `cashiers`.
+const STAFF_PICKER_ENDPOINT = '/cashiers';
 
 /* ============
  * Types
  * ============ */
 
 type UserRole = 'ADMIN' | 'CASHIER' | 'MANAGER';
-type UserStatus = 'ACTIVE' | 'INACTIVE';
 
-interface ApiUser {
+// Public GET /cashiers payload — only the picker-safe fields (never a hash).
+interface ApiCashier {
   id: number;
   first_name: string;
   last_name: string;
   email: string;
   role: UserRole;
-  status: UserStatus;
+  is_manager: boolean;
+  permissions: string[];
+  on_shift: boolean;
 }
 
-interface UsersApiResponse {
+interface CashiersApiResponse {
   success: boolean;
   data: {
-    users: ApiUser[];
+    cashiers: ApiCashier[];
+    total: number;
   };
 }
 
@@ -170,6 +184,7 @@ interface User {
   lastName: string;
   role: UserRole;
   email: string;
+  onShift: boolean;
 }
 
 const vk = computed({
@@ -220,29 +235,25 @@ async function fetchUsers(): Promise<void> {
   users.value = loadCachedUsers();
 
   try {
-    // Now wired to live backend (Task #2 shipped). Admin-scoped — only
-    // admin-logged-in sessions can list users, but this is fine because
-    // the picker grid is only useful AFTER first login anyway; before
-    // first login we rely on the cached_users localStorage list.
-    const response = await api.get<UsersApiResponse>('/api/admins/users', {
-      params: { status: 'ACTIVE', per_page: 100 },
-    });
+    // Public pre-login picker endpoint (no auth): lists active cashiers for
+    // the monoblock login screen. The operator taps a face → PinPage. Admins
+    // aren't in this list — they use the "Administrator sifatida" link.
+    const response = await api.get<CashiersApiResponse>(STAFF_PICKER_ENDPOINT);
 
-    users.value = response.data.data.users
-      .filter((u) => u.status === 'ACTIVE')
-      .map((u) => ({
-        id: u.id,
-        firstName: u.first_name,
-        lastName: u.last_name,
-        role: u.role,
-        email: u.email,
-      }));
+    users.value = response.data.data.cashiers.map((u) => ({
+      id: u.id,
+      firstName: u.first_name,
+      lastName: u.last_name,
+      role: u.role,
+      email: u.email,
+      onShift: u.on_shift,
+    }));
 
     void write(CACHED_USERS_KEY, users.value);
   } catch (e) {
-    // Backend doesn't expose /users yet — fall back to whatever we have cached.
-    // Empty cache → manual login form is shown by the template.
-    console.warn('[/users] not available, using cached users:', e);
+    // Backend unreachable / not yet activated → fall back to the cached grid.
+    // Empty cache → the "first setup" empty state is shown by the template.
+    console.warn('[/cashiers] not available, using cached users:', e);
   } finally {
     isLoading.value = false;
   }
@@ -262,33 +273,7 @@ function goToPin(user: User): void {
   void router.push({ name: 'pin' });
 }
 
-/* MANUAL LOGIN — used when no users are cached and /users is unavailable.
-   The user types their email here and proceeds to PinPage where they enter
-   the PIN. After a successful login, PinPage caches them so next time the
-   grid is populated. */
-
-const showManualLogin = ref(false);
-const manualEmail = ref('');
-const manualEmailInputRef = ref<HTMLInputElement | null>(null);
 const ipInputRef = ref<HTMLInputElement | null>(null);
-
-function openManualLogin(): void {
-  showManualLogin.value = true;
-  manualEmail.value = '';
-}
-
-function closeManualLogin(): void {
-  showManualLogin.value = false;
-}
-
-// Autofocus the email input the moment the manual login screen mounts.
-// HTML autofocus is flaky for v-if-mounted elements — explicit focus call
-// after nextTick is the reliable pattern.
-watch(showManualLogin, async (open) => {
-  if (!open) return;
-  await nextTick();
-  setTimeout(() => manualEmailInputRef.value?.focus(), 50);
-});
 
 // Autofocus the IP field when the home-page settings modal opens (admin
 // taps the gear icon). The diag's IP-edit flow is independent of this
@@ -298,22 +283,6 @@ watch(showSettings, async (open) => {
   await nextTick();
   setTimeout(() => ipInputRef.value?.focus(), 50);
 });
-
-function submitManualLogin(): void {
-  const email = manualEmail.value.trim();
-  if (!email) return;
-
-  pinHandoff.set(email, email.split('@')[0] || 'User');
-  void router.push({ name: 'pin' });
-}
-
-/* Virtual-keyboard handlers for the manual login email input */
-function onEmailVkInput(value: string): void {
-  manualEmail.value += value;
-}
-function onEmailVkBackspace(): void {
-  manualEmail.value = manualEmail.value.slice(0, -1);
-}
 
 /* SETTINGS */
 
@@ -414,7 +383,15 @@ async function saveSettings(): Promise<void> {
  * ============ */
 
 onMounted(() => {
+  // The picker IS the logged-out state. Clear any leftover session so a stale
+  // token from a previous run can't keep other windows (e.g. the customer
+  // display) showing live orders before anyone has actually logged in. The
+  // kv-store change broadcasts to all windows → the client display drops to
+  // its standby screen. A real login then re-populates the token live.
+  void remove('auth_token');
+  void remove('auth_user');
   void fetchUsers();
+  void loadLogo();
 });
 </script>
 <template>
@@ -458,43 +435,25 @@ onMounted(() => {
           >
             <div class="avatar">
               <q-icon name="person" size="28px" />
+              <span v-if="user.onShift" class="avatar__shift" title="Smenada"></span>
             </div>
 
             <div class="name">{{ user.firstName }} {{ user.lastName }}</div>
-            <div class="role">{{ user.role }}</div>
+            <div class="role">{{ user.onShift ? 'Smenada' : user.role }}</div>
           </button>
         </div>
 
-        <!-- EMPTY STATE: brand new terminal — no users cached yet.
-             The public user-list endpoint isn't on the backend yet
-             (see BACKEND_TASKS.md), so a fresh install has to be
-             "seeded" once by an admin/owner logging in. After that,
-             the cache is populated and cashiers use the picker
-             without ever seeing this screen again. -->
+        <!-- EMPTY STATE: backend is reachable AND licensed (otherwise the
+             license gate / network diagnostics overlay would be on top),
+             there are just no cashier accounts. They're created from the
+             backend's own admin app — there is no on-POS setup flow. -->
         <div v-else class="empty-users">
-          <q-icon name="settings" size="56px" class="empty-icon" />
-          <div class="empty-title">Bu kompyuter hali sozlanmagan</div>
+          <q-icon name="group_off" size="56px" class="empty-icon" />
+          <div class="empty-title">Foydalanuvchilar topilmadi</div>
           <div class="empty-hint">
-            Foydalanuvchilar ro'yxatini yuklash uchun administrator
-            sifatida bir martagina kiring. Keyin xodimlar o'z hisoblarini
-            ekrandan tanlay oladi.
+            Kassir hisoblari hali yaratilmagan. Hisoblarni serverdagi
+            Alpha POS boshqaruv ilovasidan qo'shing.
           </div>
-          <button type="button" class="btn primary empty-btn" @click="openManualLogin">
-            <q-icon name="admin_panel_settings" size="18px" />
-            Birinchi marta sozlash
-          </button>
-        </div>
-
-        <!-- DISCREET FOOTER LINK — visible only when there ARE cached
-             users, for the rare case when the cache is stale and an
-             admin needs to re-seed. NOT a card in the grid — kept as a
-             muted text-link below so it doesn't compete with the
-             cashier faces. -->
-        <div v-if="users.length > 0" class="setup-link">
-          <button type="button" class="setup-link__btn" @click="openManualLogin">
-            <q-icon name="admin_panel_settings" size="16px" />
-            Administrator sifatida sozlash
-          </button>
         </div>
       </template>
     </div>
@@ -591,120 +550,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- MANUAL LOGIN — full-screen takeover, styled to match IndexPage:
-         logo at top, centered card, dark POS-app background. NOT a modal.
-         Adds POS-specific utilities: network status badge, WiFi panel
-         shortcut, latency display. -->
-    <div v-if="showManualLogin" class="login-page">
-
-      <!-- TOP-LEFT: back button -->
-      <button
-        type="button"
-        class="login-page__back"
-        @click="closeManualLogin"
-        aria-label="Orqaga"
-      >
-        <q-icon name="arrow_back" size="22px" />
-      </button>
-
-      <!-- TOP-RIGHT: network status + WiFi shortcut -->
-      <div class="net-status">
-        <button
-          type="button"
-          class="net-status__chip"
-          :class="`net-status__chip--${network.quality.value}`"
-          :title="`Server: ${network.serverReachable.value ? 'ulangan' : 'aloqa yoq'}`+
-            (network.latencyMs.value != null ? `   |   ${network.latencyMs.value} ms` : '')"
-          @click="network.refresh()"
-        >
-          <q-icon
-            :name="network.quality.value === 'offline' ? 'cloud_off' : 'wifi'"
-            size="16px"
-          />
-          <span class="net-status__label">{{ network.qualityLabel.value }}</span>
-          <span v-if="network.latencyMs.value != null" class="net-status__ms">
-            {{ network.latencyMs.value }} ms
-          </span>
-        </button>
-
-        <button
-          type="button"
-          class="net-status__btn"
-          title="Wi-Fi tarmoqlari"
-          @click="openWifiPanel"
-        >
-          <q-icon name="wifi_tethering" size="20px" />
-        </button>
-
-        <button
-          type="button"
-          class="net-status__btn"
-          title="Tarmoq sozlamalari"
-          @click="openNetworkSettings"
-        >
-          <q-icon name="settings_ethernet" size="20px" />
-        </button>
-      </div>
-
-      <!-- CENTER: logo + login card (same composition as the user picker) -->
-      <div class="login-page__center">
-        <div class="logo">
-          <img :src="logoUrl" alt="Restaurant logo" />
-        </div>
-
-        <div class="title">Administrator sifatida kiring</div>
-        <div class="subtitle">
-          Foydalanuvchilar ro'yxatini yuklash uchun adminstrator email va
-          paroli kerak. Bu faqat birinchi sozlash uchun — keyin xodimlar
-          o'z hisoblarini ekrandan tanlaydi.
-        </div>
-
-        <!-- Diagnostics moved to a fullscreen blurred overlay at the page
-             root (NetworkDiagnostics component). The login form stays
-             clean here — workers see the diagnostic before they ever land
-             on this screen. -->
-
-
-        <div class="login-card">
-          <label class="field-label">Admin email manzil</label>
-          <input
-            ref="manualEmailInputRef"
-            class="input-display input-display--email"
-            v-model="manualEmail"
-            type="email"
-            inputmode="email"
-            placeholder="email@example.com"
-            @keydown.enter="submitManualLogin"
-          />
-
-          <div class="login-card__actions">
-            <button class="btn secondary" @click="closeManualLogin">
-              Bekor qilish
-            </button>
-            <button
-              class="btn primary"
-              :disabled="!manualEmail.trim()"
-              @click="submitManualLogin"
-            >
-              Davom etish
-              <q-icon name="arrow_forward" size="18px" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Fixed-bottom alphabetic keyboard — full width of the viewport.
-           Self-hides when virtualKeyboardEnabled is false. The page already
-           has bottom padding to account for it. Email mode → @ + . in the
-           bottom row so users don't switch to symbols just to type "@". -->
-      <VirtualKeyboard
-        email
-        @input="onEmailVkInput"
-        @backspace="onEmailVkBackspace"
-        @enter="submitManualLogin"
-      />
-    </div>
-
     <!-- NETWORK DIAGNOSTICS — fullscreen blurred takeover.
          Auto-shown the moment a worker logs into the morning shift and
          the system detects the main computer / LAN / IP is wrong. Stays
@@ -777,6 +622,8 @@ onMounted(() => {
 /* USERS */
 .users-wrapper {
   width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 32px 24px;
   text-align: center;
 }
@@ -798,7 +645,9 @@ onMounted(() => {
 
 .users-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Auto-fill instead of a hard 4 columns: adapts to tablet/portrait and to
+     many cashiers without cramming or stretching huge cards on a wide screen. */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
 }
 
@@ -818,6 +667,7 @@ onMounted(() => {
 }
 
 .avatar {
+  position: relative;
   width: 56px;
   height: 56px;
   margin: 0 auto 12px;
@@ -829,14 +679,32 @@ onMounted(() => {
   justify-content: center;
 }
 
+/* Green dot — cashier already has an ACTIVE shift (from /cashiers on_shift) */
+.avatar__shift {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid var(--bg-surface);
+}
+
 .name {
   font-size: 16px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .role {
   font-size: 12px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Empty state — first run before anyone has signed in on this terminal */
@@ -866,46 +734,6 @@ onMounted(() => {
   line-height: 1.55;
 }
 
-.empty-btn {
-  margin-top: 8px;
-  padding: 0 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  width: auto;
-  min-width: 220px;
-  height: 48px;
-}
-
-/* Setup link — muted footer button below the picker. Intentionally
-   un-styled like a card so it doesn't compete with the cashier faces. */
-.setup-link {
-  margin-top: 32px;
-  display: flex;
-  justify-content: center;
-}
-
-.setup-link__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-primary);
-  }
-  &:active { transform: scale(0.97); }
-}
 
 /* DIALOG */
 .modal {
@@ -1089,203 +917,6 @@ onMounted(() => {
   &:active {
     transform: scale(0.97);
     box-shadow: none;
-  }
-}
-
-/* ==========================
-   MANUAL LOGIN — full-screen
-   ==========================
-   Visual composition mirrors the user-picker home page (logo at top,
-   centered card on dark POS-app background). Adds POS-specific utility:
-   network status + WiFi panel shortcut in the top-right corner.
-
-   Sized for 15" POS monoblock in landscape, also works on tablet and
-   PC. Not a modal — proper full-screen takeover. */
-
-.login-page {
-  position: fixed;
-  inset: 0;
-  z-index: 2500;
-  background: var(--bg-app);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Top-left back button (matches IndexPage's top-actions style) */
-.login-page__back {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:active {
-    transform: scale(0.95);
-    box-shadow: none;
-  }
-}
-
-/* Top-right network status cluster */
-.net-status {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.net-status__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  height: 48px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: var(--shadow-sm);
-
-  &:active {
-    transform: scale(0.97);
-  }
-
-  // Status colors — coarse signal so the user can glance and know
-  &--excellent {
-    color: #16a34a;
-    border-color: rgba(22, 163, 74, 0.4);
-    background: rgba(22, 163, 74, 0.06);
-  }
-  &--good {
-    color: #2563eb;
-    border-color: rgba(37, 99, 235, 0.35);
-    background: rgba(37, 99, 235, 0.06);
-  }
-  &--poor {
-    color: #f59e0b;
-    border-color: rgba(245, 158, 11, 0.4);
-    background: rgba(245, 158, 11, 0.08);
-  }
-  &--offline {
-    color: #ef4444;
-    border-color: rgba(239, 68, 68, 0.45);
-    background: rgba(239, 68, 68, 0.08);
-  }
-}
-
-.net-status__label {
-  letter-spacing: 0.2px;
-}
-
-.net-status__ms {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  opacity: 0.85;
-  padding-left: 8px;
-  border-left: 1px solid currentColor;
-}
-
-.net-status__btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-sm);
-
-  &:active {
-    transform: scale(0.95);
-    box-shadow: none;
-  }
-}
-
-/* Centered content — same vertical rhythm as IndexPage. Bottom padding
-   reserves space for the fixed-bottom virtual keyboard so the form never
-   sits under the keys. */
-.login-page__center {
-  width: 100%;
-  max-width: 560px;
-  padding: 80px 20px 320px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-/* Setup-screen subtitle. Sits under the title to explain WHY admin
-   credentials are being asked — cashiers shouldn't think they need to
-   type their email; this is admin-only setup. */
-.login-page .subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.55;
-  max-width: 460px;
-  margin-top: -6px;
-}
-
-/* Diagnostics styles live in NetworkDiagnostics.vue (now rendered as a
-   fullscreen blurred overlay at the page root, not inline in the form). */
-
-/* The login card — visually consistent with IndexPage's user cards */
-.login-card {
-  width: 100%;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  box-shadow: var(--shadow-md);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Larger, more comfortable email input for 15" + tablet */
-.input-display--email {
-  height: 56px;
-  font-family: inherit;
-  font-size: 20px;
-  text-align: left;
-  padding: 0 18px;
-
-  &:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-  }
-}
-
-.login-card__actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 4px;
-
-  .btn {
-    height: 52px;
-    font-size: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
   }
 }
 

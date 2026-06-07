@@ -107,8 +107,8 @@
               />
             </div>
 
-            <!-- Email -->
-            <!-- <div class="form-group">
+            <!-- Email — only for managers (backend fills it for other roles) -->
+            <div v-if="emailRequired" class="form-group">
               <label class="form-label">Email</label>
               <input
                 type="email"
@@ -117,7 +117,7 @@
                 placeholder="email@example.com"
                 maxlength="100"
               />
-            </div> -->
+            </div>
 
             <!-- Role -->
             <div class="form-group">
@@ -246,13 +246,14 @@ interface User {
   id: number;
   first_name: string;
   last_name: string;
-  // email: string;
+  email?: string;
   role: UserRole;
   status: string;
   last_login_at: string | null;
 }
 
-type UserRole = 'ADMIN' | 'COOK' | 'CASHIER';
+// Full backend role set (for displaying existing users).
+type UserRole = 'ADMIN' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'USER';
 
 interface UsersResponse {
   success: boolean;
@@ -266,12 +267,23 @@ interface UsersResponse {
   };
 }
 
-// Roles config
+// Roles that can be CREATED on the POS. Admins are intentionally absent —
+// they're managed from the backend Django admin panel and cannot log into the
+// POS app. Managers are the in-app settings tier; cashiers run the till.
 const roles: { value: UserRole; label: string; icon: string }[] = [
-  { value: 'ADMIN', label: 'Admin', icon: 'admin_panel_settings' },
-  { value: 'COOK', label: 'Oshpaz', icon: 'restaurant' },
+  { value: 'MANAGER', label: 'Menejer', icon: 'manage_accounts' },
   { value: 'CASHIER', label: 'Kassir', icon: 'point_of_sale' },
 ];
+
+// Display labels for ALL roles (existing users may be admin/waiter even if not
+// creatable here).
+const ROLE_LABELS: Record<UserRole, string> = {
+  ADMIN: 'Admin',
+  MANAGER: 'Menejer',
+  CASHIER: 'Kassir',
+  WAITER: 'Ofitsiant',
+  USER: 'Foydalanuvchi',
+};
 
 // State
 const users = ref<User[]>([]);
@@ -295,17 +307,20 @@ const apiAvailable = ref(true);
 const form = reactive({
   first_name: '',
   last_name: '',
-  // email: '',
+  email: '',
   role: 'CASHIER' as UserRole,
   password: '',
 });
 
+// Email is required ONLY for managers (backend fills it for other roles).
+const emailRequired = computed(() => form.role === 'MANAGER');
+
 // Computed
 const isFormValid = computed(() => {
-  const hasRequiredFields = 
+  const hasRequiredFields =
     form.first_name.trim() !== '' &&
     form.last_name.trim() !== '' &&
-    // form.email.trim() !== '' &&
+    (!emailRequired.value || /\S+@\S+\.\S+/.test(form.email.trim())) &&
     form.role !== null;
 
   // For create: password required (4 digits)
@@ -329,8 +344,7 @@ function getInitials(firstName: string, lastName: string): string {
 }
 
 function getRoleLabel(role: UserRole): string {
-  const found = roles.find(r => r.value === role);
-  return found?.label || role;
+  return ROLE_LABELS[role] ?? role;
 }
 
 function getRoleClass(role: UserRole): string {
@@ -396,7 +410,7 @@ async function openCreateDialog(): Promise<void> {
   editingUser.value = null;
   form.first_name = '';
   form.last_name = '';
-  // form.email = '';
+  form.email = '';
   form.role = 'CASHIER';
   form.password = '';
   showDialog.value = true;
@@ -413,7 +427,7 @@ async function openEditDialog(user: User): Promise<void> {
   editingUser.value = user;
   form.first_name = user.first_name;
   form.last_name = user.last_name;
-  // form.email = user.email;
+  form.email = user.email ?? '';
   form.role = user.role;
   form.password = '';
   showDialog.value = true;
@@ -439,9 +453,12 @@ async function saveUser(): Promise<void> {
     const payload: Record<string, unknown> = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
-      // email: form.email.trim(),
       role: form.role,
     };
+    // Email only for managers; backend fills it for other roles.
+    if (form.role === 'MANAGER' && form.email.trim()) {
+      payload.email = form.email.trim();
+    }
 
     // Only include password if it's set (4 digits)
     if (form.password.length === 4) {

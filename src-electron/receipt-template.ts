@@ -1,6 +1,7 @@
 // src-electron/receipt-template.ts
 
 import { formatPhoneNumber } from 'src/utils';
+import { kvGet } from './kv-store';
 
 export interface ReceiptItem {
   name: string;
@@ -31,11 +32,20 @@ export interface ReceiptData {
   phoneNumber?: string;
 }
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
+// Same kv key the renderer's useOrderTypes composable writes — one source, so
+// the printed "Turi" matches what the screens show after a Settings edit.
+const DEFAULT_ORDER_TYPE_LABELS: Record<string, string> = {
   HALL: 'Zal',
-  PICKUP: 'S soboy',
-  DELIVERY: 'Dostavka',
+  PICKUP: 'Olib ketish',
+  DELIVERY: 'Yetkazib berish',
 };
+
+function orderTypeLabels(): Record<string, string> {
+  return {
+    ...DEFAULT_ORDER_TYPE_LABELS,
+    ...kvGet<Record<string, string>>('pos:orderTypeLabels', {}),
+  };
+}
 
 function formatPrice(price: number): string {
   return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -56,7 +66,7 @@ export function generateReceiptHtml(
   logoBase64: string,
   settings: ReceiptSettings,
 ): string {
-  const orderTypeLabel = ORDER_TYPE_LABELS[data.orderType] || data.orderType;
+  const orderTypeLabel = orderTypeLabels()[data.orderType] || data.orderType;
 
   const itemsHtml = data.items
     .map(
