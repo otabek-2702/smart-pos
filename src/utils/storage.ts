@@ -103,7 +103,14 @@ export function read<T = unknown>(key: string): T | null {
 export async function write<T>(key: string, value: T): Promise<void> {
   cache[key] = value;
   if (isElectron) {
-    await window.electron.kv.set(key, value);
+    // The IPC bridge structured-clones the payload; a Vue reactive Proxy (or
+    // anything with functions/refs) throws "object could not be cloned".
+    // Round-trip objects through JSON to a plain, cloneable value first.
+    const plain =
+      value !== null && typeof value === 'object'
+        ? (JSON.parse(JSON.stringify(value)) as T)
+        : value;
+    await window.electron.kv.set(key, plain);
   } else {
     localStorage.setItem(
       key,

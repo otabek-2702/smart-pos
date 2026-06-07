@@ -269,7 +269,7 @@ function reloadUsers(): void {
 }
 
 function goToPin(user: User): void {
-  pinHandoff.set(user.email, `${user.firstName} ${user.lastName}`);
+  pinHandoff.set(user.id, user.email ?? '', `${user.firstName} ${user.lastName}`);
   void router.push({ name: 'pin' });
 }
 

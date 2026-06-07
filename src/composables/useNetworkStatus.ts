@@ -79,15 +79,13 @@ async function probeServer(): Promise<void> {
     return;
   }
 
-  // Use /auth-me as the probe target — exists on every backend role and
-  // even a 401 (when called unauthenticated) proves the server is alive.
-  // Anything that returns ANY HTTP response = reachable.
+  // Probe the public /healthz — allowlisted (works even under license block),
+  // needs no auth, and returns 200, so the logged-out picker doesn't spam the
+  // console with 401s. Any HTTP response = server reachable.
   const start = performance.now();
   try {
-    const res = await api.get('/auth-me', {
+    const res = await api.get('/healthz', {
       timeout: PROBE_TIMEOUT_MS,
-      // Don't let the boot's 401 interceptor redirect us during a probe —
-      // we WANT to see the 401, not navigate away from the login screen.
       validateStatus: () => true,
     });
     latencyMs.value = Math.round(performance.now() - start);

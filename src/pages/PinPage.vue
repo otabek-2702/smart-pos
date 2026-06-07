@@ -132,6 +132,14 @@ const userEmail = computed<string | null>(() => {
   return typeof value === 'string' ? value : null;
 });
 
+// Preferred login key: the picker hands off the user id (the `/cashiers`
+// endpoint no longer returns email). Email is the legacy fallback.
+const userId = computed<number | null>(() => {
+  if (pinHandoff.userId != null) return pinHandoff.userId;
+  const v = route.query.user_id;
+  return typeof v === 'string' && v !== '' ? Number(v) : null;
+});
+
 const userName = computed<string>(() => {
   if (pinHandoff.name) return pinHandoff.name;
   const name = route.query.name;
@@ -197,7 +205,7 @@ function maintainFocus(): void {
 }
 
 async function submitPin(): Promise<void> {
-  if (!userEmail.value) {
+  if (userId.value == null && !userEmail.value) {
     void router.replace({ name: 'users' });
     return;
   }
@@ -206,8 +214,11 @@ async function submitPin(): Promise<void> {
   const enteredPin = pin.value;
 
   try {
+    // Log in by user_id when we have it (current picker), else by email (legacy).
+    const credentials =
+      userId.value != null ? { user_id: userId.value } : { email: userEmail.value };
     const response = await api.post<LoginResponse>('/auth-login', {
-      email: userEmail.value,
+      ...credentials,
       password: +enteredPin,
     });
 
