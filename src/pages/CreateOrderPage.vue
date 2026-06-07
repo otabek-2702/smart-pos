@@ -139,8 +139,8 @@
                 type="button"
                 class="product-item"
                 :style="{
-                  backgroundColor: '#f8fafc',
-                  borderBottomColor: product.colors?.[0] || '#e2e5e9',
+                  backgroundColor: 'var(--surface-2)',
+                  borderBottomColor: product.colors?.[0] || 'var(--line)',
                   borderBottomWidth: product.colors?.[0] ? '4px' : '1px',
                 }"
                 @click="addProduct(product)"
@@ -628,7 +628,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .page-create {
-  background: #f1f3f5;
+  background: var(--surface-2);
   height: 100vh;
   overflow: hidden;
 }
@@ -661,9 +661,9 @@ onMounted(async () => {
   flex: 0.8;
   height: 48px;
   border-radius: 12px;
-  border: 1px solid #e2e5e9;
-  background: #ffffff;
-  color: #6b7280;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -673,29 +673,29 @@ onMounted(async () => {
   }
 
   &.active {
-    color: #16a34a;
-    border-color: #16a34a;
-    background: #e7f5ee;
+    color: var(--brand);
+    border-color: var(--brand);
+    background: var(--brand-soft);
   }
 }
 
 .left-content {
   flex: 1;
   min-height: 0;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--ink);
 }
 
 .left-body {
@@ -708,7 +708,7 @@ onMounted(async () => {
 
 .receipt-empty {
   margin-top: 16px;
-  color: #9ca3af;
+  color: var(--ink-3);
 }
 
 .receipt-list {
@@ -721,7 +721,7 @@ onMounted(async () => {
   padding-right: 4px;
 
   scrollbar-width: auto;
-  scrollbar-color: #cbd5e1 #f1f3f5;
+  scrollbar-color: var(--line-strong) var(--surface-2);
 }
 
 .receipt-list::-webkit-scrollbar {
@@ -729,20 +729,20 @@ onMounted(async () => {
 }
 
 .receipt-list::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--line-strong);
   border-radius: 6px;
 }
 
 .receipt-list::-webkit-scrollbar-track {
-  background: #f1f3f5;
+  background: var(--surface-2);
 }
 
 .receipt-item {
-  background: #f8fafc;
-  color: #1f2937;
+  background: var(--surface-2);
+  color: var(--ink);
   border-radius: 12px;
   padding: 10px;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   transition:
@@ -763,7 +763,7 @@ onMounted(async () => {
   .receipt-item-detail {
     margin-top: 6px;
     font-size: 13px;
-    color: #6b7280;
+    color: var(--ink-2);
   }
 }
 
@@ -774,13 +774,13 @@ onMounted(async () => {
 
 @keyframes item-flash {
   0% {
-    background-color: #bbf7d0;
-    border-color: #16a34a;
+    background-color: var(--brand-soft);
+    border-color: var(--brand);
     box-shadow: 0 0 12px rgba(22, 163, 74, 0.4);
   }
   100% {
-    background-color: #f8fafc;
-    border-color: #e2e5e9;
+    background-color: var(--surface-2);
+    border-color: var(--line);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 }
@@ -791,12 +791,12 @@ onMounted(async () => {
   gap: 8px;
 
   button {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: 1px solid #e2e5e9;
-    background: #ffffff;
-    color: #1f2937;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
     font-size: 18px;
     font-weight: 600;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -804,16 +804,16 @@ onMounted(async () => {
 
     &:active {
       transform: scale(0.9);
-      background: #e7f5ee;
-      border-color: #16a34a;
+      background: var(--brand-soft);
+      border-color: var(--brand);
     }
   }
 }
 
 /* Quantity wrapper for flash effect */
 .qty-wrapper {
-  min-width: 32px;
-  height: 32px;
+  min-width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -829,12 +829,12 @@ onMounted(async () => {
 
 @keyframes qty-flash-effect {
   0% {
-    background-color: #bbf7d0;
+    background-color: var(--brand-soft);
     box-shadow: 0 0 8px rgba(22, 163, 74, 0.5);
     transform: scale(1.1);
   }
   50% {
-    background-color: #dcfce7;
+    background-color: var(--ready-bg);
     transform: scale(1.05);
   }
   100% {
@@ -854,7 +854,7 @@ onMounted(async () => {
 
 .receipt-total .line {
   height: 1px;
-  background: #e2e5e9;
+  background: var(--line);
   margin-bottom: 8px;
 }
 
@@ -862,7 +862,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #1f2937;
+  color: var(--ink);
   font-size: 16px;
   font-weight: 600;
 
@@ -886,12 +886,12 @@ onMounted(async () => {
 
 @keyframes total-flash-effect {
   0% {
-    background-color: #bbf7d0;
+    background-color: var(--brand-soft);
     box-shadow: 0 0 12px rgba(22, 163, 74, 0.5);
     transform: scale(1.05);
   }
   50% {
-    background-color: #dcfce7;
+    background-color: var(--ready-bg);
     transform: scale(1.02);
   }
   100% {
@@ -943,10 +943,10 @@ onMounted(async () => {
   // padding-right: 54px;
   height: 48px;
   border-radius: 12px;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   padding: 0 14px;
-  background: #ffffff;
-  color: #1f2937;
+  background: var(--surface);
+  color: var(--ink);
   font-size: 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
@@ -957,9 +957,9 @@ onMounted(async () => {
   gap: 8px;
   padding: 12px;
   overflow-x: scroll;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 16px 16px 0 0;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   border-bottom: none;
 }
 .category-filter::-webkit-scrollbar {
@@ -969,9 +969,9 @@ onMounted(async () => {
 .category-btn {
   padding: 8px 16px;
   border-radius: 20px;
-  border: 2px solid #e2e5e9;
-  background: #ffffff;
-  color: #6b7280;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -979,8 +979,8 @@ onMounted(async () => {
   white-space: nowrap;
 
   &:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
+    border-color: var(--line-strong);
+    background: var(--surface-2);
   }
 
   &:active {
@@ -989,25 +989,25 @@ onMounted(async () => {
 
   &.active {
     transform: translateY(-3px);
-    border-color: #16a34a;
+    border-color: var(--brand);
   }
 
   // Default "Barchasi" button colors
   &:first-child.active {
-    color: #16a34a;
-    border-color: #16a34a;
-    background: #e7f5ee;
+    color: var(--brand);
+    border-color: var(--brand);
+    background: var(--brand-soft);
   }
 }
 
 .products {
   flex: 1;
   position: relative;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 0 0 16px 16px;
   padding: 0 10px 10px 10px;
   overflow-y: auto;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   border-top: none;
 
   scrollbar-width: thin;
@@ -1018,16 +1018,16 @@ onMounted(async () => {
 }
 
 .products::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: var(--line-strong);
   border-radius: 8px;
 }
 
 .products::-webkit-scrollbar-track {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .products-state {
-  color: #9ca3af;
+  color: var(--ink-3);
 }
 
 .products-list {
@@ -1039,12 +1039,12 @@ onMounted(async () => {
 
 .product-item {
   width: 32%;
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 12px;
   padding: 12px;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   // border-bottom: 4px solid transparent;
-  color: #1f2937;
+  color: var(--ink);
   font-weight: bold;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -1062,7 +1062,7 @@ onMounted(async () => {
 }
 
 .product-price {
-  color: #6b7280;
+  color: var(--ink-2);
   font-size: 14px;
 }
 
@@ -1084,8 +1084,8 @@ onMounted(async () => {
 }
 
 .secondary {
-  background: #f1f3f5;
-  color: #374151;
+  background: var(--surface-2);
+  color: var(--ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   padding-left: 0;
   display: flex;
@@ -1097,8 +1097,8 @@ onMounted(async () => {
 }
 
 .primary {
-  background: #16a34a;
-  color: #ffffff;
+  background: var(--brand);
+  color: var(--surface);
   box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
   &:active {
     transform: scale(0.97);
@@ -1107,10 +1107,10 @@ onMounted(async () => {
 
 /* KEYBOARD */
 .vk {
-  background: #ffffff;
+  background: var(--surface);
   padding: 10px;
   border-radius: 18px;
-  border: 1px solid #e2e5e9;
+  border: 1px solid var(--line);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
   user-select: none;
   display: flex;
@@ -1127,15 +1127,15 @@ onMounted(async () => {
   flex: 1;
   min-height: 56px;
   border-radius: 14px;
-  border: 1px solid #e2e5e9;
-  background: #f8fafc;
-  color: #1f2937;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
   font-size: 18px;
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 
   &:active {
-    background: #e5e7eb;
+    background: var(--surface-3);
     transform: scale(0.97);
   }
 }
