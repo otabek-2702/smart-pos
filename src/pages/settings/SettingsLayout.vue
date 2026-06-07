@@ -2,7 +2,7 @@
   <q-page class="settings-page">
     <!-- Header -->
     <div class="settings-header">
-      <button type="button" class="menu-btn" @click="toggleSidebar">
+      <button v-if="!railMode" type="button" class="menu-btn" @click="toggleSidebar">
         <q-icon :name="sidebarOpen ? 'close' : 'menu'" size="24px" />
       </button>
       <p class="settings-title">{{ currentPageTitle }}</p>
@@ -13,14 +13,14 @@
     </div>
 
     <div class="settings-container">
-      <!-- Overlay backdrop -->
+      <!-- Overlay backdrop (drawer mode only) -->
       <Transition name="fade">
-        <div v-if="sidebarOpen" class="sidebar-backdrop" @click="closeSidebar" />
+        <div v-if="sidebarOpen && !railMode" class="sidebar-backdrop" @click="closeSidebar" />
       </Transition>
 
-      <!-- Sidebar -->
+      <!-- Sidebar — persistent rail ≥1024, drawer below -->
       <Transition name="slide">
-        <nav v-if="sidebarOpen" class="settings-sidebar">
+        <nav v-if="sidebarOpen || railMode" class="settings-sidebar" :class="{ 'is-rail': railMode }">
           <div class="sidebar-header">
             <q-icon name="settings" size="24px" />
             <span>Sozlamalar</span>
@@ -87,6 +87,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, provide } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useQuasar } from 'quasar';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
@@ -94,6 +95,10 @@ import { hasPermission } from 'src/composables/usePermissions';
 
 const router = useRouter();
 const route = useRoute();
+const $q = useQuasar();
+
+// Persistent left rail on wide terminals (≥1024); drawer below (SPEC §4).
+const railMode = computed(() => $q.screen.gt.sm);
 
 const sidebarOpen = ref(false);
 const keyboardVisible = ref(false);
@@ -480,6 +485,21 @@ watch(currentRoute, () => {
   display: flex;
   flex-direction: column;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Persistent left rail on wide terminals (≥1024px) */
+@media (min-width: 1024px) {
+  .settings-container { flex-direction: row; }
+  .settings-sidebar.is-rail {
+    position: relative;
+    inset: auto;
+    max-width: none;
+    flex-shrink: 0;
+    box-shadow: none;
+    z-index: 1;
+    transform: none !important;
+  }
+  .settings-content { flex: 1; min-width: 0; }
 }
 
 .sidebar-header {
