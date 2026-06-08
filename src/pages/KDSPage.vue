@@ -26,7 +26,7 @@
              button, so toggling between the two screens is one fixed tap. -->
         <button type="button" class="nav-btn" @click="router.push({ name: 'orders' })">
           <q-icon name="arrow_back" size="20px" />
-          Buyurtmalar
+          Ortga
         </button>
 
         <div class="kds-tabs">
