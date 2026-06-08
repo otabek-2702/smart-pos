@@ -1133,6 +1133,18 @@ onMounted(async () => {
 .vk-row {
   display: flex;
   gap: 8px;
+  align-items: stretch;
+}
+/* In the action row, the Bekor/Saqlash buttons must match the space key:
+   same height (56px), flex:1, centered text — so all three sit on one level. */
+.vk-row .btn {
+  flex: 1;
+  min-height: 56px;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .vk-key {

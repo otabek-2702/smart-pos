@@ -246,7 +246,7 @@ async function handleBackToPreparing(): Promise<void> {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
-  padding: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
