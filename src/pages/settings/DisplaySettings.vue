@@ -32,6 +32,40 @@
         </div>
       </div>
 
+      <!-- Create-order page: category filter layout -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="grid_view" size="20px" />
+          Buyurtma sahifasi — kategoriyalar
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label">Kategoriyalar joylashuvi</label>
+          <div class="seg-group">
+            <button
+              type="button"
+              class="seg-opt"
+              :class="{ active: categoryLayout === 'scroll' }"
+              @click="setCategoryLayout('scroll')"
+            >
+              <q-icon name="view_column" size="18px" /> Bir qator (scroll)
+            </button>
+            <button
+              type="button"
+              class="seg-opt"
+              :class="{ active: categoryLayout === 'wrap' }"
+              @click="setCategoryLayout('wrap')"
+            >
+              <q-icon name="view_module" size="18px" /> Ko'p qator
+            </button>
+          </div>
+          <div class="form-hint">
+            Bir qator: kategoriyalar yon tomonga suriladi. Ko'p qator: hammasi
+            bir nechta qatorda ko'rinadi.
+          </div>
+        </div>
+      </div>
+
       <!-- Company Name Section -->
       <div class="form-section">
         <h3 class="form-section-title">
@@ -442,6 +476,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
 import type { DisplaySettings } from 'src/types/settings';
+import { useCategoryLayout, type CategoryLayout } from 'src/composables/useCategoryLayout';
 import {
   DEFAULT_DISPLAY_SETTINGS,
   generateDisplayColors,
@@ -482,6 +517,12 @@ const logoInput = ref<HTMLInputElement | null>(null);
 // State
 const settings = reactive<DisplaySettings>({ ...DEFAULT_DISPLAY_SETTINGS });
 const saving = ref(false);
+
+// Category-filter layout for the Create-order page (kv-backed, saves on change).
+const { layout: categoryLayout, save: saveCategoryLayout } = useCategoryLayout();
+function setCategoryLayout(v: CategoryLayout): void {
+  void saveCategoryLayout(v);
+}
 
 function pickLogo(): void {
   logoInput.value?.click();
@@ -1152,5 +1193,34 @@ async function openClientDisplay(): Promise<void> {
   &.ready {
     border: 2px solid;
   }
+}
+
+/* segmented option group (category layout) */
+.seg-group {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--surface-2);
+  padding: 5px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.seg-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover { color: var(--ink); }
+  &.active { background: var(--surface); color: var(--brand); box-shadow: var(--shadow-sm); }
 }
 </style>

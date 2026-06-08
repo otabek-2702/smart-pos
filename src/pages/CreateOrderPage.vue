@@ -102,7 +102,7 @@
           </div>
 
           <!-- Category Filter -->
-          <div class="category-filter">
+          <div class="category-filter" :class="{ wrap: categoryLayout === 'wrap' }">
             <button
               type="button"
               class="category-btn"
@@ -216,6 +216,7 @@ import { formatPrice } from 'src/utils/formatPrice';
 import ReceiptItemDescriptionDialog from 'src/components/ReceiptItemDescriptionDialog.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 import { read } from 'src/utils/storage';
+import { useCategoryLayout } from 'src/composables/useCategoryLayout';
 import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 
@@ -312,6 +313,9 @@ function onKeyPress(key: string): void {
 }
 
 const router = useRouter();
+
+// Category-filter layout (Settings → Display): 'scroll' single row, 'wrap' multi-row.
+const { layout: categoryLayout } = useCategoryLayout();
 
 // Labels come from the shared source so a Settings edit updates them here too.
 const { labels: orderLabels } = useOrderTypes();
@@ -964,6 +968,14 @@ onMounted(async () => {
 }
 .category-filter::-webkit-scrollbar {
   display: none;
+}
+/* multi-line layout (Settings → Display): wrap to rows, no horizontal scroll */
+.category-filter.wrap {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.category-filter.wrap .category-btn {
+  flex: 0 0 auto;
 }
 
 .category-btn {
