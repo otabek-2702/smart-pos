@@ -112,13 +112,6 @@
     <!-- Footer -->
     <footer class="page-footer">
       <div class="footer-left">
-        <!-- Kitchen screen — left corner, same spot as the KDS "Buyurtmalar"
-             back button, so toggling Orders↔kitchen is one fixed tap. -->
-        <button type="button" class="btn primary" @click="router.push({ name: 'kds' })">
-          <q-icon name="soup_kitchen" size="22px" />
-          Oshxona
-        </button>
-
         <LogOutButton />
       </div>
 
@@ -128,6 +121,8 @@
       </div>
 
       <div class="footer-right">
+        <AdminSettingsButton show-label />
+
         <button
           v-if="canSeeExpenses"
           type="button"
@@ -139,7 +134,11 @@
           Xarajatlar
         </button>
 
-        <AdminSettingsButton show-label />
+        <!-- Kitchen screen — right corner. -->
+        <button type="button" class="btn primary" @click="router.push({ name: 'kds' })">
+          <q-icon name="soup_kitchen" size="22px" />
+          Oshxona
+        </button>
       </div>
     </footer>
   </q-page>

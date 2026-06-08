@@ -52,6 +52,17 @@
             </span>
           </button>
         </div>
+
+        <!-- Mute the new-order beep — left, after the tabs -->
+        <button
+          type="button"
+          class="mute-btn"
+          :class="{ muted }"
+          :aria-label="muted ? 'Ovozni yoqish' : 'Ovozni o\'chirish'"
+          @click="toggleMute"
+        >
+          <q-icon :name="muted ? 'volume_off' : 'volume_up'" size="22px" />
+        </button>
       </div>
 
       <div class="footer-center">
@@ -77,17 +88,6 @@
             Avto
           </button>
         </div>
-
-        <!-- Mute the new-order beep -->
-        <button
-          type="button"
-          class="mute-btn"
-          :class="{ muted }"
-          :aria-label="muted ? 'Ovozni yoqish' : 'Ovozni o\'chirish'"
-          @click="toggleMute"
-        >
-          <q-icon :name="muted ? 'volume_off' : 'volume_up'" size="22px" />
-        </button>
       </div>
     </footer>
   </div>
