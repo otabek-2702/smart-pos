@@ -55,7 +55,10 @@
                       <input
                         v-model="discountInput"
                         class="disc-input"
-                        :class="{ 'has-clear': discountPercent > 0, active: activeDiscField === 'percent' }"
+                        :class="{
+                          'has-clear': discountPercent > 0,
+                          active: activeDiscField === 'percent',
+                        }"
                         inputmode="numeric"
                         placeholder="0"
                         readonly
@@ -97,7 +100,13 @@
                       <q-spinner v-if="promoLoading" size="16px" />
                       <span v-else>Qo'llash</span>
                     </button>
-                    <button v-else type="button" class="disc-clear" title="Olib tashlash" @click="removePromo">
+                    <button
+                      v-else
+                      type="button"
+                      class="disc-clear"
+                      title="Olib tashlash"
+                      @click="removePromo"
+                    >
                       <q-icon name="close" size="16px" />
                     </button>
                   </div>
@@ -124,7 +133,7 @@
               <span class="calc__display-val">{{ formatPrice(amountValue) }}</span>
               <span class="calc__display-cur">so'm</span>
             </div>
-            
+
             <!-- payments list — grows to fill, so it rarely needs scrolling -->
             <div class="calc__list">
               <div v-if="payments.length === 0" class="pl__empty">
@@ -140,21 +149,6 @@
                 </button>
               </div>
             </div>
-            
-            <div class="calc__methods" :class="{ 'calc__methods--vertical': paymentPrefs.methodsLayout === 'vertical' }">
-              <button
-                v-for="m in methods"
-                :key="m.code"
-                type="button"
-                class="pm-btn"
-                :style="{ '--pm': m.color }"
-                @click="addPayment(m.code)"
-              >
-                <span class="pm-btn__icon" v-html="m.icon"></span>
-                <span class="pm-btn__label">{{ m.label }}</span>
-              </button>
-            </div>
-
 
             <div class="calc__status">
               <template v-if="remaining > 0">
@@ -166,21 +160,53 @@
                 <span class="calc__status-val is-change">{{ formatPrice(changeDue) }} so'm</span>
               </template>
               <template v-else-if="effectiveTotal > 0 || payments.length > 0">
-                <span class="calc__status-val is-ok"><q-icon name="check_circle" size="18px" /> To'liq to'landi</span>
+                <span class="calc__status-val is-ok"
+                  ><q-icon name="check_circle" size="18px" /> To'liq to'landi</span
+                >
               </template>
             </div>
 
-            <div class="calc__pad">
-              <button v-for="k in numpadKeys" :key="k" type="button" class="pad-key" @click="onNumpadPress(k)">
-                {{ k }}
-              </button>
-              <button type="button" class="pad-key pad-key--muted" @click="onClear">C</button>
-              <button type="button" class="pad-key" @click="onNumpadPress('0')">0</button>
-              <button type="button" class="pad-key pad-key--muted" @click="onBackspace">⌫</button>
+            <div class="pad__wraper">
+              <div
+                class="calc__methods"
+                :class="{ 'calc__methods--vertical': paymentPrefs.methodsLayout === 'vertical' }"
+              >
+                <button
+                  v-for="m in methods"
+                  :key="m.code"
+                  type="button"
+                  class="pm-btn"
+                  :style="{ '--pm': m.color }"
+                  @click="addPayment(m.code)"
+                >
+                  <span class="pm-btn__icon" v-html="m.icon"></span>
+                  <span class="pm-btn__label">{{ m.label }}</span>
+                </button>
+              </div>
+              <div class="calc__pad">
+                <button
+                  v-for="k in numpadKeys"
+                  :key="k"
+                  type="button"
+                  class="pad-key"
+                  @click="onNumpadPress(k)"
+                >
+                  {{ k }}
+                </button>
+                <button type="button" class="pad-key pad-key--muted" @click="onClear">C</button>
+                <button type="button" class="pad-key" @click="onNumpadPress('0')">0</button>
+                <button type="button" class="pad-key pad-key--muted" @click="onBackspace">⌫</button>
+              </div>
             </div>
 
             <div class="calc__quick">
-              <button v-for="q in quickAmounts" :key="q" type="button" class="quick-btn" @click="addQuick(q)">
+              <button
+                v-for="q in quickAmounts"
+                :key="q"
+                type="button"
+                class="quick-btn"
+                @click="addQuick(q)"
+              >
                 +{{ formatQuickAmount(q) }}
               </button>
               <button type="button" class="quick-btn quick-btn--max" @click="onMax">MAX</button>
@@ -208,7 +234,12 @@
             <span v-else>Bekor qilish</span>
           </button>
           <div class="foot-right">
-            <button type="button" class="btn secondary" :disabled="payLoading || cancelLoading" @click="onCancel">
+            <button
+              type="button"
+              class="btn secondary"
+              :disabled="payLoading || cancelLoading"
+              @click="onCancel"
+            >
               Keyinroq
             </button>
             <button
@@ -228,14 +259,35 @@
           <div class="pinpad__box">
             <div class="pinpad__title">Promokod uchun PIN</div>
             <div class="pinpad__dots">
-              <span v-for="i in 4" :key="i" class="pinpad__dot" :class="{ filled: pinEntry.length >= i }" />
+              <span
+                v-for="i in 4"
+                :key="i"
+                class="pinpad__dot"
+                :class="{ filled: pinEntry.length >= i }"
+              />
             </div>
             <div v-if="pinError" class="pinpad__err">PIN noto'g'ri</div>
             <div class="pinpad__grid">
-              <button v-for="k in numpadKeys" :key="k" type="button" class="pinpad__key" @click="onPinKey(k)">{{ k }}</button>
-              <button type="button" class="pinpad__key pinpad__key--muted" @click="showPinPad = false">×</button>
+              <button
+                v-for="k in numpadKeys"
+                :key="k"
+                type="button"
+                class="pinpad__key"
+                @click="onPinKey(k)"
+              >
+                {{ k }}
+              </button>
+              <button
+                type="button"
+                class="pinpad__key pinpad__key--muted"
+                @click="showPinPad = false"
+              >
+                ×
+              </button>
               <button type="button" class="pinpad__key" @click="onPinKey('0')">0</button>
-              <button type="button" class="pinpad__key pinpad__key--muted" @click="pinBackspace">⌫</button>
+              <button type="button" class="pinpad__key pinpad__key--muted" @click="pinBackspace">
+                ⌫
+              </button>
             </div>
           </div>
         </div>
@@ -248,7 +300,9 @@
             <div class="disc-sheet__head">
               <span class="disc-sheet__title">
                 {{ activeDiscField === 'percent' ? 'Promokod (%)' : 'Promokod kodi' }}
-                <strong>{{ activeDiscField === 'percent' ? (discountInput || '0') + '%' : (promoInput || '—') }}</strong>
+                <strong>{{
+                  activeDiscField === 'percent' ? (discountInput || '0') + '%' : promoInput || '—'
+                }}</strong>
               </span>
               <button type="button" class="disc-sheet__done" @click="activeDiscField = null">
                 <q-icon name="check" size="18px" /> Tayyor
@@ -389,7 +443,9 @@ function onPinKey(k: string): void {
   pinError.value = false;
   if (pinEntry.value.length === 4) submitPin();
 }
-function pinBackspace(): void { pinEntry.value = pinEntry.value.slice(0, -1); }
+function pinBackspace(): void {
+  pinEntry.value = pinEntry.value.slice(0, -1);
+}
 function submitPin(): void {
   if (/^\d{4}$/.test(policy.value.pin) && pinEntry.value === policy.value.pin) {
     discountUnlocked.value = true;
@@ -415,13 +471,19 @@ function onDiscNum(v: string): void {
   const n = Math.min(100, parseInt(cur + v, 10) || 0);
   discountInput.value = n === 0 ? '' : String(n);
 }
-function onDiscNumBack(): void { discountInput.value = discountInput.value.slice(0, -1); }
-function onDiscNumClear(): void { discountInput.value = ''; }
+function onDiscNumBack(): void {
+  discountInput.value = discountInput.value.slice(0, -1);
+}
+function onDiscNumClear(): void {
+  discountInput.value = '';
+}
 function onPromoKey(c: string): void {
   if (appliedPromo.value) return;
   promoInput.value += c;
 }
-function onPromoBack(): void { promoInput.value = promoInput.value.slice(0, -1); }
+function onPromoBack(): void {
+  promoInput.value = promoInput.value.slice(0, -1);
+}
 
 // Hard guard: if the policy ever leaves 'open' (settings disabled, lock reset),
 // wipe any entered percent so a disabled cashier can never carry a discount.
@@ -456,7 +518,11 @@ const dominantMethod = computed<string>(() => {
   for (const p of payments.value) totals.set(p.method, (totals.get(p.method) ?? 0) + p.amount);
   let best = 'CASH';
   let max = -1;
-  for (const [m, t] of totals) if (t > max) { max = t; best = m; }
+  for (const [m, t] of totals)
+    if (t > max) {
+      max = t;
+      best = m;
+    }
   return best;
 });
 
@@ -481,12 +547,22 @@ function onNumpadPress(key: string): void {
   if (amountInput.value.length >= 9) return;
   amountInput.value = amountInput.value === '' && key === '0' ? '' : amountInput.value + key;
 }
-function onClear(): void { amountInput.value = ''; }
-function onBackspace(): void { amountInput.value = amountInput.value.slice(0, -1); }
-function addQuick(amount: number): void { amountInput.value = String(amountValue.value + amount); }
-function onMax(): void { amountInput.value = String(remaining.value); }
+function onClear(): void {
+  amountInput.value = '';
+}
+function onBackspace(): void {
+  amountInput.value = amountInput.value.slice(0, -1);
+}
+function addQuick(amount: number): void {
+  amountInput.value = String(amountValue.value + amount);
+}
+function onMax(): void {
+  amountInput.value = String(remaining.value);
+}
 
-function clearDiscount(): void { discountInput.value = ''; }
+function clearDiscount(): void {
+  discountInput.value = '';
+}
 
 /* ============ promo ============ */
 
@@ -547,8 +623,13 @@ function addPayment(method: string): void {
   payments.value.push({ method, amount });
   amountInput.value = '';
 }
-function removePayment(index: number): void { payments.value.splice(index, 1); }
-function resetPayments(): void { payments.value = []; amountInput.value = ''; }
+function removePayment(index: number): void {
+  payments.value.splice(index, 1);
+}
+function resetPayments(): void {
+  payments.value = [];
+  amountInput.value = '';
+}
 
 /* ============ reset on open ============ */
 
@@ -599,7 +680,9 @@ function onCancel(): void {
 
 async function onCancelOrder(): Promise<void> {
   if (!props.orderId || cancelLoading.value || payLoading.value) return;
-  const ok = window.confirm(`#${props.displayId ?? ''} buyurtmasini bekor qilishni tasdiqlaysizmi?`);
+  const ok = window.confirm(
+    `#${props.displayId ?? ''} buyurtmasini bekor qilishni tasdiqlaysizmi?`,
+  );
   if (!ok) return;
   cancelLoading.value = true;
   try {
@@ -652,18 +735,34 @@ async function onCancelOrder(): Promise<void> {
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-surface);
 }
-.pay__title { display: flex; align-items: baseline; gap: 10px; }
-.pay__hash { font-size: 20px; font-weight: 800; color: var(--text-primary); }
-.pay__type { font-size: 14px; color: var(--text-muted); }
+.pay__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.pay__hash {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.pay__type {
+  font-size: 14px;
+  color: var(--text-muted);
+}
 .pay__close {
-  width: 40px; height: 40px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface-2);
   color: var(--text-primary);
   cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-  &:active { transform: scale(0.95); }
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 /* body */
@@ -698,9 +797,19 @@ async function onCancelOrder(): Promise<void> {
   font-size: 15px;
   color: var(--text-primary);
 }
-.sum__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sum__qty { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.sum__price { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sum__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sum__qty {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sum__price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 
 .sum__discount {
   margin-top: 12px;
@@ -710,19 +819,52 @@ async function onCancelOrder(): Promise<void> {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-.disc-field { display: flex; flex-direction: column; gap: 6px; }
-.disc-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-.disc-row { display: flex; gap: 6px; align-items: center; }
+.disc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.disc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.disc-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
 /* % field: input wrapper so the clear (×) sits INSIDE the input */
-.disc-input-wrap { position: relative; flex: 1; min-width: 0; }
-.disc-input-wrap .disc-input { width: 100%; flex: none; }
-.disc-input.has-clear { padding-right: 36px; }
+.disc-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.disc-input-wrap .disc-input {
+  width: 100%;
+  flex: none;
+}
+.disc-input.has-clear {
+  padding-right: 36px;
+}
 .disc-inclear {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  width: 28px; height: 28px; border-radius: 8px;
-  border: none; background: transparent; color: var(--text-muted);
-  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-  &:active { transform: translateY(-50%) scale(0.9); }
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:active {
+    transform: translateY(-50%) scale(0.9);
+  }
 }
 .disc-input {
   flex: 1;
@@ -736,31 +878,77 @@ async function onCancelOrder(): Promise<void> {
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  &:focus, &.active { outline: none; border-color: var(--accent-primary, #ff7a00); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary, #ff7a00) 22%, transparent); }
-  &:disabled { opacity: 0.7; }
+  &:focus,
+  &.active {
+    outline: none;
+    border-color: var(--accent-primary, #ff7a00);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary, #ff7a00) 22%, transparent);
+  }
+  &:disabled {
+    opacity: 0.7;
+  }
 }
 /* discount keyboard bottom sheet */
 .disc-sheet {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  background: var(--bg-surface); border-top: 1px solid var(--border-color);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-color);
   border-radius: 18px 18px 0 0;
   padding: 12px 16px 18px;
   box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.4);
 }
-.disc-sheet__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.disc-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
 .disc-sheet__title {
-  font-size: 13px; color: var(--text-muted);
-  strong { margin-left: 8px; font-size: 18px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  font-size: 13px;
+  color: var(--text-muted);
+  strong {
+    margin-left: 8px;
+    font-size: 18px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
 }
 .disc-sheet__done {
-  height: 42px; padding: 0 18px; border-radius: 10px; border: none; cursor: pointer;
-  background: var(--accent-primary, #ff7a00); color: #fff; font-weight: 700; font-size: 14px;
-  display: inline-flex; align-items: center; gap: 6px;
-  &:active { transform: scale(0.97); }
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: var(--accent-primary, #ff7a00);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  &:active {
+    transform: scale(0.97);
+  }
 }
-.disc-sheet__kb { max-width: 860px; margin: 0 auto; }
-.disc-sheet-slide-enter-active, .disc-sheet-slide-leave-active { transition: transform 220ms ease, opacity 220ms ease; }
-.disc-sheet-slide-enter-from, .disc-sheet-slide-leave-to { transform: translateY(100%); opacity: 0; }
+.disc-sheet__kb {
+  max-width: 860px;
+  margin: 0 auto;
+}
+.disc-sheet-slide-enter-active,
+.disc-sheet-slide-leave-active {
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+.disc-sheet-slide-enter-from,
+.disc-sheet-slide-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
 
 /* click anywhere outside the sheet closes it */
 .disc-sheet-backdrop {
@@ -770,7 +958,11 @@ async function onCancelOrder(): Promise<void> {
   background: transparent;
 }
 
-.disc-input--mono { font-family: ui-monospace, Menlo, monospace; font-weight: 600; letter-spacing: 0.5px; }
+.disc-input--mono {
+  font-family: ui-monospace, Menlo, monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 .disc-apply {
   height: 44px;
   padding: 0 12px;
@@ -781,10 +973,14 @@ async function onCancelOrder(): Promise<void> {
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 .disc-clear {
-  width: 44px; height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface-2);
@@ -792,8 +988,18 @@ async function onCancelOrder(): Promise<void> {
   cursor: pointer;
   flex-shrink: 0;
 }
-.disc-applied { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #16a34a; }
-.disc-error { font-size: 12px; color: #ef4444; }
+.disc-applied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+}
+.disc-error {
+  font-size: 12px;
+  color: #ef4444;
+}
 .disc-quick {
   height: 44px;
   padding: 0 12px;
@@ -805,7 +1011,9 @@ async function onCancelOrder(): Promise<void> {
   font-size: 14px;
   cursor: pointer;
   flex-shrink: 0;
-  &:active { transform: scale(0.95); }
+  &:active {
+    transform: scale(0.95);
+  }
 }
 .disc-blocked {
   grid-column: 1 / -1;
@@ -833,7 +1041,9 @@ async function onCancelOrder(): Promise<void> {
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  &:active { transform: scale(0.98); }
+  &:active {
+    transform: scale(0.98);
+  }
 }
 
 /* PIN pad overlay */
@@ -858,29 +1068,74 @@ async function onCancelOrder(): Promise<void> {
   align-items: center;
   gap: 14px;
 }
-.pinpad__title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
-.pinpad__dots { display: flex; gap: 12px; }
-.pinpad__dot {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--bg-surface-2); border: 1px solid var(--border-color);
-  &.filled { background: var(--accent-primary, #ff7a00); border-color: var(--accent-primary, #ff7a00); }
+.pinpad__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
-.pinpad__err { font-size: 12px; color: #ef4444; }
-.pinpad__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.pinpad__dots {
+  display: flex;
+  gap: 12px;
+}
+.pinpad__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-color);
+  &.filled {
+    background: var(--accent-primary, #ff7a00);
+    border-color: var(--accent-primary, #ff7a00);
+  }
+}
+.pinpad__err {
+  font-size: 12px;
+  color: #ef4444;
+}
+.pinpad__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
 .pinpad__key {
-  height: 52px; border-radius: 12px;
+  height: 52px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface-2);
   color: var(--text-primary);
-  font-size: 20px; font-weight: 700; cursor: pointer;
-  &:active { transform: scale(0.95); }
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active {
+    transform: scale(0.95);
+  }
 }
-.pinpad__key--muted { color: var(--text-muted); }
+.pinpad__key--muted {
+  color: var(--text-muted);
+}
 
-.sum__totals { margin-top: 12px; text-align: right; }
-.sum__orig { font-size: 14px; color: var(--text-muted); text-decoration: line-through; }
-.sum__off { margin-left: 6px; color: #ef4444; font-weight: 700; text-decoration: none; }
-.sum__total { font-size: 30px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.sum__totals {
+  margin-top: 12px;
+  text-align: right;
+}
+.sum__orig {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.sum__off {
+  margin-left: 6px;
+  color: #ef4444;
+  font-weight: 700;
+  text-decoration: none;
+}
+.sum__total {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
 
 /* RIGHT calculator */
 .pay__calc {
@@ -895,28 +1150,63 @@ async function onCancelOrder(): Promise<void> {
   border-radius: 12px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
-  display: flex; align-items: baseline; justify-content: flex-end; gap: 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
   padding: 0 16px;
   flex-shrink: 0;
 }
-.calc__display-val { font-size: 28px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.calc__display-cur { font-size: 14px; color: var(--text-muted); }
+.calc__display-val {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.calc__display-cur {
+  font-size: 14px;
+  color: var(--text-muted);
+}
 
-.calc__methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex-shrink: 0; }
-/* vertical layout (Settings → Display): stack the payment types in one column */
-.calc__methods--vertical { grid-template-columns: 1fr; }
+/* payment types — a column to the LEFT of the numpad; buttons stretch so the
+   four of them line up row-for-row with the numpad. */
+.calc__methods {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 96px;
+  min-width: 0;
+}
 .pm-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  height: 60px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   border-radius: 12px;
   border: 1px solid var(--pm, var(--border-color));
   background: color-mix(in srgb, var(--pm) 10%, transparent);
   color: var(--pm, var(--text-primary));
   cursor: pointer;
-  &:active { transform: scale(0.96); }
+  &:active {
+    transform: scale(0.96);
+  }
 }
-.pm-btn__icon { width: 22px; height: 22px; display: inline-flex; :deep(svg) { width: 22px; height: 22px; } }
-.pm-btn__label { font-size: 12px; font-weight: 700; }
+.pm-btn__icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  :deep(svg) {
+    width: 22px;
+    height: 22px;
+  }
+}
+.pm-btn__label {
+  font-size: 12px;
+  font-weight: 700;
+}
 
 /* list grows to fill remaining space → minimal scrolling */
 .calc__list {
@@ -927,78 +1217,208 @@ async function onCancelOrder(): Promise<void> {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   padding: 8px;
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.pl__empty { margin: auto; font-size: 13px; color: var(--text-muted); }
+.pl__empty {
+  margin: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+}
 .pl__row {
-  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
-  padding: 8px 10px; border-radius: 8px; background: var(--bg-surface-2);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-surface-2);
 }
-.pl__method { font-weight: 700; font-size: 15px; }
-.pl__amount { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.pl__method {
+  font-weight: 700;
+  font-size: 15px;
+}
+.pl__amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
 .pl__remove {
-  width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent;
-  color: var(--text-muted); cursor: pointer; &:active { transform: scale(0.9); }
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  &:active {
+    transform: scale(0.9);
+  }
 }
 
-.calc__status { display: flex; align-items: center; justify-content: space-between; min-height: 24px; flex-shrink: 0; }
-.calc__status-label { font-size: 14px; color: var(--text-muted); }
-.calc__status-val { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.calc__status-val.is-due { color: #f59e0b; }
-.calc__status-val.is-change { color: #2563eb; }
-.calc__status-val.is-ok { color: #16a34a; display: inline-flex; align-items: center; gap: 6px; }
+.calc__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  flex-shrink: 0;
+}
+.calc__status-label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.calc__status-val {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.calc__status-val.is-due {
+  color: #f59e0b;
+}
+.calc__status-val.is-change {
+  color: #2563eb;
+}
+.calc__status-val.is-ok {
+  color: #16a34a;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
-.calc__pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex-shrink: 0; }
+.pad__wraper {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.calc__pad {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
 .pad-key {
   height: 48px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 20px; font-weight: 700; cursor: pointer;
-  &:active { transform: scale(0.96); }
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active {
+    transform: scale(0.96);
+  }
 }
-.pad-key--muted { color: var(--text-muted); }
+.pad-key--muted {
+  color: var(--text-muted);
+}
 
-.calc__quick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; flex-shrink: 0; }
+.calc__quick {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  flex-shrink: 0;
+}
 .quick-btn {
-  height: 42px; border-radius: 10px;
+  height: 42px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface-2);
   color: var(--text-primary);
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  &:active:not(:disabled) { transform: scale(0.95); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
-.quick-btn--max { background: var(--accent-primary, #ff7a00); border-color: var(--accent-primary, #ff7a00); color: #fff; }
-.quick-btn--reset { color: #ef4444; }
+.quick-btn--max {
+  background: var(--accent-primary, #ff7a00);
+  border-color: var(--accent-primary, #ff7a00);
+  color: #fff;
+}
+.quick-btn--reset {
+  color: #ef4444;
+}
 
 /* footer (slim) */
 .pay__foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 16px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-surface);
   flex-shrink: 0;
 }
-.foot-right { display: flex; gap: 10px; }
-.btn {
-  height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid transparent;
-  font-size: 15px; font-weight: 700; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:active:not(:disabled) { transform: scale(0.98); }
+.foot-right {
+  display: flex;
+  gap: 10px;
 }
-.btn.primary { background: var(--accent-primary, #ff7a00); color: #fff; min-width: 160px; }
-.btn.secondary { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--border-color); }
-.btn.danger { background: rgba(239, 68, 68, 0.12); color: #ef4444; border-color: rgba(239, 68, 68, 0.4); }
+.btn {
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+.btn.primary {
+  background: var(--accent-primary, #ff7a00);
+  color: #fff;
+  min-width: 160px;
+}
+.btn.secondary {
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+.btn.danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
 
 @media (max-width: 860px) {
-  .pay__body { grid-template-columns: 1fr; overflow-y: auto; }
-  .pay__summary { border-right: none; border-bottom: 1px solid var(--border-color); }
+  .pay__body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .pay__summary {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
 }
 
-.pay-fade-enter-active, .pay-fade-leave-active { transition: opacity 200ms ease; }
-.pay-fade-enter-from, .pay-fade-leave-to { opacity: 0; }
+.pay-fade-enter-active,
+.pay-fade-leave-active {
+  transition: opacity 200ms ease;
+}
+.pay-fade-enter-from,
+.pay-fade-leave-to {
+  opacity: 0;
+}
 </style>
