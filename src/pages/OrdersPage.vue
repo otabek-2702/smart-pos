@@ -112,25 +112,22 @@
     <!-- Footer -->
     <footer class="page-footer">
       <div class="footer-left">
-        <AdminSettingsButton show-label />
+        <!-- Kitchen screen — left corner, same spot as the KDS "Buyurtmalar"
+             back button, so toggling Orders↔kitchen is one fixed tap. -->
+        <button type="button" class="btn primary" @click="router.push({ name: 'kds' })">
+          <q-icon name="soup_kitchen" size="22px" />
+          Oshxona
+        </button>
+
+        <LogOutButton />
       </div>
 
-      <!-- Center: clock + internet icon. Empty space here was wasted before;
-           a live clock is the kind of glance-info cashiers want during a
-           shift, and the internet icon sits next to it without stealing
-           focus (only renders when offline). -->
       <div class="footer-center">
         <AppClock size="md" />
         <InternetStatusIcon :network="network" />
       </div>
 
       <div class="footer-right">
-        <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
-          <q-icon name="monitor" size="22px" />
-
-          Monitor
-        </button>
-
         <button
           v-if="canSeeExpenses"
           type="button"
@@ -142,7 +139,7 @@
           Xarajatlar
         </button>
 
-        <LogOutButton />
+        <AdminSettingsButton show-label />
       </div>
     </footer>
   </q-page>
@@ -742,5 +739,13 @@ onUnmounted(() => {
 .btn.secondary {
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
+}
+
+.btn.primary {
+  background: var(--brand);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

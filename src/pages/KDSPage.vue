@@ -21,33 +21,39 @@
 
     <!-- FOOTER -->
     <footer class="page-footer">
-       <div class="kds-tabs">
-        <button
-          class="tab-btn"
-          :class="{ active: currentMode === 'PREPARING' }"
-          @click="switchMode('PREPARING')"
-        >
-          JARAYONDA
-          <span v-if="currentMode === 'PREPARING' && orders.length > 0" class="tab-count">
-            {{ orders.length }}
-          </span>
+      <div class="footer-left">
+        <!-- Back to Orders — left corner, same spot as the Orders→kitchen
+             button, so toggling between the two screens is one fixed tap. -->
+        <button type="button" class="nav-btn" @click="router.push({ name: 'orders' })">
+          <q-icon name="arrow_back" size="20px" />
+          Buyurtmalar
         </button>
 
-        <button
-          class="tab-btn"
-          :class="{ active: currentMode === 'READY' }"
-          @click="switchMode('READY')"
-        >
-          TAYYOR
-          <span v-if="currentMode === 'READY' && orders.length > 0" class="tab-count">
-            {{ orders.length }}
-          </span>
-        </button>
+        <div class="kds-tabs">
+          <button
+            class="tab-btn"
+            :class="{ active: currentMode === 'PREPARING' }"
+            @click="switchMode('PREPARING')"
+          >
+            JARAYONDA
+            <span v-if="currentMode === 'PREPARING' && orders.length > 0" class="tab-count">
+              {{ orders.length }}
+            </span>
+          </button>
+
+          <button
+            class="tab-btn"
+            :class="{ active: currentMode === 'READY' }"
+            @click="switchMode('READY')"
+          >
+            TAYYOR
+            <span v-if="currentMode === 'READY' && orders.length > 0" class="tab-count">
+              {{ orders.length }}
+            </span>
+          </button>
+        </div>
       </div>
 
-      <!-- Center: live clock + internet badge (kitchen staff appreciate
-           the time-of-day reference while plating). Internet badge auto-
-           hides when up. -->
       <div class="footer-center">
         <AppClock size="md" />
         <InternetStatusIcon :network="network" />
@@ -56,7 +62,7 @@
       <div class="footer-right">
         <!-- Columns per row (chef picks; Avto = responsive) -->
         <div class="cols-ctl" role="group" aria-label="Ustunlar soni">
-          <q-icon name="view_column" size="18px" />
+          <q-icon name="view_column" size="16px" />
           <button
             v-for="n in COL_OPTIONS"
             :key="n"
@@ -72,11 +78,16 @@
           </button>
         </div>
 
-        <button type="button" class="btn secondary" @click="router.push({ name: 'orders' })">
-          Buyurtmalar
+        <!-- Mute the new-order beep -->
+        <button
+          type="button"
+          class="mute-btn"
+          :class="{ muted }"
+          :aria-label="muted ? 'Ovozni yoqish' : 'Ovozni o\'chirish'"
+          @click="toggleMute"
+        >
+          <q-icon :name="muted ? 'volume_off' : 'volume_up'" size="22px" />
         </button>
-
-        <LogOutButton />
       </div>
     </footer>
   </div>
@@ -87,7 +98,6 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { api } from 'src/boot/axios';
 import { useRouter } from 'vue-router';
 import OrderCard from 'src/components/OrderCard.vue';
-import LogOutButton from 'src/components/LogOutButton.vue';
 import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
@@ -104,6 +114,14 @@ const colsPerRow = ref<number | null>(read<number>(KDS_COLS_KEY) ?? null);
 function setCols(n: number | null): void {
   colsPerRow.value = n;
   void write(KDS_COLS_KEY, n);
+}
+
+/* Mute the new-order beep (persisted per-PC). */
+const KDS_MUTED_KEY = 'pos:kdsMuted';
+const muted = ref<boolean>(read<boolean>(KDS_MUTED_KEY) === true);
+function toggleMute(): void {
+  muted.value = !muted.value;
+  void write(KDS_MUTED_KEY, muted.value);
 }
 
 /* ================= TYPES ================= */
@@ -165,6 +183,7 @@ function initAudioContext(): void {
 }
 
 function playBeep(): void {
+  if (muted.value) return;
   if (audioContext === null) return;
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
@@ -418,8 +437,50 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
-.kds-tabs {
+.footer-left {
   justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.kds-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* back-to-orders / nav button (left corner) */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  &:active { transform: scale(0.97); }
+}
+
+.mute-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &.muted { color: var(--cancel); border-color: color-mix(in srgb, var(--cancel) 35%, var(--line)); }
+  &:active { transform: scale(0.94); }
 }
 
 .footer-center {
