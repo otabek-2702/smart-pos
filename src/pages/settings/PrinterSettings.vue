@@ -366,9 +366,10 @@ function resetToDefaults(): void {
 <style scoped lang="scss">
 .printer-settings {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 560px) 320px;
+  gap: 20px;
   height: 100%;
+  align-content: start;
 }
 
 .settings-form {
@@ -614,21 +615,22 @@ function resetToDefaults(): void {
 // Actions
 .form-actions {
   display: flex;
-  justify-content: space-between;
-  // margin-top: 24px;
-  // padding-top: 24px;
-  // border-top: 1px solid var(--border-color);
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 // Buttons
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px 20px;
+  height: 48px;
+  padding: 0 20px;
   border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;

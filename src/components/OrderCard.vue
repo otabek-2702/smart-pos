@@ -387,15 +387,16 @@ async function handleBackToPreparing(): Promise<void> {
 .actions-row {
   margin-top: auto;
   padding-top: 8px;
+  border-top: 1px solid #e8eaee;
 }
 
 .btn {
   width: 100%;
-  padding: 0 14px;
-  height: 48px;
+  padding: 0 10px;
+  height: 30px;
   border: none;
   border-radius: var(--r-md);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition:
