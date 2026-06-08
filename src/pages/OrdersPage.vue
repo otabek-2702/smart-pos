@@ -738,13 +738,17 @@ onUnmounted(() => {
 }
 
 .btn {
-  height: 40px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-radius: 14px;
   border: none;
   font-size: 15px;
   font-weight: 600;
   box-shadow: var(--shadow-sm);
-  padding: 0 20px;
+  padding: 0 18px;
 
   &:active {
     transform: scale(0.97);

@@ -38,16 +38,18 @@ function goToSettings(): void {
 
 <style scoped lang="scss">
 .settings-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  height: 44px;
+  padding: 0 16px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
 

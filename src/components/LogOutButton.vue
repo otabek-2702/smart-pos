@@ -83,8 +83,8 @@ async function doLogout(): Promise<void> {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  height: 42px;
+  min-height: 44px;
+  height: 44px;
   white-space: nowrap;
 
   background: var(--btn-secondary-bg);
@@ -174,6 +174,10 @@ async function doLogout(): Promise<void> {
 .btn {
   flex: 1;
   height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-radius: 12px;
   border: none;
   font-weight: 600;
