@@ -27,13 +27,14 @@
 
     <!-- Status filters -->
 
-    <!-- Loading skeleton -->
-    <div v-if="loading" class="orders-list">
+    <!-- Loading skeleton — only on the first load (no data yet). Re-fetches /
+         polls keep the existing rows so the list doesn't flash on fast local. -->
+    <div v-if="loading && orders.length === 0" class="orders-list">
       <q-skeleton v-for="n in 7" :key="n" type="rect" class="sk-row" />
     </div>
 
     <!-- Empty state -->
-    <div v-else-if="orders.length === 0" class="empty-state">
+    <div v-else-if="!loading && orders.length === 0" class="empty-state">
       <q-icon name="receipt_long" size="48px" />
       <span>Buyurtmalar topilmadi</span>
     </div>
@@ -112,6 +113,7 @@
     <!-- Footer -->
     <footer class="page-footer">
       <div class="footer-left">
+        <AdminSettingsButton show-label />
         <LogOutButton />
       </div>
 
@@ -121,8 +123,6 @@
       </div>
 
       <div class="footer-right">
-        <AdminSettingsButton show-label />
-
         <button
           v-if="canSeeExpenses"
           type="button"
@@ -135,7 +135,7 @@
         </button>
 
         <!-- Kitchen screen — right corner. -->
-        <button type="button" class="btn primary" @click="router.push({ name: 'kds' })">
+        <button type="button" class="btn secondary" @click="router.push({ name: 'kds' })">
           <q-icon name="soup_kitchen" size="22px" />
           Oshxona
         </button>

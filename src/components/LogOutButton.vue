@@ -80,17 +80,22 @@ async function doLogout(): Promise<void> {
 <style scoped lang="scss">
 /* LOGOUT BUTTON */
 .logout-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-height: 42px;
-  height: 100%;
-  background: var(--warning-bg);
-  color: var(--warning-text);
+  height: 42px;
+  white-space: nowrap;
 
-  border: 1px solid var(--warning-text);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 0 18px;
 
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 
   box-shadow: var(--shadow-sm);
   cursor: pointer;
