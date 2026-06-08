@@ -66,6 +66,64 @@
         </div>
       </div>
 
+      <!-- Payment screen: methods layout + quick-amount templates -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="payments" size="20px" />
+          To'lov ekrani
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label">To'lov turlari joylashuvi</label>
+          <div class="seg-group">
+            <button
+              type="button"
+              class="seg-opt"
+              :class="{ active: pPrefs.methodsLayout === 'grid' }"
+              @click="setMethodsLayout('grid')"
+            >
+              <q-icon name="grid_view" size="18px" /> Tarmoq
+            </button>
+            <button
+              type="button"
+              class="seg-opt"
+              :class="{ active: pPrefs.methodsLayout === 'vertical' }"
+              @click="setMethodsLayout('vertical')"
+            >
+              <q-icon name="view_agenda" size="18px" /> Vertikal
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tezkor summa tugmalari</label>
+          <div class="qa-list">
+            <div v-for="(a, i) in quickAmountsDraft" :key="i" class="qa-item">
+              <input
+                v-model.number="quickAmountsDraft[i]"
+                class="form-input qa-input"
+                inputmode="numeric"
+                data-keyboard-nums="true"
+              />
+              <button type="button" class="qa-del" aria-label="O'chirish" @click="removeQuickAmount(i)">
+                <q-icon name="close" size="18px" />
+              </button>
+            </div>
+            <button type="button" class="qa-add" @click="addQuickAmount">
+              <q-icon name="add" size="18px" /> Qo'shish
+            </button>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary qa-save"
+            :disabled="!quickAmountsValid"
+            @click="saveQuickAmounts"
+          >
+            <q-icon name="save" size="18px" /> Saqlash
+          </button>
+        </div>
+      </div>
+
       <!-- Company Name Section -->
       <div class="form-section">
         <h3 class="form-section-title">
@@ -477,6 +535,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import type { DisplaySettings } from 'src/types/settings';
 import { useCategoryLayout, type CategoryLayout } from 'src/composables/useCategoryLayout';
+import { usePaymentPrefs, type MethodsLayout } from 'src/composables/usePaymentPrefs';
 import {
   DEFAULT_DISPLAY_SETTINGS,
   generateDisplayColors,
@@ -522,6 +581,24 @@ const saving = ref(false);
 const { layout: categoryLayout, save: saveCategoryLayout } = useCategoryLayout();
 function setCategoryLayout(v: CategoryLayout): void {
   void saveCategoryLayout(v);
+}
+
+// Payment-screen prefs: methods layout (live) + quick-amount templates (draft + save).
+const { prefs: pPrefs, save: savePaymentPrefs } = usePaymentPrefs();
+function setMethodsLayout(v: MethodsLayout): void {
+  void savePaymentPrefs({ ...pPrefs.value, methodsLayout: v });
+}
+const quickAmountsDraft = ref<number[]>([...pPrefs.value.quickAmounts]);
+const quickAmountsValid = computed(
+  () => quickAmountsDraft.value.length > 0 && quickAmountsDraft.value.every((n) => Number(n) > 0),
+);
+function addQuickAmount(): void { quickAmountsDraft.value.push(1000); }
+function removeQuickAmount(i: number): void { quickAmountsDraft.value.splice(i, 1); }
+function saveQuickAmounts(): void {
+  void savePaymentPrefs({
+    ...pPrefs.value,
+    quickAmounts: quickAmountsDraft.value.map(Number).filter((n) => n > 0),
+  });
 }
 
 function pickLogo(): void {
@@ -1223,4 +1300,20 @@ async function openClientDisplay(): Promise<void> {
   &:hover { color: var(--ink); }
   &.active { background: var(--surface); color: var(--brand); box-shadow: var(--shadow-sm); }
 }
+
+/* quick-amount templates editor */
+.qa-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.qa-item { position: relative; display: inline-flex; align-items: center; }
+.qa-input { width: 120px; padding-right: 34px; }
+.qa-del {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; border: none; background: transparent;
+  color: var(--ink-3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.qa-add {
+  height: 44px; padding: 0 16px; border-radius: var(--r-md);
+  border: 1px dashed var(--line-strong); background: var(--surface-2); color: var(--ink-2);
+  font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.qa-save { margin-top: 12px; }
 </style>

@@ -141,7 +141,7 @@
               </div>
             </div>
             
-            <div class="calc__methods">
+            <div class="calc__methods" :class="{ 'calc__methods--vertical': paymentPrefs.methodsLayout === 'vertical' }">
               <button
                 v-for="m in methods"
                 :key="m.code"
@@ -288,6 +288,7 @@ import { useDiscountPolicy } from 'src/composables/useDiscountPolicy';
 import { getAuthUser } from 'src/composables/usePermissions';
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
+import { usePaymentPrefs } from 'src/composables/usePaymentPrefs';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -354,7 +355,9 @@ const promoLoading = ref(false);
 const promoError = ref<string | null>(null);
 
 const numpadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-const quickAmounts = [1000, 5000, 10000, 50000, 100000];
+// Payment-screen prefs (Settings → Display): methods layout + quick-amount templates.
+const { prefs: paymentPrefs } = usePaymentPrefs();
+const quickAmounts = computed<number[]>(() => paymentPrefs.value.quickAmounts);
 
 /* ---- discount authorization ---- */
 const { policy } = useDiscountPolicy();
@@ -900,6 +903,8 @@ async function onCancelOrder(): Promise<void> {
 .calc__display-cur { font-size: 14px; color: var(--text-muted); }
 
 .calc__methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex-shrink: 0; }
+/* vertical layout (Settings → Display): stack the payment types in one column */
+.calc__methods--vertical { grid-template-columns: 1fr; }
 .pm-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   height: 60px;
