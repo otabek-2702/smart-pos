@@ -141,21 +141,6 @@
               </div>
             </div>
             
-            <div class="calc__methods" :class="{ 'calc__methods--vertical': paymentPrefs.methodsLayout === 'vertical' }">
-              <button
-                v-for="m in methods"
-                :key="m.code"
-                type="button"
-                class="pm-btn"
-                :style="{ '--pm': m.color }"
-                @click="addPayment(m.code)"
-              >
-                <span class="pm-btn__icon" v-html="m.icon"></span>
-                <span class="pm-btn__label">{{ m.label }}</span>
-              </button>
-            </div>
-
-
             <div class="calc__status">
               <template v-if="remaining > 0">
                 <span class="calc__status-label">Qoldi</span>
@@ -170,28 +155,47 @@
               </template>
             </div>
 
-            <div class="calc__pad">
-              <button v-for="k in numpadKeys" :key="k" type="button" class="pad-key" @click="onNumpadPress(k)">
-                {{ k }}
-              </button>
-              <button type="button" class="pad-key pad-key--muted" @click="onClear">C</button>
-              <button type="button" class="pad-key" @click="onNumpadPress('0')">0</button>
-              <button type="button" class="pad-key pad-key--muted" @click="onBackspace">⌫</button>
-            </div>
+            <!-- vertical = payment types as a column to the LEFT of the numpad -->
+            <div class="calc__entry" :class="{ 'calc__entry--vertical': paymentPrefs.methodsLayout === 'vertical' }">
+              <div class="calc__methods" :class="{ 'calc__methods--vertical': paymentPrefs.methodsLayout === 'vertical' }">
+                <button
+                  v-for="m in methods"
+                  :key="m.code"
+                  type="button"
+                  class="pm-btn"
+                  :style="{ '--pm': m.color }"
+                  @click="addPayment(m.code)"
+                >
+                  <span class="pm-btn__icon" v-html="m.icon"></span>
+                  <span class="pm-btn__label">{{ m.label }}</span>
+                </button>
+              </div>
 
-            <div class="calc__quick">
-              <button v-for="q in quickAmounts" :key="q" type="button" class="quick-btn" @click="addQuick(q)">
-                +{{ formatQuickAmount(q) }}
-              </button>
-              <button type="button" class="quick-btn quick-btn--max" @click="onMax">MAX</button>
-              <button
-                type="button"
-                class="quick-btn quick-btn--reset"
-                :disabled="payments.length === 0 && amountValue === 0"
-                @click="resetPayments"
-              >
-                <q-icon name="restart_alt" size="16px" /> Tozalash
-              </button>
+              <div class="calc__padgroup">
+                <div class="calc__pad">
+                  <button v-for="k in numpadKeys" :key="k" type="button" class="pad-key" @click="onNumpadPress(k)">
+                    {{ k }}
+                  </button>
+                  <button type="button" class="pad-key pad-key--muted" @click="onClear">C</button>
+                  <button type="button" class="pad-key" @click="onNumpadPress('0')">0</button>
+                  <button type="button" class="pad-key pad-key--muted" @click="onBackspace">⌫</button>
+                </div>
+
+                <div class="calc__quick">
+                  <button v-for="q in quickAmounts" :key="q" type="button" class="quick-btn" @click="addQuick(q)">
+                    +{{ formatQuickAmount(q) }}
+                  </button>
+                  <button type="button" class="quick-btn quick-btn--max" @click="onMax">MAX</button>
+                  <button
+                    type="button"
+                    class="quick-btn quick-btn--reset"
+                    :disabled="payments.length === 0 && amountValue === 0"
+                    @click="resetPayments"
+                  >
+                    <q-icon name="restart_alt" size="16px" /> Tozalash
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -904,7 +908,14 @@ async function onCancelOrder(): Promise<void> {
 
 .calc__methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex-shrink: 0; }
 /* vertical layout (Settings → Display): stack the payment types in one column */
-.calc__methods--vertical { grid-template-columns: 1fr; }
+.calc__methods--vertical { grid-template-columns: 1fr; align-content: start; }
+
+/* methods + numpad container. Default: stacked (methods above pad).
+   Vertical: methods become a column to the LEFT of the numpad. */
+.calc__entry { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.calc__entry--vertical { flex-direction: row; align-items: stretch; }
+.calc__entry--vertical .calc__methods { flex: 0 0 168px; width: 168px; }
+.calc__padgroup { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
 .pm-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   height: 60px;
