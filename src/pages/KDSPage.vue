@@ -1,6 +1,5 @@
 <template>
   <div class="kds-page">
-
     <!-- ORDERS -->
     <div
       v-if="orders.length > 0"
@@ -22,13 +21,6 @@
     <!-- FOOTER -->
     <footer class="page-footer">
       <div class="footer-left">
-        <!-- Back to Orders — left corner, same spot as the Orders→kitchen
-             button, so toggling between the two screens is one fixed tap. -->
-        <button type="button" class="nav-btn" @click="router.push({ name: 'orders' })">
-          <q-icon name="arrow_back" size="20px" />
-          Ortga
-        </button>
-
         <div class="kds-tabs">
           <button
             class="tab-btn"
@@ -84,10 +76,19 @@
           >
             {{ n }}
           </button>
-          <button type="button" class="cols-btn" :class="{ active: colsPerRow === null }" @click="setCols(null)">
+          <button
+            type="button"
+            class="cols-btn"
+            :class="{ active: colsPerRow === null }"
+            @click="setCols(null)"
+          >
             Avto
           </button>
         </div>
+        <button type="button" class="nav-btn" @click="router.push({ name: 'orders' })">
+          <q-icon name="arrow_back" size="20px" />
+          Ortga
+        </button>
       </div>
     </footer>
   </div>
@@ -109,7 +110,7 @@ const network = useNetworkStatus();
 /* Chef-chosen columns per row (overrides the responsive default). Persisted
    per-PC; null = automatic (responsive media queries). */
 const KDS_COLS_KEY = 'pos:kdsCols';
-const COL_OPTIONS = [2, 3, 4, 5, 6];
+const COL_OPTIONS = [3, 4, 5, 6];
 const colsPerRow = ref<number | null>(read<number>(KDS_COLS_KEY) ?? null);
 function setCols(n: number | null): void {
   colsPerRow.value = n;
@@ -233,7 +234,7 @@ async function fetchOrders(): Promise<void> {
     const response = await api.get<OrdersResponse>('/orders', {
       params: {
         statuses: currentMode.value,
-        per_page: 100000
+        per_page: 100000,
       },
     });
 
@@ -336,7 +337,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
   padding: 8px 18px;
   border: none;
   border-radius: 8px;
@@ -367,7 +367,6 @@ onUnmounted(() => {
   column-gap: 12px;
   padding: 16px;
 }
-
 
 /* Large desktop */
 @media (max-width: 1600px) {
@@ -415,14 +414,14 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center ;
+  align-items: center;
   padding: 80px 20px;
   color: var(--kds-text-muted);
 }
 
 /* FOOTER */
 .page-footer {
-  padding: 12px 16px;
+  padding: 8px 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
 
@@ -455,7 +454,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  height: 40px;
   padding: 0 16px;
   border-radius: var(--r-md);
   border: 1px solid var(--line-strong);
@@ -465,7 +464,9 @@ onUnmounted(() => {
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  &:active { transform: scale(0.97); }
+  &:active {
+    transform: scale(0.97);
+  }
 }
 
 .mute-btn {
@@ -479,8 +480,13 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  &.muted { color: var(--cancel); border-color: color-mix(in srgb, var(--cancel) 35%, var(--line)); }
-  &:active { transform: scale(0.94); }
+  &.muted {
+    color: var(--cancel);
+    border-color: color-mix(in srgb, var(--cancel) 35%, var(--line));
+  }
+  &:active {
+    transform: scale(0.94);
+  }
 }
 
 .footer-center {
@@ -519,10 +525,18 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
-.cols-btn:hover { background: var(--surface-3); color: var(--ink); }
-.cols-btn.active { background: var(--brand); color: #fff; }
+.cols-btn:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.cols-btn.active {
+  background: var(--brand);
+  color: #fff;
+}
 
 .btn {
   height: 42px;
@@ -538,8 +552,6 @@ onUnmounted(() => {
     box-shadow: none;
   }
 }
-
-
 
 .btn.secondary {
   background: var(--btn-secondary-bg);

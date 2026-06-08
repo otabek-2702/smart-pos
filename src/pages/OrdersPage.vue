@@ -27,10 +27,20 @@
 
     <!-- Status filters -->
 
-    <!-- Loading skeleton — only on the first load (no data yet). Re-fetches /
+    <!-- Loading skeleton — only on the first load (no data yet). Mirrors the
+         real row layout so it doesn't read as a stack of grey bars. Re-fetches /
          polls keep the existing rows so the list doesn't flash on fast local. -->
     <div v-if="loading && orders.length === 0" class="orders-list">
-      <q-skeleton v-for="n in 7" :key="n" type="rect" class="sk-row" />
+      <div v-for="n in 6" :key="n" class="order-row order-row--sk">
+        <q-skeleton type="text" width="34px" height="18px" />
+        <q-skeleton type="rect" width="60px" height="22px" class="sk-pill" />
+        <q-skeleton type="text" width="80px" />
+        <q-skeleton type="text" width="55%" />
+        <q-skeleton type="text" width="110px" />
+        <q-skeleton type="text" width="90px" />
+        <q-skeleton type="text" width="38px" />
+        <q-skeleton type="rect" width="90px" height="26px" class="sk-pill" />
+      </div>
     </div>
 
     <!-- Empty state -->
@@ -534,7 +544,14 @@ onUnmounted(() => {
   justify-content: center;
   gap: 12px;
 }
-.sk-row { height: 56px; border-radius: 12px; }
+/* skeleton rows reuse .order-row grid; neutral stripe, no interactivity */
+.order-row--sk {
+  border-left-color: var(--line);
+  cursor: default;
+  align-items: center;
+}
+.order-row--sk .q-skeleton { border-radius: 6px; }
+.order-row--sk .sk-pill { border-radius: 999px; }
 
 /* Orders */
 .orders-list {
@@ -687,7 +704,7 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   width: 100%;
-  padding: 12px 16px;
+  padding: 8px 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
@@ -721,7 +738,7 @@ onUnmounted(() => {
 }
 
 .btn {
-  height: 42px;
+  height: 40px;
   border-radius: 14px;
   border: none;
   font-size: 15px;

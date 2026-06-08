@@ -2,17 +2,15 @@
   <div class="order-card" :class="{ ready: order.status === 'READY' }">
     <!-- HEADER -->
     <div class="order-header">
-      <div class="header-left">
         <span class="order-id">#{{ order.display_id }}</span>
         <span class="order-type">{{ orderTypeLabel }}</span>
-      </div>
 
-      <div class="timer" :class="timerClass">⏱ {{ formattedTime }}</div>
     </div>
-
+    
     <!-- CASHIER -->
     <div class="cashier-row">
-      Kassir: <strong>{{ order.cashier?.name }}</strong>
+      <strong>{{ order.cashier?.name }}</strong>
+      <div class="timer" :class="timerClass">⏱ {{ formattedTime }}</div>
     </div>
 
     <!-- ITEMS -->
@@ -134,14 +132,11 @@ const formattedTime = computed<string>(() => {
   const seconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }
 
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 });
-
 
 const timerClass = computed<string>(() => {
   if (elapsedSeconds.value > 480) return 'timer-late';
@@ -246,7 +241,7 @@ async function handleBackToPreparing(): Promise<void> {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
-  padding: 10px;
+  padding-block: 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -264,13 +259,11 @@ async function handleBackToPreparing(): Promise<void> {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-inline: 10px;
+  border-bottom: 1px solid #e8eaee;
+  padding-bottom: 5px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .order-id {
   font-size: 20px;
@@ -307,8 +300,11 @@ async function handleBackToPreparing(): Promise<void> {
 
 /* CASHIER */
 .cashier-row {
+  display: flex;
+  justify-content: space-between;
   font-size: 12px;
   color: var(--kds-text-muted);
+  padding-inline: 10px;
 }
 
 .cashier-row strong {
@@ -319,8 +315,8 @@ async function handleBackToPreparing(): Promise<void> {
 .items-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   flex: 1;
+  padding-inline: 10px;
 }
 
 .item-row {
@@ -361,7 +357,7 @@ async function handleBackToPreparing(): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-right: 24px;
+  gap: 10px;
 }
 
 .item-name {
@@ -387,6 +383,8 @@ async function handleBackToPreparing(): Promise<void> {
 .actions-row {
   margin-top: auto;
   padding-top: 8px;
+  padding-inline: 10px;
+
   border-top: 1px solid #e8eaee;
 }
 
