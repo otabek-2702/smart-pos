@@ -190,6 +190,7 @@
             <button
               type="button"
               class="btn-save"
+              data-kb-submit
               @click="saveProduct"
               :disabled="!isFormValid || saving"
             >

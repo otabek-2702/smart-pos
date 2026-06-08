@@ -65,6 +65,7 @@
               :numbers="keyboardWithNumbers"
               @input="onKeyboardInput"
               @backspace="onKeyboardBackspace"
+              @enter="onKeyboardEnter"
             />
           </div>
         </Transition>
@@ -214,6 +215,19 @@ function hideKeyboard(): void {
   keyboardVisible.value = false;
   numpadVisible.value = false;
   activeInput.value = null;
+}
+
+// Enter on the on-screen keyboard confirms/closes the open dialog: clicks the
+// dialog's primary action ([data-kb-submit]) so a create/edit form submits
+// without reaching for the mouse. Falls back to just hiding the keyboard.
+function onKeyboardEnter(): void {
+  const el = activeInput.value;
+  hideKeyboard();
+  if (!el) return;
+  el.blur();
+  const dialog = el.closest('.q-dialog');
+  const btn = dialog?.querySelector('[data-kb-submit]') as HTMLElement | null;
+  btn?.click();
 }
 
 // Text keyboard handlers

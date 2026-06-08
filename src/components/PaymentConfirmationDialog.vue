@@ -242,6 +242,7 @@
 
         <!-- Discount keyboard — bottom sheet (over the panel), so it isn't
              cramped into the left column next to the calculator. -->
+        <div v-if="activeDiscField" class="disc-sheet-backdrop" @click="activeDiscField = null" />
         <Transition name="disc-sheet-slide">
           <div v-if="activeDiscField" class="disc-sheet">
             <div class="disc-sheet__head">
@@ -754,9 +755,17 @@ async function onCancelOrder(): Promise<void> {
   display: inline-flex; align-items: center; gap: 6px;
   &:active { transform: scale(0.97); }
 }
-.disc-sheet__kb { max-width: 460px; margin: 0 auto; }
+.disc-sheet__kb { max-width: 860px; margin: 0 auto; }
 .disc-sheet-slide-enter-active, .disc-sheet-slide-leave-active { transition: transform 220ms ease, opacity 220ms ease; }
 .disc-sheet-slide-enter-from, .disc-sheet-slide-leave-to { transform: translateY(100%); opacity: 0; }
+
+/* click anywhere outside the sheet closes it */
+.disc-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: transparent;
+}
 
 .disc-input--mono { font-family: ui-monospace, Menlo, monospace; font-weight: 600; letter-spacing: 0.5px; }
 .disc-apply {

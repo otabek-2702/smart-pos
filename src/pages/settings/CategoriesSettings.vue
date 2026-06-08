@@ -156,6 +156,7 @@
             <button
               type="button"
               class="btn-save"
+              data-kb-submit
               @click="saveCategory"
               :disabled="!form.name.trim() || saving"
             >
