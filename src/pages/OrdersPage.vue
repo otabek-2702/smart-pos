@@ -27,31 +27,15 @@
 
     <!-- Status filters -->
 
-    <!-- Loading skeleton — only on the first load (no data yet). Mirrors the
-         real row layout so it doesn't read as a stack of grey bars. Re-fetches /
-         polls keep the existing rows so the list doesn't flash on fast local. -->
-    <div v-if="loading && orders.length === 0" class="orders-list">
-      <div v-for="n in 6" :key="n" class="order-row order-row--sk">
-        <q-skeleton type="text" width="34px" height="18px" />
-        <q-skeleton type="rect" width="60px" height="22px" class="sk-pill" />
-        <q-skeleton type="text" width="80px" />
-        <q-skeleton type="text" width="55%" />
-        <q-skeleton type="text" width="110px" />
-        <q-skeleton type="text" width="90px" />
-        <q-skeleton type="text" width="38px" />
-        <q-skeleton type="rect" width="90px" height="26px" class="sk-pill" />
-      </div>
-    </div>
-
-    <!-- Empty state -->
-    <div v-else-if="!loading && orders.length === 0" class="empty-state">
+    <!-- Empty state (no orders, not loading) -->
+    <div v-if="!loading && orders.length === 0" class="empty-state">
       <q-icon name="receipt_long" size="48px" />
       <span>Buyurtmalar topilmadi</span>
     </div>
 
-    <!-- Orders list -->
+    <!-- Orders list — the column header stays during loading and with rows -->
     <div v-else class="orders-list">
-      <!-- sticky column header -->
+      <!-- sticky column header (always visible while listing/loading) -->
       <div class="orders-head">
         <span>#</span>
         <span>Tur</span>
@@ -62,6 +46,22 @@
         <span class="ta-r">Vaqt</span>
         <span class="ta-c">Holat</span>
       </div>
+
+      <!-- first-load skeleton rows (mirror the columns); polls/re-fetches keep
+           the existing rows so the list never flashes on fast local. -->
+      <template v-if="loading && orders.length === 0">
+        <div v-for="n in 6" :key="n" class="order-row order-row--sk">
+          <q-skeleton type="text" width="34px" height="18px" />
+          <q-skeleton type="rect" width="60px" height="22px" class="sk-pill" />
+          <q-skeleton type="text" width="80px" />
+          <q-skeleton type="text" width="55%" />
+          <q-skeleton type="text" width="110px" />
+          <q-skeleton type="text" width="90px" />
+          <q-skeleton type="text" width="38px" />
+          <q-skeleton type="rect" width="90px" height="26px" class="sk-pill" />
+        </div>
+      </template>
+
       <div
         v-for="order in orders"
         :key="order.id"
