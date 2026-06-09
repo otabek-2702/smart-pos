@@ -1,6 +1,9 @@
 <template>
-  <Transition name="sc-fade">
-    <div v-if="modelValue" class="sc" role="dialog" aria-modal="true">
+  <!-- Teleport to body so the overlay isn't trapped in the footer's stacking
+       context (the Orders sticky header / footer bled through otherwise). -->
+  <Teleport to="body">
+    <Transition name="sc-fade">
+      <div v-if="modelValue" class="sc" role="dialog" aria-modal="true">
       <div class="sc__panel">
         <!-- header -->
         <div class="sc__head">
@@ -63,8 +66,9 @@
           </button>
         </div>
       </div>
-    </div>
-  </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
