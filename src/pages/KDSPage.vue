@@ -1,13 +1,13 @@
 <template>
   <div class="kds-page" :class="{ 'kds-dark': dark }">
-    <!-- ORDERS -->
-    <div
-      v-if="orders.length > 0"
-      class="orders-masonry"
-      :style="colsPerRow ? { gridTemplateColumns: `repeat(${colsPerRow}, 1fr)` } : undefined"
-    >
-      <div v-for="order in orders" :key="order.id" class="order-wrapper">
-        <OrderCard :order="order" @status-changed="handleStatusChanged" />
+    <!-- ORDERS — round-robin into columns (item i → column i % N) so tickets
+         read oldest→newest left-to-right (17 18 19 20 / 21 22 23) while each
+         column still packs tight (no big row-height gaps). -->
+    <div v-if="orders.length > 0" class="orders-board">
+      <div v-for="(col, ci) in columns" :key="ci" class="kds-col">
+        <div v-for="order in col" :key="order.id" class="order-wrapper">
+          <OrderCard :order="order" @status-changed="handleStatusChanged" />
+        </div>
       </div>
     </div>
 
@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'src/boot/axios';
 import { useRouter } from 'vue-router';
 import OrderCard from 'src/components/OrderCard.vue';
@@ -184,6 +184,30 @@ const router = useRouter();
 
 const currentMode = ref<OrderStatus>('PREPARING');
 const orders = ref<Order[]>([]);
+
+/* ---- column distribution (round-robin, row-major reading order) ---- */
+const windowWidth = ref(window.innerWidth);
+function onResize(): void {
+  windowWidth.value = window.innerWidth;
+}
+// Responsive column count when the chef hasn't pinned one (Avto).
+const responsiveCols = computed<number>(() => {
+  const w = windowWidth.value;
+  if (w <= 500) return 1;
+  if (w <= 800) return 2;
+  if (w <= 1100) return 3;
+  if (w <= 1400) return 4;
+  if (w <= 1600) return 5;
+  return 6;
+});
+const columnCount = computed<number>(() => colsPerRow.value ?? responsiveCols.value);
+// orders[i] → column (i % N): row r reads left→right as orders[r*N … r*N+N-1].
+const columns = computed<Order[][]>(() => {
+  const n = Math.max(1, columnCount.value);
+  const cols: Order[][] = Array.from({ length: n }, () => []);
+  orders.value.forEach((o, i) => cols[i % n]!.push(o));
+  return cols;
+});
 
 /* new-order detection */
 const previousOrderIds = ref<Set<number>>(new Set());
@@ -319,6 +343,7 @@ useOrderStream({
 onMounted(() => {
   initAudioContext();
   document.addEventListener('click', handleUserInteraction);
+  window.addEventListener('resize', onResize);
   void fetchOrders();
   startPolling();
 });
@@ -326,6 +351,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopPolling();
   document.removeEventListener('click', handleUserInteraction);
+  window.removeEventListener('resize', onResize);
 
   if (audioContext !== null) {
     void audioContext.close();
@@ -411,52 +437,22 @@ onUnmounted(() => {
 }
 
 /* MASONRY */
-/* Row-major grid: tickets fill left→right then wrap (oldest first, in order),
-   instead of CSS columns which fill top→bottom per column and mix the order. */
-.orders-masonry {
+/* Columns packed tight; reading order is row-major via round-robin in JS.
+   Each column stacks its tickets with a gap (the "space between rows"). */
+.orders-board {
   flex: 1;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  align-content: start;
-  align-items: start;
 }
-
-/* Large desktop */
-@media (max-width: 1600px) {
-  .orders-masonry {
-    grid-template-columns: repeat(5, 1fr);
-  }
-}
-
-/* Laptop */
-@media (max-width: 1400px) {
-  .orders-masonry {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-/* Tablet landscape */
-@media (max-width: 1100px) {
-  .orders-masonry {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* Tablet / small screens */
-@media (max-width: 800px) {
-  .orders-masonry {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Mobile */
-@media (max-width: 500px) {
-  .orders-masonry {
-    grid-template-columns: 1fr;
-  }
+.kds-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .order-wrapper {
