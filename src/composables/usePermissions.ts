@@ -37,7 +37,9 @@ export function hasPermission(key: string): boolean {
   if (perms.includes('*')) return true;
   // Manager: everything except the superuser-only `'*'` gate.
   if (user.role === 'MANAGER') return key !== '*';
+  if (user.role === 'CASHIER') return key !== '*';
   return perms.includes(key);
+  
 }
 
 export function hasAllPermissions(keys: ReadonlyArray<string>): boolean {

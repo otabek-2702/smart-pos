@@ -1,5 +1,5 @@
 <template>
-  <div class="kds-page">
+  <div class="kds-page" :class="{ 'kds-dark': dark }">
     <!-- ORDERS -->
     <div
       v-if="orders.length > 0"
@@ -54,6 +54,17 @@
           @click="toggleMute"
         >
           <q-icon :name="muted ? 'volume_off' : 'volume_up'" size="22px" />
+        </button>
+
+        <!-- Dark theme toggle — after the mute button -->
+        <button
+          type="button"
+          class="mute-btn"
+          :class="{ muted: dark }"
+          :aria-label="dark ? 'Yorug\' rejim' : 'Qorong\'i rejim'"
+          @click="toggleDark"
+        >
+          <q-icon :name="dark ? 'light_mode' : 'dark_mode'" size="22px" />
         </button>
       </div>
 
@@ -123,6 +134,14 @@ const muted = ref<boolean>(read<boolean>(KDS_MUTED_KEY) === true);
 function toggleMute(): void {
   muted.value = !muted.value;
   void write(KDS_MUTED_KEY, muted.value);
+}
+
+/* Dark theme for the kitchen screen (persisted per-PC). */
+const KDS_DARK_KEY = 'pos:kdsDark';
+const dark = ref<boolean>(read<boolean>(KDS_DARK_KEY) === true);
+function toggleDark(): void {
+  dark.value = !dark.value;
+  void write(KDS_DARK_KEY, dark.value);
 }
 
 /* ================= TYPES ================= */
@@ -320,6 +339,38 @@ onUnmounted(() => {
   background: var(--kds-bg-app);
   display: flex;
   flex-direction: column;
+}
+
+/* Dark theme — overrides the design tokens for the whole KDS screen. CSS
+   custom properties inherit through component boundaries, so OrderCard and
+   the footer controls pick these up automatically. */
+.kds-page.kds-dark {
+  --bg-app: #0f1115;
+  --kds-bg-app: #0f1115;
+  --surface: #1a1d23;
+  --bg-surface: #1a1d23;
+  --kds-bg-card: #1a1d23;
+  --surface-2: #22262e;
+  --bg-surface-2: #22262e;
+  --surface-3: #2b3038;
+  --line: #2e333c;
+  --border-color: #2e333c;
+  --kds-border-color: #2e333c;
+  --line-strong: #3a404a;
+  --ink: #f1f3f5;
+  --text-primary: #f1f3f5;
+  --kds-text-primary: #f1f3f5;
+  --ink-2: #a7b0bd;
+  --text-muted: #a7b0bd;
+  --kds-text-muted: #a7b0bd;
+  --ink-3: #6b7480;
+  /* status / brand tints over the dark surface */
+  --brand-soft: color-mix(in srgb, var(--brand) 26%, #1a1d23);
+  --ready-bg: color-mix(in srgb, #15803d 30%, #1a1d23);
+  --paid-bg: color-mix(in srgb, #15803d 30%, #1a1d23);
+  --unpaid-bg: color-mix(in srgb, #b45309 30%, #1a1d23);
+  --prep-bg: color-mix(in srgb, #1d4ed8 30%, #1a1d23);
+  --cancel-bg: color-mix(in srgb, #b91c1c 30%, #1a1d23);
 }
 
 /* TABS */
