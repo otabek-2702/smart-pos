@@ -36,7 +36,6 @@ const routes: RouteRecordRaw[] = [
         path: '/expenses',
         name: 'expenses',
         component: () => import('pages/ExpensesPage.vue'),
-        meta: { permissions: ['expenses.manage'] },
       },
       {
         path: '/client-display',

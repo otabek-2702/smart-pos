@@ -109,18 +109,42 @@ interface PrintResult {
 
 // Print the receipt HTML to a Windows-installed printer (USB or driver) via the
 // OS print pipeline, in a hidden window. deviceName '' = the OS default printer.
+// Thermal paper width in mm (the 576px receipt design = 80mm @ 203 DPI).
+const PAPER_WIDTH_MM = 80;
+
 async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
+  // The receipt HTML is authored at 576px for the 203-DPI ESC/POS raster path.
+  // Chromium prints at 96 DPI, so printing that HTML directly mis-scales it
+  // (the "2x" bug). Instead rasterize the receipt to the exact 576px image
+  // (same as the network path) and print THAT scaled to the paper width — the
+  // image fills the page width 1:1 regardless of source DPI.
+  const img = await htmlToImage(html);
+  // PNG IHDR holds width/height as big-endian uint32 at byte offsets 16 and 20.
+  const imgW = img.readUInt32BE(16) || 576;
+  const imgH = img.readUInt32BE(20) || imgW;
+  const heightMm = Math.max(1, Math.ceil((imgH / imgW) * PAPER_WIDTH_MM));
+  const b64 = img.toString('base64');
+
+  const printHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
+    @page { size: ${PAPER_WIDTH_MM}mm ${heightMm}mm; margin: 0; }
+    html, body { margin: 0; padding: 0; }
+    img { width: 100%; display: block; }
+  </style></head><body><img src="data:image/png;base64,${b64}"></body></html>`;
+
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } });
   try {
-    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    // Let layout/images settle before printing.
-    await new Promise((r) => setTimeout(r, 300));
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(printHtml));
+    // Let the image decode/lay out before printing.
+    await new Promise((r) => setTimeout(r, 250));
     return await new Promise<PrintResult>((resolve) => {
       win.webContents.print(
         {
           silent: true,
           printBackground: true,
+          scaleFactor: 100,
           margins: { marginType: 'none' },
+          // microns; matches @page so it's one correctly-sized page (no A4, no 2x)
+          pageSize: { width: PAPER_WIDTH_MM * 1000, height: heightMm * 1000 },
           ...(deviceName ? { deviceName } : {}),
         },
         (success, failureReason) =>

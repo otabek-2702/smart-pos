@@ -467,11 +467,11 @@ defineExpose({
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
 
-  transition:
-    transform 80ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 90ms ease,
-    box-shadow 90ms ease,
-    color 90ms ease;
+transition:
+    transform 10ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 10ms ease,
+    box-shadow 10ms ease,
+    color 10ms ease;
 
   &:active,
   &.vk__key--pressed {
