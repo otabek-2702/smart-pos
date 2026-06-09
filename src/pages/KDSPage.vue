@@ -4,7 +4,7 @@
     <div
       v-if="orders.length > 0"
       class="orders-masonry"
-      :style="colsPerRow ? { columnCount: colsPerRow } : undefined"
+      :style="colsPerRow ? { gridTemplateColumns: `repeat(${colsPerRow}, 1fr)` } : undefined"
     >
       <div v-for="order in orders" :key="order.id" class="order-wrapper">
         <OrderCard :order="order" @status-changed="handleStatusChanged" />
@@ -411,53 +411,56 @@ onUnmounted(() => {
 }
 
 /* MASONRY */
+/* Row-major grid: tickets fill left→right then wrap (oldest first, in order),
+   instead of CSS columns which fill top→bottom per column and mix the order. */
 .orders-masonry {
   flex: 1;
   overflow-y: auto;
-  column-count: 6;
-  column-gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
   padding: 16px;
+  align-content: start;
+  align-items: start;
 }
 
 /* Large desktop */
 @media (max-width: 1600px) {
   .orders-masonry {
-    column-count: 5;
+    grid-template-columns: repeat(5, 1fr);
   }
 }
 
-/* Laptop — fewer columns as the screen narrows (was 6, a typo that put MORE
-   columns at a smaller width than the 1600px rule). */
+/* Laptop */
 @media (max-width: 1400px) {
   .orders-masonry {
-    column-count: 4;
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
 /* Tablet landscape */
 @media (max-width: 1100px) {
   .orders-masonry {
-    column-count: 3;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 /* Tablet / small screens */
 @media (max-width: 800px) {
   .orders-masonry {
-    column-count: 2;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
 /* Mobile */
 @media (max-width: 500px) {
   .orders-masonry {
-    column-count: 1;
+    grid-template-columns: 1fr;
   }
 }
 
 .order-wrapper {
-  break-inside: avoid;
-  margin-bottom: 12px;
+  min-width: 0;
 }
 
 /* EMPTY */
