@@ -151,15 +151,15 @@
             </div>
 
             <div class="calc__status">
-              <template v-if="remaining > 0">
+              <template v-if="liveBalance > 0">
                 <span class="calc__status-label">Qoldi</span>
-                <span class="calc__status-val is-due">{{ formatPrice(remaining) }} so'm</span>
+                <span class="calc__status-val is-due">{{ formatPrice(liveBalance) }} so'm</span>
               </template>
-              <template v-else-if="changeDue > 0">
+              <template v-else-if="liveBalance < 0">
                 <span class="calc__status-label">Qaytim</span>
-                <span class="calc__status-val is-change">{{ formatPrice(changeDue) }} so'm</span>
+                <span class="calc__status-val is-change">{{ formatPrice(liveBalance) }} so'm</span>
               </template>
-              <template v-else-if="effectiveTotal > 0 || payments.length > 0">
+              <template v-else-if="effectiveTotal > 0 || payments.length > 0 || amountValue > 0">
                 <span class="calc__status-val is-ok"
                   ><q-icon name="check_circle" size="18px" /> To'liq to'landi</span
                 >
@@ -507,7 +507,11 @@ const effectiveTotal = computed<number>(() =>
 
 const paidSoFar = computed<number>(() => payments.value.reduce((s, p) => s + p.amount, 0));
 const remaining = computed<number>(() => Math.max(0, effectiveTotal.value - paidSoFar.value));
-const changeDue = computed<number>(() => Math.max(0, paidSoFar.value - effectiveTotal.value));
+// Live balance shown in "Qoldi": total − already-paid − the amount being typed.
+// >0 still to pay; <0 = overpay → show as a red return amount.
+const liveBalance = computed<number>(
+  () => effectiveTotal.value - paidSoFar.value - amountValue.value,
+);
 const canPay = computed<boolean>(() =>
   effectiveTotal.value === 0 ? true : paidSoFar.value >= effectiveTotal.value,
 );
@@ -1277,7 +1281,7 @@ async function onCancelOrder(): Promise<void> {
   color: #f59e0b;
 }
 .calc__status-val.is-change {
-  color: #2563eb;
+  color: #ef4444;
 }
 .calc__status-val.is-ok {
   color: #16a34a;

@@ -263,7 +263,7 @@ async function fetchOrders(): Promise<void> {
       checkForNewOrders(newOrders);
     }
 
-    orders.value = newOrders;
+    orders.value = newOrders.reverse();
   } catch (e) {
     console.error('[KDS] fetchOrders failed:', e);
   }
