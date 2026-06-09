@@ -622,7 +622,10 @@ function addPayment(method: string): void {
   activeDiscField.value = null; // close discount sheet when choosing a method
   let amount = amountValue.value > 0 ? amountValue.value : remaining.value;
   if (amount <= 0) return;
-  if (method !== 'CASH') amount = Math.min(amount, remaining.value);
+  // Never add more than what's left to pay — clamp to the remaining balance,
+  // so entering a bigger amount just fills the rest (the overpay/change is shown
+  // live in "Qoldi" before adding).
+  amount = Math.min(amount, remaining.value);
   if (amount <= 0) return;
   payments.value.push({ method, amount });
   amountInput.value = '';
