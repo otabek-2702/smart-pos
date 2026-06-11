@@ -6,6 +6,16 @@ interface IpcResult {
   error?: string;
 }
 
+interface PrinterStatusResult {
+  online: boolean;
+  reason: 'connected' | 'offline' | 'paper-out' | 'paused' | 'not-found' | 'unreachable' | 'error' | 'unknown';
+  detail?: string;
+  connectionType: 'usb' | 'network';
+  printerStatus?: number;
+  workOffline?: boolean;
+  jobErrors?: number;
+}
+
 interface LocalIp {
   address: string;
   subnet: string;
@@ -62,6 +72,7 @@ declare global {
         test(): Promise<IpcResult>;
         printReceipt(data: unknown): Promise<IpcResult>;
         list(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
+        status(): Promise<PrinterStatusResult>;
       };
     };
     backend: {

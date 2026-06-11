@@ -226,6 +226,10 @@ const saving = ref(false);
 const testing = ref(false);
 const ipError = ref<string>('');
 const connectionStatus = ref<'idle' | 'success' | 'error'>('idle');
+type StatusReason =
+  | 'connected' | 'offline' | 'paper-out' | 'paused'
+  | 'not-found' | 'unreachable' | 'error' | 'unknown';
+const statusReason = ref<StatusReason | null>(null);
 const printersList = ref<{ name: string; displayName: string; isDefault: boolean }[]>([]);
 
 // Network needs a valid IP; USB just needs a (possibly default) printer.
@@ -266,10 +270,16 @@ const connectionIcon = computed(() => {
 });
 
 const connectionText = computed(() => {
-  switch (connectionStatus.value) {
-    case 'success': return 'Printer ulangan';
-    case 'error': return 'Printer topilmadi';
-    default: return 'Ulanish tekshirilmagan';
+  if (connectionStatus.value === 'success') return 'Printer ulangan';
+  if (connectionStatus.value === 'idle') return 'Ulanish tekshirilmagan';
+  // error → show the real cause
+  switch (statusReason.value) {
+    case 'paper-out': return "Qog'oz tugagan";
+    case 'paused': return "Printer to'xtatilgan";
+    case 'unreachable': return "Printerga ulanib bo'lmadi (tarmoq/IP)";
+    case 'offline': return "Printer oflayn (o'chiq yoki uzilgan)";
+    case 'not-found': return 'Printer topilmadi';
+    default: return 'Printer topilmadi';
   }
 });
 
@@ -311,21 +321,26 @@ async function saveSettings(): Promise<void> {
 async function testConnection(): Promise<void> {
   testing.value = true;
   connectionStatus.value = 'idle';
+  statusReason.value = null;
 
   try {
-    // First save current settings
     await window.electron.settings.savePrinter({ ...settings });
 
-    // Try to print test
-    const result = await window.electron.printer.test() as IpcResult;
-
-    if (result.success) {
-      connectionStatus.value = 'success';
-    } else {
+    // REAL connectivity check first (no paper wasted if it's offline).
+    const st = await window.electron.printer.status();
+    statusReason.value = st.reason;
+    if (!st.online) {
       connectionStatus.value = 'error';
+      return;
     }
+
+    // Online → print a sample to confirm end-to-end (doPrint fail-fasts too).
+    const result = (await window.electron.printer.test()) as IpcResult;
+    connectionStatus.value = result.success ? 'success' : 'error';
+    if (!result.success) statusReason.value = 'error';
   } catch (error) {
     console.error('Connection test failed:', error);
+    statusReason.value = 'error';
     connectionStatus.value = 'error';
   } finally {
     testing.value = false;
