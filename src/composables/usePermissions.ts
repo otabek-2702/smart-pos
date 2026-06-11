@@ -33,11 +33,11 @@ export function hasPermission(key: string): boolean {
   const user = getAuthUser();
   if (!user) return false;
   if (user.role === 'ADMIN') return true;
-  if (user.role === 'CASHIER') return true;
   const perms = user.permissions ?? [];
   if (perms.includes('*')) return true;
   // Manager: everything except the superuser-only `'*'` gate.
   if (user.role === 'MANAGER') return key !== '*';
+  if (user.role === 'CASHIER') return key !== '*';
   return perms.includes(key);
   
 }
