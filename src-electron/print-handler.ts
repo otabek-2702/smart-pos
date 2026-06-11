@@ -287,6 +287,56 @@ async function getConnectivity(): Promise<PrinterStatusResult> {
   return probeNetworkPrinter(ps.ip, ps.port);
 }
 
+const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+// Best-effort: clear stuck/errored jobs so a failed print doesn't block the next.
+async function clearStuckJobs(name: string): Promise<void> {
+  const body = `param([string]$Name)
+    Get-PrintJob -PrinterName $Name -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue`;
+  try {
+    await runPwsh(`& { ${body} } -Name ${pwshNameArg(name)}`, 4000);
+  } catch { /* ignore */ }
+}
+
+// Post-submit truth: watch the spool job. On a working printer it drains in a
+// second or two; on an off/unplugged/out-of-paper printer it sticks or errors.
+// This is the only signal that reliably flips for bare USB power-off.
+async function waitForQueueResult(name: string, timeoutMs = 9000): Promise<PrintResult> {
+  if (!name) return { success: true }; // can't watch an unnamed queue
+  const body = `param([string]$Name)
+    $ErrorActionPreference='SilentlyContinue'
+    $jobs = @(Get-PrintJob -PrinterName $Name)
+    $bad  = @($jobs | Where-Object { $_.JobStatus -match 'Error|Offline|PaperOut|Blocked|UserIntervention' })
+    [pscustomobject]@{ open=$jobs.Count; bad=$bad.Count } | ConvertTo-Json -Compress`;
+  const wrapped = `& { ${body} } -Name ${pwshNameArg(name)}`;
+
+  const start = Date.now();
+  const deadline = start + timeoutMs;
+  let seen = false;
+  await delay(350); // let the spooler register the job
+  for (;;) {
+    let j: { open: number; bad: number };
+    try {
+      j = JSON.parse((await runPwsh(wrapped, 4000)).trim() || '{"open":0,"bad":0}') as { open: number; bad: number };
+    } catch {
+      return { success: true }; // query flaked — don't block the cashier
+    }
+    if (j.bad > 0) {
+      await clearStuckJobs(name);
+      return { success: false, error: "Chop etishda xatolik (printer oflayn yoki qog'oz tugagan)" };
+    }
+    if (j.open > 0) seen = true;
+    if (seen && j.open === 0) return { success: true }; // drained = printed
+    // Drained before our first poll could see it → treat as printed.
+    if (!seen && j.open === 0 && Date.now() - start > 1800) return { success: true };
+    if (Date.now() > deadline) {
+      await clearStuckJobs(name);
+      return { success: false, error: 'Chop etish amalga oshmadi (printer javob bermadi)' };
+    }
+    await delay(500);
+  }
+}
+
 // Route a receipt to the configured printer: USB/Windows or network ESC/POS.
 // Now fails fast on a real offline printer instead of silently "succeeding".
 async function doPrint(html: string): Promise<PrintResult> {
@@ -298,7 +348,11 @@ async function doPrint(html: string): Promise<PrintResult> {
     if (!health.online) {
       return { success: false, error: reasonToUz(health.reason) };
     }
-    return printViaWindows(html, name);
+    const res = await printViaWindows(html, name);
+    if (!res.success) return res;
+    // Confirm the job actually drained (catches a printer that's off but whose
+    // Windows status still reads "Normal" — the raw-USB blind spot).
+    return waitForQueueResult(name);
   }
 
   // NETWORK ESC/POS — transport unchanged, but surface real failures now.
