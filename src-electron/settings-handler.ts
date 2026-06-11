@@ -26,6 +26,8 @@ export interface PrinterSettings {
   paperWidth: 58 | 80;
   // Windows printer device name for connectionType 'usb'. '' = OS default.
   usbPrinterName: string;
+  // USB/Windows print scale in % (tune so the receipt prints 1:1). 100 = as-is.
+  printScale: number;
 }
 
 export interface DisplaySettings {
@@ -63,6 +65,7 @@ const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   port: 9100,
   paperWidth: 80,
   usbPrinterName: '',
+  printScale: 100,
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {

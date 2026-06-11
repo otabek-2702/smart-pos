@@ -111,10 +111,24 @@ interface PrintResult {
 
 // Print the receipt HTML to a Windows-installed printer (USB or driver) via the
 // OS print pipeline, in a hidden window. deviceName '' = the OS default printer.
+// No rasterizing — prints the HTML directly. An injected @page pins the page to
+// the paper width (one continuous page, no margins) and `scaleFactor` (the
+// adjustable printScale setting) corrects the size so it lands 1:1.
 async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
+  const printer = getSettings().printer;
+  const paperWidth = printer.paperWidth || 80;
+  const scale = Math.min(300, Math.max(20, Math.round(printer.printScale || 100)));
+
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } });
   try {
     await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    // Pin the print page to the paper width (continuous, no margins) so the
+    // driver doesn't fall back to A4 / paginate to a second page.
+    try {
+      await win.webContents.insertCSS(
+        `@page { size: ${paperWidth}mm auto; margin: 0; } html, body { margin: 0 !important; }`,
+      );
+    } catch { /* non-fatal */ }
     // Let layout/images settle before printing.
     await new Promise((r) => setTimeout(r, 300));
     return await new Promise<PrintResult>((resolve) => {
@@ -122,6 +136,7 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
         {
           silent: true,
           printBackground: true,
+          scaleFactor: scale,
           margins: { marginType: 'none' },
           ...(deviceName ? { deviceName } : {}),
         },

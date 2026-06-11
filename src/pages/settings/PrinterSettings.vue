@@ -78,6 +78,27 @@
           <span v-if="printersList.length === 0" class="form-hint">
             Printer topilmadi. Windowsda printer o'rnatilganini tekshiring.
           </span>
+
+          <!-- Print scale: tune until the receipt prints 1:1 (fixes 2x / too big) -->
+          <label class="form-label scale-label">Chop o'lchami (%)</label>
+          <div class="scale-row">
+            <input
+              v-model.number="settings.printScale"
+              type="number"
+              min="20"
+              max="300"
+              step="5"
+              class="form-input scale-input"
+              data-keyboard-nums="true"
+            />
+            <button type="button" class="btn btn-outline scale-reset" @click="settings.printScale = 100" title="100%">
+              100%
+            </button>
+          </div>
+          <span class="form-hint">
+            Agar chek 2 barobar katta chiqsa, qiymatni kamaytiring (masalan ~50%).
+            O'zgartirgach «Saqlash» va «Test chop etish».
+          </span>
         </div>
 
         <div class="connection-status" :class="connectionStatus">
@@ -515,6 +536,10 @@ function resetToDefaults(): void {
   align-items: center;
 }
 .usb-row .form-input { flex: 1; min-width: 0; }
+.scale-label { margin-top: 14px; }
+.scale-row { display: flex; gap: 8px; align-items: center; }
+.scale-input { width: 120px; }
+.scale-reset { white-space: nowrap; }
 .usb-refresh {
   width: 48px;
   flex-shrink: 0;
