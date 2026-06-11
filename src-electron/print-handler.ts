@@ -6,6 +6,7 @@ import { getSettings } from './settings-handler';
 import { execFile } from 'node:child_process';
 import net from 'net';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 // Get the path to the default logo
@@ -109,45 +110,45 @@ interface PrintResult {
   error?: string;
 }
 
-// Print the receipt HTML to a Windows-installed printer (USB or driver) via the
-// OS print pipeline, in a hidden window. deviceName '' = the OS default printer.
-// No rasterizing — prints the HTML directly. An injected @page pins the page to
-// the paper width (one continuous page, no margins) and `scaleFactor` (the
-// adjustable printScale setting) corrects the size so it lands 1:1.
-// Chromium lays out CSS px at 96 DPI; the receipt is authored at 576px = the
-// thermal head's 576 dots at 203 DPI (80mm). So the EXACT print scale that maps
-// 1 design-px → 1 printer-dot (content fills the paper, no right-side gap) is
-// SCREEN_DPI / PRINTER_DPI = 96/203 ≈ 47.29%. printScale is a fine-tune around
-// that (100% = exact); nudge only for a non-203-DPI head.
-const SCREEN_DPI = 96;
-const PRINTER_DPI = 203;
-
+// Print the receipt HTML to a Windows printer. Ported verbatim from the build
+// that printed at the correct size (C:\...\Smart POS\app-src\electron-main.js):
+// an OFFSCREEN window loads the HTML from a temp file, injects a CSS `zoom`, then
+// prints with an explicit pageSize (paper width × measured content height in
+// microns) and margins:none. CSS `zoom` + pageSize — NOT scaleFactor — is what
+// makes it land 1:1 on the thermal head. printScale is the zoom % (default 67,
+// the proven value); deviceName '' = the OS default printer.
 async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
   const printer = getSettings().printer;
-  const paperWidth = printer.paperWidth || 80;
-  const fineTune = Math.min(200, Math.max(20, printer.printScale || 100)) / 100;
-  const scale = (SCREEN_DPI / PRINTER_DPI) * 100 * fineTune;
+  const paperWidthMicrons = (printer.paperWidth || 80) * 1000;
+  const zoom = Math.min(2, Math.max(0.2, (printer.printScale || 67) / 100));
 
-  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } });
+  const tmp = path.join(os.tmpdir(), 'smartpos-receipt-' + Date.now() + '.html');
+  fs.writeFileSync(tmp, html, 'utf8');
+
+  const win = new BrowserWindow({ width: 576, height: 800, show: false, webPreferences: { offscreen: true } });
   try {
-    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    // Pin the print page to the paper width (continuous, no margins) so the
-    // driver doesn't fall back to A4 / paginate to a second page.
-    try {
-      await win.webContents.insertCSS(
-        `@page { size: ${paperWidth}mm auto; margin: 0; } html, body { margin: 0 !important; }`,
-      );
-    } catch { /* non-fatal */ }
-    // Let layout/images settle before printing.
-    await new Promise((r) => setTimeout(r, 300));
+    await win.loadFile(tmp);
+    await new Promise((r) => setTimeout(r, 400));
+    await win.webContents.executeJavaScript(
+      `var s=document.createElement('style');s.textContent='html,body{zoom:${zoom}!important;margin:0!important;padding:0!important;}';document.head.appendChild(s);`,
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    let h = (await win.webContents.executeJavaScript(
+      'Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)',
+    )) as number;
+    if (!h || h < 50) h = 400;
+    win.setSize(576, Math.ceil(h) + 20);
+    await new Promise((r) => setTimeout(r, 150));
+    // page height: px → microns (96 DPI) + ~25mm trailing feed.
+    const pageHeight = Math.ceil((h * 25400) / 96) + 25000;
     return await new Promise<PrintResult>((resolve) => {
       win.webContents.print(
         {
           silent: true,
           printBackground: true,
-          scaleFactor: scale,
+          deviceName: deviceName || '',
+          pageSize: { width: paperWidthMicrons, height: pageHeight },
           margins: { marginType: 'none' },
-          ...(deviceName ? { deviceName } : {}),
         },
         (success, failureReason) =>
           resolve(success ? { success: true } : { success: false, error: failureReason }),
@@ -155,6 +156,7 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
     });
   } finally {
     if (!win.isDestroyed()) win.close();
+    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
   }
 }
 
@@ -369,7 +371,13 @@ async function doPrint(html: string): Promise<PrintResult> {
   if (printerSettings.connectionType === 'usb') {
     const name = await resolveUsbName(printerSettings.usbPrinterName || '');
     const health = await getPrinterHealth(name);
-    if (!health.online) {
+    // Only block on a DEFINITIVE offline — never on a flaky/'error'/'unknown'
+    // status read (the working build did no pre-check and must keep printing).
+    if (
+      !health.online &&
+      (health.reason === 'offline' || health.reason === 'not-found' ||
+        health.reason === 'paused' || health.reason === 'paper-out')
+    ) {
       return { success: false, error: reasonToUz(health.reason) };
     }
     const res = await printViaWindows(html, name);

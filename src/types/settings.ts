@@ -67,7 +67,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   port: 9100,
   paperWidth: 80,
   usbPrinterName: '',
-  printScale: 100,
+  printScale: 67,
 };
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {

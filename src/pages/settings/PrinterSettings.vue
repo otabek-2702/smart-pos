@@ -91,14 +91,13 @@
               class="form-input scale-input"
               data-keyboard-nums="true"
             />
-            <button type="button" class="btn btn-outline scale-reset" @click="settings.printScale = 100" title="100%">
-              100%
+            <button type="button" class="btn btn-outline scale-reset" @click="settings.printScale = 67" title="67%">
+              67% (standart)
             </button>
           </div>
           <span class="form-hint">
-            <strong>100%</strong> = to'g'ri o'lcham (avtomatik, printer DPI'ga moslangan).
-            Odatda o'zgartirish shart emas — faqat chek qog'oz eniga to'liq sig'masa
-            biroz o'zgartiring. So'ng «Saqlash» va «Test chop etish».
+            <strong>67%</strong> = to'g'ri o'lcham (sinovdan o'tgan). Chek qog'oz eniga
+            to'liq sig'masa biroz o'zgartiring. So'ng «Saqlash» va «Test chop etish».
           </span>
         </div>
 
