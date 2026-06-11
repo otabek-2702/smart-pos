@@ -114,10 +114,19 @@ interface PrintResult {
 // No rasterizing — prints the HTML directly. An injected @page pins the page to
 // the paper width (one continuous page, no margins) and `scaleFactor` (the
 // adjustable printScale setting) corrects the size so it lands 1:1.
+// Chromium lays out CSS px at 96 DPI; the receipt is authored at 576px = the
+// thermal head's 576 dots at 203 DPI (80mm). So the EXACT print scale that maps
+// 1 design-px → 1 printer-dot (content fills the paper, no right-side gap) is
+// SCREEN_DPI / PRINTER_DPI = 96/203 ≈ 47.29%. printScale is a fine-tune around
+// that (100% = exact); nudge only for a non-203-DPI head.
+const SCREEN_DPI = 96;
+const PRINTER_DPI = 203;
+
 async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
   const printer = getSettings().printer;
   const paperWidth = printer.paperWidth || 80;
-  const scale = Math.min(300, Math.max(20, Math.round(printer.printScale || 100)));
+  const fineTune = Math.min(200, Math.max(20, printer.printScale || 100)) / 100;
+  const scale = (SCREEN_DPI / PRINTER_DPI) * 100 * fineTune;
 
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } });
   try {

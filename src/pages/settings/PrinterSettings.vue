@@ -96,8 +96,9 @@
             </button>
           </div>
           <span class="form-hint">
-            Agar chek 2 barobar katta chiqsa, qiymatni kamaytiring (masalan ~50%).
-            O'zgartirgach «Saqlash» va «Test chop etish».
+            <strong>100%</strong> = to'g'ri o'lcham (avtomatik, printer DPI'ga moslangan).
+            Odatda o'zgartirish shart emas — faqat chek qog'oz eniga to'liq sig'masa
+            biroz o'zgartiring. So'ng «Saqlash» va «Test chop etish».
           </span>
         </div>
 
