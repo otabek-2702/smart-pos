@@ -23,10 +23,7 @@ export interface PrinterSettings {
   connectionType: 'network' | 'usb';
   ip: string;
   port: number;
-  paperWidth: 58 | 80;
   usbPrinterName: string;
-  // USB/Windows print scale in % (tune so the receipt prints at 1:1). 100 = as-is.
-  printScale: number;
 }
 
 export interface DisplaySettings {
@@ -65,9 +62,7 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   connectionType: 'network',
   ip: '192.168.123.100',
   port: 9100,
-  paperWidth: 80,
   usbPrinterName: '',
-  printScale: 67,
 };
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {

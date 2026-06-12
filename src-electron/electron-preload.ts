@@ -102,8 +102,6 @@ contextBridge.exposeInMainWorld('electron', {
     printReceipt: (data: unknown) => invoke('print-receipt', data),
     // Windows-installed printers (for the USB/driver picker in settings).
     list: () => invoke('printer:list'),
-    // Real connectivity verdict (no paper used).
-    status: () => invoke('printer:status'),
   },
 });
 

@@ -3,8 +3,6 @@ import { ThermalPrinter } from './thermal-printer';
 import { htmlToImage } from './html-to-image';
 import { generateReceiptHtml } from './receipt-template';
 import { getSettings } from './settings-handler';
-import { execFile } from 'node:child_process';
-import net from 'net';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -110,36 +108,27 @@ interface PrintResult {
   error?: string;
 }
 
-// Print the receipt HTML to a Windows printer. Ported verbatim from the build
-// that printed at the correct size (C:\...\Smart POS\app-src\electron-main.js):
-// an OFFSCREEN window loads the HTML from a temp file, injects a CSS `zoom`, then
-// prints with an explicit pageSize (paper width × measured content height in
-// microns) and margins:none. CSS `zoom` + pageSize — NOT scaleFactor — is what
-// makes it land 1:1 on the thermal head. printScale is the zoom % (default 67,
-// the proven value); deviceName '' = the OS default printer.
+// Print the receipt HTML to a Windows printer. The HTML is authored in physical
+// mm (@page 80mm + mm units), so an offscreen window just loads it, measures the
+// content height, and prints one continuous page at 80mm × that height (microns),
+// margins:none. No zoom/scale. deviceName '' = the OS default printer.
 async function printViaWindows(html: string, deviceName: string): Promise<PrintResult> {
-  const printer = getSettings().printer;
-  const paperWidthMicrons = (printer.paperWidth || 80) * 1000;
-  const zoom = Math.min(2, Math.max(0.2, (printer.printScale || 67) / 100));
+  const paperWidthMicrons = 80 * 1000; // 80mm thermal paper
 
   const tmp = path.join(os.tmpdir(), 'smartpos-receipt-' + Date.now() + '.html');
   fs.writeFileSync(tmp, html, 'utf8');
 
-  const win = new BrowserWindow({ width: 576, height: 800, show: false, webPreferences: { offscreen: true } });
+  const win = new BrowserWindow({ width: 400, height: 800, show: false, webPreferences: { offscreen: true } });
   try {
     await win.loadFile(tmp);
-    await new Promise((r) => setTimeout(r, 400));
-    await win.webContents.executeJavaScript(
-      `var s=document.createElement('style');s.textContent='html,body{zoom:${zoom}!important;margin:0!important;padding:0!important;}';document.head.appendChild(s);`,
-    );
-    await new Promise((r) => setTimeout(r, 150));
+    // The HTML is authored in physical mm (@page + mm units) — no zoom. Just
+    // measure the content height and print one continuous page at that size.
+    // await new Promise((r) => setTimeout(r, 400));
     let h = (await win.webContents.executeJavaScript(
       'Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)',
     )) as number;
     if (!h || h < 50) h = 400;
-    win.setSize(576, Math.ceil(h) + 20);
-    await new Promise((r) => setTimeout(r, 150));
-    // page height: px → microns (96 DPI) + ~25mm trailing feed.
+    // px (96 DPI) → microns, + ~25mm trailing feed for the cutter.
     const pageHeight = Math.ceil((h * 25400) / 96) + 25000;
     return await new Promise<PrintResult>((resolve) => {
       win.webContents.print(
@@ -160,234 +149,15 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
   }
 }
 
-// ===================================================================
-// Real connectivity detection. webContents.print() only confirms the job
-// reached the Windows spooler (not that it printed), and Electron's
-// PrinterInfo.status is always 0 on Windows — so an offline USB printer
-// still "succeeds". We query the OS instead.
-// ===================================================================
-
-export type PrinterStatusReason =
-  | 'connected' | 'offline' | 'paper-out' | 'paused'
-  | 'not-found' | 'unreachable' | 'error' | 'unknown';
-
-export interface PrinterStatusResult {
-  online: boolean;
-  reason: PrinterStatusReason;
-  detail?: string;
-  connectionType: 'usb' | 'network';
-  printerStatus?: number;
-  workOffline?: boolean;
-  jobErrors?: number;
-}
-
-// Get-Printer.PrinterStatus is a FLAGS enum (verified on the real machine:
-// healthy = 0, a dead/unplugged XP-80C = 6 = Error|PendingDeletion).
-const PS_PAUSED = 1;
-const PS_ERROR = 2;
-const PS_PAPER_JAM = 8;
-const PS_PAPER_OUT = 16;
-const PS_OFFLINE = 128;
-
-function runPwsh(script: string, timeoutMs = 5000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-      { timeout: timeoutMs, windowsHide: true, maxBuffer: 1024 * 1024 },
-      (err, stdout, stderr) => {
-        const e = err as (NodeJS.ErrnoException & { killed?: boolean }) | null;
-        if (e && e.killed) return reject(new Error('printer status query timed out'));
-        if (e) return reject(new Error((stderr && stderr.trim()) || e.message));
-        resolve(stdout);
-      },
-    );
-    child.on('error', reject);
-  });
-}
-
-// Pass the queue name as a here-string ARGUMENT; build the WMI filter from
-// $Name inside PowerShell (no JS interpolation into the script body).
-function pwshNameArg(name: string): string {
-  return `@'\n${name.replace(/\r?\n/g, ' ')}\n'@`;
-}
-
-interface RawHealth {
-  found: boolean;
-  status?: number;
-  workOffline?: boolean;
-  detectedError?: number;
-  jobErrors?: number;
-}
-
-// USB/Windows health read (read-only, no admin, no paper).
-async function getPrinterHealth(name: string): Promise<PrinterStatusResult> {
-  if (!name) return { online: false, reason: 'not-found', detail: 'no printer name', connectionType: 'usb' };
-  const body = `
-    param([string]$Name)
-    $ErrorActionPreference = 'Stop'
-    try {
-      $p = Get-Printer -Name $Name
-      $filter = "Name='" + ($Name -replace "'","''") + "'"
-      $wmi = Get-CimInstance Win32_Printer -Filter $filter -ErrorAction SilentlyContinue
-      $errs = @(Get-PrintJob -PrinterName $Name -ErrorAction SilentlyContinue |
-                Where-Object { $_.JobStatus -match 'Error|Blocked|Offline|PaperOut|UserIntervention' }).Count
-      [pscustomobject]@{
-        found = $true
-        status = [int]$p.PrinterStatus
-        workOffline = [bool]$wmi.WorkOffline
-        detectedError = [int]$wmi.DetectedErrorState
-        jobErrors = $errs
-      } | ConvertTo-Json -Compress
-    } catch { '{"found":false}' }`;
-  const wrapped = `& { ${body} } -Name ${pwshNameArg(name)}`;
-
-  let parsed: RawHealth;
-  try {
-    const out = (await runPwsh(wrapped)).trim();
-    parsed = JSON.parse(out || '{"found":false}') as RawHealth;
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    return { online: false, reason: 'error', detail, connectionType: 'usb' };
-  }
-
-  if (!parsed.found) return { online: false, reason: 'not-found', connectionType: 'usb' };
-
-  const ps = parsed.status ?? 0;
-  const workOffline = Boolean(parsed.workOffline);
-  const jobErrors = parsed.jobErrors ?? 0;
-
-  // Bitwise on the flags enum + the Error bit (the signal that actually flips
-  // for a dead USB XP-80C here). A clean 0 (Normal) = online.
-  let reason: PrinterStatusReason = 'connected';
-  let online = true;
-  if (workOffline || ps & PS_OFFLINE) { reason = 'offline'; online = false; }
-  else if (ps & PS_PAPER_OUT) { reason = 'paper-out'; online = false; }
-  else if (ps & (PS_ERROR | PS_PAPER_JAM)) { reason = 'offline'; online = false; }
-  else if (ps & PS_PAUSED) { reason = 'paused'; online = false; }
-  else if (jobErrors > 0) { reason = 'offline'; online = false; }
-
-  return { online, reason, connectionType: 'usb', printerStatus: ps, workOffline, jobErrors };
-}
-
-// TCP-connect probe for the network ESC/POS path (no bytes sent).
-function probeNetworkPrinter(ip: string, port: number, timeoutMs = 2500): Promise<PrinterStatusResult> {
-  return new Promise((resolve) => {
-    const sock = new net.Socket();
-    let done = false;
-    const finish = (r: PrinterStatusResult): void => {
-      if (done) return;
-      done = true;
-      sock.removeAllListeners();
-      sock.destroy();
-      resolve(r);
-    };
-    sock.setTimeout(timeoutMs);
-    sock.once('connect', () => finish({ online: true, reason: 'connected', connectionType: 'network' }));
-    sock.once('timeout', () => finish({ online: false, reason: 'unreachable', detail: 'timeout', connectionType: 'network' }));
-    sock.once('error', (err: NodeJS.ErrnoException) =>
-      finish({ online: false, reason: 'unreachable', detail: err.code || err.message, connectionType: 'network' }));
-    sock.connect(port, ip);
-  });
-}
-
-// Resolve the USB queue name (the configured one, else the OS default).
-async function resolveUsbName(configured: string): Promise<string> {
-  if (configured) return configured;
-  try {
-    const win = BrowserWindow.getAllWindows()[0];
-    const printers = win ? await win.webContents.getPrintersAsync() : [];
-    const def = printers.find((p) => (p as { isDefault?: boolean }).isDefault);
-    if (def) return def.name;
-  } catch { /* fall through */ }
-  return '';
-}
-
-// Verdict used by both the Test button and the receipt pre-flight.
-async function getConnectivity(): Promise<PrinterStatusResult> {
-  const ps = getSettings().printer;
-  if (ps.connectionType === 'usb') {
-    const name = await resolveUsbName(ps.usbPrinterName || '');
-    return getPrinterHealth(name);
-  }
-  return probeNetworkPrinter(ps.ip, ps.port);
-}
-
-const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-// Best-effort: clear stuck/errored jobs so a failed print doesn't block the next.
-async function clearStuckJobs(name: string): Promise<void> {
-  const body = `param([string]$Name)
-    Get-PrintJob -PrinterName $Name -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue`;
-  try {
-    await runPwsh(`& { ${body} } -Name ${pwshNameArg(name)}`, 4000);
-  } catch { /* ignore */ }
-}
-
-// Post-submit truth: watch the spool job. On a working printer it drains in a
-// second or two; on an off/unplugged/out-of-paper printer it sticks or errors.
-// This is the only signal that reliably flips for bare USB power-off.
-async function waitForQueueResult(name: string, timeoutMs = 9000): Promise<PrintResult> {
-  if (!name) return { success: true }; // can't watch an unnamed queue
-  const body = `param([string]$Name)
-    $ErrorActionPreference='SilentlyContinue'
-    $jobs = @(Get-PrintJob -PrinterName $Name)
-    $bad  = @($jobs | Where-Object { $_.JobStatus -match 'Error|Offline|PaperOut|Blocked|UserIntervention' })
-    [pscustomobject]@{ open=$jobs.Count; bad=$bad.Count } | ConvertTo-Json -Compress`;
-  const wrapped = `& { ${body} } -Name ${pwshNameArg(name)}`;
-
-  const start = Date.now();
-  const deadline = start + timeoutMs;
-  let seen = false;
-  await delay(350); // let the spooler register the job
-  for (;;) {
-    let j: { open: number; bad: number };
-    try {
-      j = JSON.parse((await runPwsh(wrapped, 4000)).trim() || '{"open":0,"bad":0}') as { open: number; bad: number };
-    } catch {
-      return { success: true }; // query flaked — don't block the cashier
-    }
-    if (j.bad > 0) {
-      await clearStuckJobs(name);
-      return { success: false, error: "Chop etishda xatolik (printer oflayn yoki qog'oz tugagan)" };
-    }
-    if (j.open > 0) seen = true;
-    if (seen && j.open === 0) return { success: true }; // drained = printed
-    // Drained before our first poll could see it → treat as printed.
-    if (!seen && j.open === 0 && Date.now() - start > 1800) return { success: true };
-    if (Date.now() > deadline) {
-      await clearStuckJobs(name);
-      return { success: false, error: 'Chop etish amalga oshmadi (printer javob bermadi)' };
-    }
-    await delay(500);
-  }
-}
-
-// Route a receipt to the configured printer: USB/Windows or network ESC/POS.
-// Now fails fast on a real offline printer instead of silently "succeeding".
+// Route a receipt to the configured printer: USB/Windows (via the OS) or the
+// network ESC/POS path. Simple — like the shipped build.
 async function doPrint(html: string): Promise<PrintResult> {
   const printerSettings = getSettings().printer;
 
   if (printerSettings.connectionType === 'usb') {
-    const name = await resolveUsbName(printerSettings.usbPrinterName || '');
-    const health = await getPrinterHealth(name);
-    // Only block on a DEFINITIVE offline — never on a flaky/'error'/'unknown'
-    // status read (the working build did no pre-check and must keep printing).
-    if (
-      !health.online &&
-      (health.reason === 'offline' || health.reason === 'not-found' ||
-        health.reason === 'paused' || health.reason === 'paper-out')
-    ) {
-      return { success: false, error: reasonToUz(health.reason) };
-    }
-    const res = await printViaWindows(html, name);
-    if (!res.success) return res;
-    // Confirm the job actually drained (catches a printer that's off but whose
-    // Windows status still reads "Normal" — the raw-USB blind spot).
-    return waitForQueueResult(name);
+    return printViaWindows(html, printerSettings.usbPrinterName || '');
   }
 
-  // NETWORK ESC/POS — transport unchanged, but surface real failures now.
   try {
     const imageBuffer = await htmlToImage(html);
     const printer = new ThermalPrinter(printerSettings.ip, printerSettings.port);
@@ -395,18 +165,6 @@ async function doPrint(html: string): Promise<PrintResult> {
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Tarmoq printeri xatosi' };
-  }
-}
-
-// Uzbek-facing reason text for failures.
-function reasonToUz(reason: PrinterStatusReason): string {
-  switch (reason) {
-    case 'paper-out': return "Qog'oz tugagan";
-    case 'paused': return "Printer to'xtatilgan";
-    case 'not-found': return 'Printer topilmadi';
-    case 'unreachable': return "Printerga ulanib bo'lmadi (tarmoq/IP)";
-    case 'offline': return "Printer oflayn (o'chiq yoki uzilgan)";
-    default: return 'Printer xatosi';
   }
 }
 
@@ -438,7 +196,7 @@ export function registerPrintHandler(): void {
         console.log('Using logo from print data');
       }
 
-      const html = generateReceiptHtml(data, logoBase64, receiptSettings);
+      const html = generateReceiptHtml(data, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb' });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -473,22 +231,12 @@ export function registerPrintHandler(): void {
         phoneNumber: '+998901234567',
       };
 
-      const html = generateReceiptHtml(testData, logoBase64, receiptSettings);
+      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb' });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       console.error('Test print error:', error);
       return { success: false, error };
-    }
-  });
-
-  // Real connectivity verdict (USB: Windows status read; network: TCP probe).
-  ipcMain.handle('printer:status', async (): Promise<PrinterStatusResult> => {
-    try {
-      return await getConnectivity();
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      return { online: false, reason: 'error', detail, connectionType: getSettings().printer.connectionType };
     }
   });
 

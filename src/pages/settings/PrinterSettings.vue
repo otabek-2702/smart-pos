@@ -78,27 +78,6 @@
           <span v-if="printersList.length === 0" class="form-hint">
             Printer topilmadi. Windowsda printer o'rnatilganini tekshiring.
           </span>
-
-          <!-- Print scale: tune until the receipt prints 1:1 (fixes 2x / too big) -->
-          <label class="form-label scale-label">Chop o'lchami (%)</label>
-          <div class="scale-row">
-            <input
-              v-model.number="settings.printScale"
-              type="number"
-              min="20"
-              max="300"
-              step="5"
-              class="form-input scale-input"
-              data-keyboard-nums="true"
-            />
-            <button type="button" class="btn btn-outline scale-reset" @click="settings.printScale = 67" title="67%">
-              67% (standart)
-            </button>
-          </div>
-          <span class="form-hint">
-            <strong>67%</strong> = to'g'ri o'lcham (sinovdan o'tgan). Chek qog'oz eniga
-            to'liq sig'masa biroz o'zgartiring. So'ng «Saqlash» va «Test chop etish».
-          </span>
         </div>
 
         <div class="connection-status" :class="connectionStatus">
@@ -117,56 +96,6 @@
           <span>{{ testing ? 'Chop etilmoqda...' : 'Test chop etish' }}</span>
         </button>
       </div>
-
-      <!-- Paper Settings -->
-      <!-- <div class="form-section">
-        <h3 class="form-section-title">
-          <q-icon name="straighten" size="20px" />
-          Qog'oz sozlamalari
-        </h3>
-
-        <div class="form-group">
-          <label class="form-label">Qog'oz kengligi</label>
-          <div class="paper-options">
-            <label class="paper-option" :class="{ active: settings.paperWidth === 58 }">
-              <input
-                type="radio"
-                v-model="settings.paperWidth"
-                :value="58"
-                hidden
-              />
-              <div class="paper-preview paper-58">
-                <div class="paper-lines">
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                </div>
-              </div>
-              <span class="paper-label">58mm</span>
-              <span class="paper-desc">Kichik printer</span>
-            </label>
-
-            <label class="paper-option" :class="{ active: settings.paperWidth === 80 }">
-              <input
-                type="radio"
-                v-model="settings.paperWidth"
-                :value="80"
-                hidden
-              />
-              <div class="paper-preview paper-80">
-                <div class="paper-lines">
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                </div>
-              </div>
-              <span class="paper-label">80mm</span>
-              <span class="paper-desc">Standart printer</span>
-            </label>
-          </div>
-        </div>
-      </div> -->
 
       <!-- Actions -->
       <div class="form-actions">
@@ -247,10 +176,6 @@ const saving = ref(false);
 const testing = ref(false);
 const ipError = ref<string>('');
 const connectionStatus = ref<'idle' | 'success' | 'error'>('idle');
-type StatusReason =
-  | 'connected' | 'offline' | 'paper-out' | 'paused'
-  | 'not-found' | 'unreachable' | 'error' | 'unknown';
-const statusReason = ref<StatusReason | null>(null);
 const printersList = ref<{ name: string; displayName: string; isDefault: boolean }[]>([]);
 
 // Network needs a valid IP; USB just needs a (possibly default) printer.
@@ -291,16 +216,10 @@ const connectionIcon = computed(() => {
 });
 
 const connectionText = computed(() => {
-  if (connectionStatus.value === 'success') return 'Printer ulangan';
-  if (connectionStatus.value === 'idle') return 'Ulanish tekshirilmagan';
-  // error → show the real cause
-  switch (statusReason.value) {
-    case 'paper-out': return "Qog'oz tugagan";
-    case 'paused': return "Printer to'xtatilgan";
-    case 'unreachable': return "Printerga ulanib bo'lmadi (tarmoq/IP)";
-    case 'offline': return "Printer oflayn (o'chiq yoki uzilgan)";
-    case 'not-found': return 'Printer topilmadi';
-    default: return 'Printer topilmadi';
+  switch (connectionStatus.value) {
+    case 'success': return 'Printer ulangan';
+    case 'error': return 'Printer topilmadi';
+    default: return 'Ulanish tekshirilmagan';
   }
 });
 
@@ -342,26 +261,13 @@ async function saveSettings(): Promise<void> {
 async function testConnection(): Promise<void> {
   testing.value = true;
   connectionStatus.value = 'idle';
-  statusReason.value = null;
 
   try {
     await window.electron.settings.savePrinter({ ...settings });
-
-    // REAL connectivity check first (no paper wasted if it's offline).
-    const st = await window.electron.printer.status();
-    statusReason.value = st.reason;
-    if (!st.online) {
-      connectionStatus.value = 'error';
-      return;
-    }
-
-    // Online → print a sample to confirm end-to-end (doPrint fail-fasts too).
     const result = (await window.electron.printer.test()) as IpcResult;
     connectionStatus.value = result.success ? 'success' : 'error';
-    if (!result.success) statusReason.value = 'error';
   } catch (error) {
     console.error('Connection test failed:', error);
-    statusReason.value = 'error';
     connectionStatus.value = 'error';
   } finally {
     testing.value = false;
@@ -536,10 +442,6 @@ function resetToDefaults(): void {
   align-items: center;
 }
 .usb-row .form-input { flex: 1; min-width: 0; }
-.scale-label { margin-top: 14px; }
-.scale-row { display: flex; gap: 8px; align-items: center; }
-.scale-input { width: 120px; }
-.scale-reset { white-space: nowrap; }
 .usb-refresh {
   width: 48px;
   flex-shrink: 0;
@@ -576,80 +478,6 @@ function resetToDefaults(): void {
     background: rgba(198, 40, 40, 0.1);
     color: #c62828;
   }
-}
-
-// Paper options
-.paper-options {
-  display: flex;
-  gap: 16px;
-}
-
-.paper-option {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--text-muted);
-  }
-
-  &.active {
-    border-color: var(--accent-primary);
-    background: rgba(22, 163, 74, 0.05);
-  }
-}
-
-.paper-preview {
-  width: 100%;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.paper-58 {
-  height: 60px;
-  max-width: 58px;
-}
-
-.paper-80 {
-  height: 60px;
-  max-width: 80px;
-}
-
-.paper-lines {
-  width: 80%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
-
-  div {
-    height: 4px;
-    background: #e0e0e0;
-    border-radius: 2px;
-  }
-}
-
-.paper-label {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.paper-desc {
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 // Actions
