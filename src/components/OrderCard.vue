@@ -260,7 +260,7 @@ async function handleBackToPreparing(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   padding-inline: 10px;
-  border-bottom: 1px solid #e8eaee;
+  border-bottom: 1px solid var(--line);
   padding-bottom: 5px;
 }
 
@@ -379,22 +379,21 @@ async function handleBackToPreparing(): Promise<void> {
   font-style: italic;
 }
 
-/* ACTIONS */
+/* ACTIONS — full-bleed footer: the button spans the whole card width and sits
+   flush at the bottom edge (rounded bottom corners only), like the image. */
 .actions-row {
   margin-top: auto;
-  padding-top: 8px;
-  padding-inline: 10px;
-
-  border-top: 1px solid #e8eaee;
+  margin-bottom: -10px; /* cancel the card's bottom padding → flush to edge */
+  border-top: 1px solid var(--line);
 }
 
 .btn {
   width: 100%;
   padding: 0 10px;
-  height: 30px;
+  height: 40px;
   border: none;
-  border-radius: var(--r-md);
-  font-size: 12px;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition:

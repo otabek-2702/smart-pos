@@ -1,5 +1,5 @@
 <template>
-  <div class="kds-page" :class="{ 'kds-dark': dark }">
+  <div class="kds-page" :class="`kds-${theme}`">
     <!-- ORDERS — round-robin into columns (item i → column i % N) so tickets
          read oldest→newest left-to-right (17 18 19 20 / 21 22 23) while each
          column still packs tight (no big row-height gaps). -->
@@ -56,15 +56,16 @@
           <q-icon :name="muted ? 'volume_off' : 'volume_up'" size="22px" />
         </button>
 
-        <!-- Dark theme toggle — after the mute button -->
+        <!-- Theme cycle (light → dark → blue) — after the mute button -->
         <button
           type="button"
-          class="mute-btn"
-          :class="{ muted: dark }"
-          :aria-label="dark ? 'Yorug\' rejim' : 'Qorong\'i rejim'"
-          @click="toggleDark"
+          class="mute-btn theme-btn"
+          :class="`theme-${theme}`"
+          :aria-label="themeLabel"
+          :title="themeLabel"
+          @click="cycleTheme"
         >
-          <q-icon :name="dark ? 'light_mode' : 'dark_mode'" size="22px" />
+          <q-icon :name="themeIcon" size="22px" />
         </button>
       </div>
 
@@ -136,13 +137,30 @@ function toggleMute(): void {
   void write(KDS_MUTED_KEY, muted.value);
 }
 
-/* Dark theme for the kitchen screen (persisted per-PC). */
-const KDS_DARK_KEY = 'pos:kdsDark';
-const dark = ref<boolean>(read<boolean>(KDS_DARK_KEY) === true);
-function toggleDark(): void {
-  dark.value = !dark.value;
-  void write(KDS_DARK_KEY, dark.value);
+/* KDS color theme (persisted per-PC): light → dark → blue. Cycles on the
+   footer button. `blue` = the navy ticket-wall look (blue card + bg). */
+type KdsTheme = 'light' | 'dark' | 'blue';
+const KDS_THEME_KEY = 'pos:kdsTheme';
+const KDS_DARK_KEY = 'pos:kdsDark'; // legacy boolean — migrate to the theme key
+const KDS_THEMES: KdsTheme[] = ['light', 'dark', 'blue'];
+const theme = ref<KdsTheme>(
+  read<KdsTheme>(KDS_THEME_KEY) ?? (read<boolean>(KDS_DARK_KEY) === true ? 'dark' : 'light'),
+);
+function cycleTheme(): void {
+  const i = KDS_THEMES.indexOf(theme.value);
+  theme.value = KDS_THEMES[(i + 1) % KDS_THEMES.length]!;
+  void write(KDS_THEME_KEY, theme.value);
 }
+const themeIcon = computed<string>(() =>
+  theme.value === 'light' ? 'light_mode' : theme.value === 'dark' ? 'dark_mode' : 'palette',
+);
+const themeLabel = computed<string>(() =>
+  theme.value === 'light'
+    ? "Yorug' mavzu"
+    : theme.value === 'dark'
+      ? "Qorong'i mavzu"
+      : "Ko'k mavzu",
+);
 
 /* ================= TYPES ================= */
 
@@ -397,6 +415,46 @@ onUnmounted(() => {
   --unpaid-bg: color-mix(in srgb, #b45309 30%, #1a1d23);
   --prep-bg: color-mix(in srgb, #1d4ed8 30%, #1a1d23);
   --cancel-bg: color-mix(in srgb, #b91c1c 30%, #1a1d23);
+}
+
+/* Blue theme — the navy ticket-wall look (blue cards on a deep-navy board).
+   Same token-override trick as dark; cards/footer inherit it automatically. */
+.kds-page.kds-blue {
+  --bg-app: #081b30;
+  --kds-bg-app: #081b30;
+  --surface: #123a5e;
+  --bg-surface: #123a5e;
+  --kds-bg-card: #123a5e;
+  --surface-2: #19476f;
+  --bg-surface-2: #19476f;
+  --surface-3: #215581;
+  --line: #295e8c;
+  --border-color: #295e8c;
+  --kds-border-color: #295e8c;
+  --line-strong: #336da0;
+  --ink: #eaf3fc;
+  --text-primary: #eaf3fc;
+  --kds-text-primary: #eaf3fc;
+  --ink-2: #a6c6e6;
+  --text-muted: #a6c6e6;
+  --kds-text-muted: #a6c6e6;
+  --ink-3: #6f95bd;
+  /* status / brand tints over the blue surface */
+  --brand-soft: color-mix(in srgb, var(--brand) 30%, #123a5e);
+  --ready-bg: color-mix(in srgb, #15803d 32%, #123a5e);
+  --paid-bg: color-mix(in srgb, #15803d 32%, #123a5e);
+  --unpaid-bg: color-mix(in srgb, #b45309 32%, #123a5e);
+  --prep-bg: color-mix(in srgb, #1d4ed8 36%, #123a5e);
+  --cancel-bg: color-mix(in srgb, #b91c1c 32%, #123a5e);
+}
+
+/* theme button shows a small accent matching the active theme */
+.theme-btn.theme-dark {
+  color: #facc15;
+}
+.theme-btn.theme-blue {
+  color: #4aa3ff;
+  border-color: color-mix(in srgb, #4aa3ff 40%, var(--line));
 }
 
 /* TABS */
