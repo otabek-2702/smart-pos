@@ -172,10 +172,6 @@ interface OrderItem {
   quantity: number;
   // Orders-list serializer sends the item note as `detail`.
   detail?: string | null;
-  // true = an "instant" product (drink / packaged good) the backend auto-readies
-  // at creation — no kitchen work. Absent until the backend adds it to the
-  // /orders list serializer (see BACKEND_TODO.md); treated as false then.
-  product__is_instant?: boolean;
 }
 
 interface Cashier {
@@ -303,17 +299,6 @@ function checkForNewOrders(newOrders: Order[]): void {
 
 /* ================= API ================= */
 
-/* An order whose items are ALL "instant" products (drinks / packaged goods)
-   needs no kitchen work — the backend creates it already READY. Keep these off
-   the kitchen display entirely (both tabs: all-instant orders are born READY so
-   they'd otherwise surface in TAYYOR). All-or-nothing: a MIXED order (≥1 kitchen
-   item) still shows its FULL ticket. Degrades safely: when product__is_instant
-   is absent (backend not yet serving it on the list), every() is false → the
-   order is shown, i.e. current behavior. */
-function isAllInstant(order: Order): boolean {
-  return order.items.length > 0 && order.items.every((i) => i.product__is_instant === true);
-}
-
 async function fetchOrders(): Promise<void> {
   // Called from a 3s poll AND on every SSE event — must never throw, or it
   // floods the kitchen display with unhandled rejections. On a transient
@@ -332,9 +317,7 @@ async function fetchOrders(): Promise<void> {
     // it or double-counting orders in the new-order beep detection.
     if (seq !== fetchSeq) return;
 
-    // Drop all-instant orders (no kitchen work) before anything downstream sees
-    // them — so they never render, never count in the tab badge, and never beep.
-    const newOrders = (response.data?.data?.orders ?? []).filter((o) => !isAllInstant(o));
+    const newOrders = response.data?.data?.orders ?? [];
 
     if (currentMode.value === 'PREPARING') {
       checkForNewOrders(newOrders);

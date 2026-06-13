@@ -60,16 +60,12 @@ On a shared monoblock that's wrong — any cashier on the till, and the kitchen 
 
 ---
 
-## 🟠 8. Instant products (`is_instant`) — finish the FE-visible bits
-The `Product.is_instant` feature shipped (migration 0023): instant items are born ready, all-instant orders are created `READY`, and `GET /orders/chef-display` already strips instant items / hides all-instant orders. Two endpoints the smart-pos FE actually uses still leak instant orders:
+## 🟠 8. Instant products (`is_instant`) — exclude from the client display
+The `Product.is_instant` feature shipped (migration 0023): instant items are born ready, all-instant orders are created `READY`, and `GET /orders/chef-display` already strips instant items / hides all-instant orders.
 
-**8a. `GET /orders/client-display` — exclude all-instant orders** (`customers/services/order_service.py` → `get_client_display_orders`, ~L1029–1040). It currently lists every `PREPARING`/`READY` order. An all-instant order (e.g. a lone Coke) is born `READY`, so it lands in `finished` → the customer screen shows its number **and the lobby chime fires** for an order that was handed over instantly. Filter both `processing` and `finished` to orders that have **≥1 non-instant item** (mirror the chef-display rule: `total_items` after excluding `items__product__is_instant`). The FE can't filter this itself — `/orders/client-display` returns only `{id, display_id, …}`, no items.
+**`GET /orders/client-display` — exclude all-instant orders** (`customers/services/order_service.py` → `get_client_display_orders`, ~L1029–1040). It currently lists every `PREPARING`/`READY` order. An all-instant order (e.g. a lone Coke) is born `READY`, so it lands in `finished` → the customer screen shows its number **and the lobby chime fires** for an order that was handed over instantly. Filter both `processing` and `finished` to orders that have **≥1 non-instant item** (mirror the chef-display rule: `total_items` after excluding `items__product__is_instant`). The FE can't filter this itself — `/orders/client-display` returns only `{id, display_id, …}`, no items.
 
-**8b. `GET /orders` list — expose `product__is_instant` on items** (`customers/services/order_service.py` → `_serialize_order_list`, items dict ~L79–94, next to `product__name`/`product__id`). Add:
-```python
-'product__is_instant': i.product.is_instant if i.product else False,
-```
-The KDS uses the generic `/orders` feed (not chef-display). All-instant orders are born `READY`, so they only surface in the KDS **TAYYOR** tab; with this field the FE hides them (it already filters `items.every(product__is_instant)` — see `isAllInstant` in `KDSPage.vue`, degrades to "show" while the field is absent). Mixed orders keep their full ticket (all-or-nothing).
+(Decided to LEAVE all-instant orders showing in the KDS TAYYOR tab — they're born ready, harmless there — so no `/orders`-list serializer change needed.)
 
 ---
 
