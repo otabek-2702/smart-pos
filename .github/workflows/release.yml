@@ -1,0 +1,29 @@
+name: Release
+
+# Cut a release by pushing a version tag, e.g.:
+#   npm version patch        # bumps package.json + creates the tag
+#   git push --follow-tags
+# This builds the Windows NSIS installer and publishes it (+ latest.yml) to the
+# PUBLIC smart-pos-releases repo, which the app reads for auto-update.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    # Windows-only kiosk app; the committed package-lock.json is Windows-generated.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      # Build + publish. electron-builder reads GH_TOKEN; RELEASES_TOKEN must be
+      # a PAT (or fine-grained token) with contents:write on smart-pos-releases.
+      # publish target (owner/repo) comes from quasar.config.ts > builder.publish.
+      - run: npx quasar build -m electron --publish always
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}

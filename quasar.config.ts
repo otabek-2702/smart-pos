@@ -195,6 +195,19 @@ export default defineConfig((/* ctx */) => {
         appId: 'com.smartpos.app',
         productName: 'Smart POS',
 
+        // Auto-update source. Installers + latest.yml are published to a
+        // SEPARATE PUBLIC repo so the app can read releases with no token
+        // baked in (the source repo stays private). Publish at build time
+        // with:  GH_TOKEN=<token> quasar build -m electron --  --publish always
+        publish: [
+          {
+            provider: 'github',
+            owner: 'otabek-2702',
+            repo: 'smart-pos-releases',
+            releaseType: 'release',
+          },
+        ],
+
         win: {
           target: 'nsis',
           icon: 'src-electron/icons/icon.ico',

@@ -12,15 +12,8 @@
         <div class="fullscreen-content">
           <div class="fullscreen-label">BUYURTMA TAYYOR!</div>
           <div class="fullscreen-number">{{ formatId(currentFullscreenOrder?.display_id ?? 0) }}</div>
-          <!-- Total appears only when the backend includes it in the
-               /orders/client-display payload; the animation gives it a
-               beat of attention so the customer registers the amount.
-               No total -> the notification looks exactly like before. -->
-          <div v-if="fullscreenTotal" class="fullscreen-total">
-            <span class="fullscreen-total-label">Jami</span>
-            <span class="fullscreen-total-amount">{{ fullscreenTotal }} so'm</span>
-          </div>
-          <div class="fullscreen-hint">Iltimos, buyurtmangizni oling</div>
+          
+          <div class="fullscreen-hint">Iltimos, buyurtmangizni oling!</div>
         </div>
         <div class="fullscreen-bg-pulse"></div>
       </div>
@@ -153,7 +146,6 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'boot/axios';
 import { useOrderStream } from 'src/composables/useOrderStream';
-import { formatPrice } from 'src/utils/formatPrice';
 
 // Types
 interface DisplayOrder {
@@ -242,15 +234,6 @@ const displayStyles = computed(() => ({
 
 const fontSizeValue = computed(() => FONT_SIZE_MAP[displaySettings.titleFontSize]);
 
-// Pre-formatted total for the notification (only when the backend payload
-// includes total_amount). Empty string = render nothing — no invented data.
-const fullscreenTotal = computed<string>(() => {
-  const raw = currentFullscreenOrder.value?.total_amount;
-  if (!raw) return '';
-  const num = Number(raw);
-  if (!Number.isFinite(num) || num <= 0) return '';
-  return formatPrice(num);
-});
 
 /* ================= COLOR HELPERS ================= */
 

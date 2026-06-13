@@ -103,6 +103,20 @@ contextBridge.exposeInMainWorld('electron', {
     // Windows-installed printers (for the USB/driver picker in settings).
     list: () => invoke('printer:list'),
   },
+
+  // In-app auto-update (electron-updater + GitHub Releases).
+  updater: {
+    get: () => invoke('updater:get'),
+    check: () => invoke('updater:check'),
+    download: () => invoke('updater:download'),
+    install: () => invoke('updater:install'),
+    // Live update state pushed from main; returns an unsubscribe fn.
+    onState: (callback: (state: unknown) => void): (() => void) => {
+      const handler = (_event: unknown, state: unknown): void => callback(state);
+      ipcRenderer.on('updater:state', handler);
+      return () => ipcRenderer.removeListener('updater:state', handler);
+    },
+  },
 });
 
 contextBridge.exposeInMainWorld('backend', {

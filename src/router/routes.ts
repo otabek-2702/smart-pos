@@ -33,6 +33,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/KDSPage.vue'),
       },
       {
+        // In-app update flow. Reachable from the OrdersPage footer badge; the
+        // page itself gates the actual update behind a manager PIN / tech code.
+        path: '/update',
+        name: 'update',
+        component: () => import('pages/UpdatePage.vue'),
+      },
+      {
         path: '/expenses',
         name: 'expenses',
         component: () => import('pages/ExpensesPage.vue'),

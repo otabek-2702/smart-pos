@@ -133,6 +133,18 @@
       </div>
 
       <div class="footer-right">
+        <!-- Update available — gated behind a manager PIN / tech-support code on
+             the update page. Only shows when the main process found a release. -->
+        <button
+          v-if="updateAvailable"
+          type="button"
+          class="btn update-pill"
+          @click="router.push({ name: 'update' })"
+        >
+          <q-icon name="system_update_alt" size="20px" />
+          Yangilanish mavjud
+        </button>
+
         <button
           v-if="canSeeExpenses"
           type="button"
@@ -170,9 +182,13 @@ import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useOrderStream } from 'src/composables/useOrderStream';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 import { hasPermission } from 'src/composables/usePermissions';
+import { useAppUpdate } from 'src/composables/useAppUpdate';
 
 const network = useNetworkStatus();
 const { labelFor } = useOrderTypes();
+
+// In-app update badge — true when the main process found a newer release.
+const { hasUpdate: updateAvailable } = useAppUpdate();
 
 // Expenses are a manager tool — show the entry only to those who can manage them.
 const canSeeExpenses = computed<boolean>(() => hasPermission('expenses.manage'));
@@ -767,5 +783,22 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Update-available pill — attention accent, gently pulsing so the cashier
+   notices it (then a manager/tech-support unlocks the actual update). */
+.btn.update-pill {
+  background: var(--brand);
+  color: #fff;
+  animation: update-pulse 2s ease-in-out infinite;
+}
+@keyframes update-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 0%, transparent);
+  }
 }
 </style>

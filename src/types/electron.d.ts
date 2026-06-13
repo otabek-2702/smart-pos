@@ -23,6 +23,24 @@ interface FoundServer {
   ms: number;
 }
 
+type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+interface UpdateState {
+  status: UpdateStatus;
+  currentVersion: string;
+  version: string | null;
+  releaseNotes: string | null;
+  percent: number;
+  error: string | null;
+}
+
 declare global {
   interface Window {
     electron: {
@@ -63,6 +81,14 @@ declare global {
         test(): Promise<IpcResult>;
         printReceipt(data: unknown): Promise<IpcResult>;
         list(): Promise<{ name: string; displayName: string; isDefault: boolean }[]>;
+      };
+      updater: {
+        get(): Promise<UpdateState>;
+        check(): Promise<UpdateState>;
+        download(): Promise<UpdateState>;
+        install(): Promise<void>;
+        // Subscribe to live update state from main; returns an unsubscribe fn.
+        onState(callback: (state: UpdateState) => void): () => void;
       };
     };
     backend: {
