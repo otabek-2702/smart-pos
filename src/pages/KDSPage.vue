@@ -234,6 +234,12 @@ const isInitialLoad = ref(true);
 /* polling */
 let pollingInterval: number | undefined;
 
+/* Both the 3s poll and every SSE event call fetchOrders with no in-flight
+   guard, so responses can land out of order — a slow older one overwriting a
+   fresh list (flicker) and corrupting new-order detection. Tag each request;
+   only the latest issued one is allowed to apply its result. */
+let fetchSeq = 0;
+
 /* ================= SOUND (NEW ORDERS ONLY) ================= */
 
 let audioContext: AudioContext | null = null;
@@ -247,6 +253,12 @@ function initAudioContext(): void {
 function playBeep(): void {
   if (muted.value) return;
   if (audioContext === null) return;
+  // Created without a user gesture (onMounted), the context starts 'suspended'
+  // per the autoplay policy — start()/stop() would schedule silently. Resume
+  // it here as a safety net so the new-order beep is actually audible.
+  if (audioContext.state === 'suspended') {
+    void audioContext.resume();
+  }
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
 
@@ -291,6 +303,7 @@ async function fetchOrders(): Promise<void> {
   // Called from a 3s poll AND on every SSE event — must never throw, or it
   // floods the kitchen display with unhandled rejections. On a transient
   // failure keep the current list rather than wiping the board.
+  const seq = ++fetchSeq;
   try {
     const response = await api.get<OrdersResponse>('/orders', {
       params: {
@@ -298,6 +311,11 @@ async function fetchOrders(): Promise<void> {
         per_page: 100000,
       },
     });
+
+    // A newer fetch was issued while this one was in flight — its result is
+    // fresher, so discard this (possibly stale) response to avoid overwriting
+    // it or double-counting orders in the new-order beep detection.
+    if (seq !== fetchSeq) return;
 
     const newOrders = response.data?.data?.orders ?? [];
 
@@ -347,6 +365,10 @@ function stopPolling(): void {
 
 function handleUserInteraction(): void {
   initAudioContext();
+  // A real gesture is what unlocks audio — resume the (suspended) context now.
+  if (audioContext !== null && audioContext.state === 'suspended') {
+    void audioContext.resume();
+  }
   document.removeEventListener('click', handleUserInteraction);
 }
 
@@ -415,6 +437,9 @@ onUnmounted(() => {
   --unpaid-bg: color-mix(in srgb, #b45309 30%, #1a1d23);
   --prep-bg: color-mix(in srgb, #1d4ed8 30%, #1a1d23);
   --cancel-bg: color-mix(in srgb, #b91c1c 30%, #1a1d23);
+  /* order-type pill: light-green text so it isn't the same hue as its tint */
+  --kds-pill-bg: color-mix(in srgb, #22c55e 20%, #1a1d23);
+  --kds-pill-text: #6ee7a0;
 }
 
 /* Blue theme — the navy ticket-wall look (blue cards on a deep-navy board).
@@ -446,6 +471,9 @@ onUnmounted(() => {
   --unpaid-bg: color-mix(in srgb, #b45309 32%, #123a5e);
   --prep-bg: color-mix(in srgb, #1d4ed8 36%, #123a5e);
   --cancel-bg: color-mix(in srgb, #b91c1c 32%, #123a5e);
+  /* order-type pill: light-green text so it isn't the same hue as its tint */
+  --kds-pill-bg: color-mix(in srgb, #22c55e 20%, #123a5e);
+  --kds-pill-text: #6ee7a0;
 }
 
 /* theme button shows a small accent matching the active theme */

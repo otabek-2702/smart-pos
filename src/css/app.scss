@@ -91,6 +91,10 @@
   --kds-item-done-text: var(--ready);
   --kds-btn-primary-bg: var(--brand);
   --kds-btn-primary-text: #ffffff;
+  /* order-type pill (HALL/PICKUP/DELIVERY) — themes override these so the
+     text never ends up the same hue as its own tinted background. */
+  --kds-pill-bg: var(--brand-soft);
+  --kds-pill-text: var(--brand);
   --kds-btn-secondary-bg: var(--surface);
   --kds-btn-secondary-text: var(--ink-2);
   --kds-btn-secondary-hover: var(--surface-2);

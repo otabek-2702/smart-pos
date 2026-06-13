@@ -240,6 +240,9 @@ async function handleBackToPreparing(): Promise<void> {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  /* clip the full-bleed footer button to the rounded corners (no overflow:
+     visible bleed at the bottom corners). */
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
   padding-block: 10px;
   display: flex;
@@ -274,8 +277,8 @@ async function handleBackToPreparing(): Promise<void> {
 .order-type {
   font-size: 12px;
   font-weight: 700;
-  color: var(--brand);
-  background: var(--brand-soft);
+  color: var(--kds-pill-text);
+  background: var(--kds-pill-bg);
   padding: 3px 9px;
   border-radius: var(--r-pill);
   text-transform: uppercase;
@@ -361,15 +364,15 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .item-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--kds-text-primary);
 }
 
 .item-qty {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--kds-text-muted);
+  color: var(--kds-text-primary);
 }
 
 .item-description {
@@ -419,11 +422,12 @@ async function handleBackToPreparing(): Promise<void> {
   opacity: 0.92;
 }
 
-/* BACK BUTTON - warning style */
+/* BACK BUTTON - warning style. No own border: the full-bleed button would
+   otherwise stack a 2nd line on actions-row's border-top and draw an inset
+   orange rule down the card sides — the bg tint already reads as "back". */
 .btn-back {
   background: var(--unpaid-bg);
   color: var(--unpaid);
-  border: 1px solid color-mix(in srgb, var(--unpaid) 35%, transparent);
 }
 
 .btn-back:hover:not(:disabled) {

@@ -121,9 +121,41 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
   const win = new BrowserWindow({ width: 400, height: 800, show: false, webPreferences: { offscreen: true } });
   try {
     await win.loadFile(tmp);
-    // The HTML is authored in physical mm (@page + mm units) — no zoom. Just
-    // measure the content height and print one continuous page at that size.
-    // await new Promise((r) => setTimeout(r, 400));
+
+    // If a specific printer is configured, make sure it still exists. Windows
+    // can rename/recreate a device (driver reinstall, USB re-enumeration →
+    // "Copy 1"), leaving a saved name that matches nothing; webContents.print
+    // then fails with an opaque reason. Surface an actionable error instead.
+    if (deviceName) {
+      try {
+        const printers = await win.webContents.getPrintersAsync();
+        if (!printers.some((p) => p.name === deviceName)) {
+          return {
+            success: false,
+            error: `Sozlangan printer topilmadi: "${deviceName}". Sozlamalar → Printer dan qayta tanlang.`,
+          };
+        }
+      } catch {
+        /* enumeration failed — fall through and let print() try anyway */
+      }
+    }
+
+    // The HTML is authored in physical mm (@page + mm units) — no zoom. Wait
+    // for fonts + the logo image to decode and two frames to lay out BEFORE
+    // measuring: offscreen layout is throttled, so reading scrollHeight too
+    // early returns a short height and the printed page cuts off the bottom
+    // (footer / order №). This replaces the old fixed 400ms sleep.
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        try { await document.fonts.ready; } catch (e) {}
+        try {
+          await Promise.all(Array.from(document.images).map((img) =>
+            img.complete ? 0 : img.decode().catch(() => 0)));
+        } catch (e) {}
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      })()
+    `);
+
     let h = (await win.webContents.executeJavaScript(
       'Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)',
     )) as number;
