@@ -249,7 +249,7 @@ async function confirm(): Promise<void> {
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &:active:not(:disabled) { transform: scale(0.98); }
 }
-.btn.primary { background: var(--accent-primary, #ff7a00); color: #fff; }
+.btn.primary { background: var(--accent-primary, #ff7a00); color: var(--on-primary); }
 .btn.secondary { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--border-color); }
 
 /* stack on short/narrow screens */

@@ -198,6 +198,6 @@ function resetToDefaults(): void {
 }
 .btn-primary {
   background: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
 }
 </style>

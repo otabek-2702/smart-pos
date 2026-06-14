@@ -173,8 +173,8 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   companyName: 'SMART FOOD',
   logoBase64: null,
   titleFontSize: 'large',
-  brandColor: '#16a34a',
-  readyColor: '#16a34a',
+  brandColor: '#3a5bdb',
+  readyColor: '#15935a',
   headerTextColor: '#ffffff',
 };
 

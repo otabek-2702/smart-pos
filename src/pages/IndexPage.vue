@@ -692,7 +692,7 @@ onMounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--success);
   border: 2px solid var(--bg-surface);
 }
 
@@ -905,7 +905,7 @@ onMounted(() => {
 
 .btn.primary {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--on-primary);
   box-shadow: var(--shadow-sm);
 
   &:active {

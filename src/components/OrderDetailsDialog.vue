@@ -238,6 +238,6 @@ defineExpose({ reset });
 
 .btn.primary {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--on-primary);
 }
 </style>

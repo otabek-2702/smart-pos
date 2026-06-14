@@ -494,9 +494,9 @@ onUnmounted(() => {
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.45);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--warning);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -508,7 +508,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 12px;
   padding: 10px 16px;
-  color: #ffffff;
+  color: var(--on-primary);
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
@@ -781,7 +781,7 @@ onUnmounted(() => {
 
 .btn.primary {
   background: var(--brand);
-  color: #fff;
+  color: var(--on-primary);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -791,7 +791,7 @@ onUnmounted(() => {
    notices it (then a manager/tech-support unlocks the actual update). */
 .btn.update-pill {
   background: var(--brand);
-  color: #fff;
+  color: var(--on-primary);
   animation: update-pulse 2s ease-in-out infinite;
 }
 @keyframes update-pulse {

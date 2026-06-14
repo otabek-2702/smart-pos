@@ -567,10 +567,10 @@ watch(currentRoute, () => {
 
   &.active {
     background: var(--accent-primary);
-    color: white;
+    color: var(--on-primary);
 
     .q-icon {
-      color: white;
+      color: var(--on-primary);
     }
   }
 

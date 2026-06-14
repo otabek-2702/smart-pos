@@ -293,11 +293,11 @@ const orderTypeLabel = computed(() => labelFor(props.orderType));
   }
 
   &.pickup .type-dot {
-    background: #3b82f6;
+    background: var(--info);
   }
 
   &.hall .type-dot {
-    background: #f59e0b;
+    background: var(--warning);
   }
 }
 
@@ -506,6 +506,6 @@ const orderTypeLabel = computed(() => labelFor(props.orderType));
 
 .btn.primary {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 </style>

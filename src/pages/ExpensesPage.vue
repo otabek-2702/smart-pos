@@ -244,7 +244,7 @@ onMounted(() => void init());
 .exp-row__main { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-row__who { font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-row__date { font-size: 13px; color: var(--text-muted); }
-.exp-row__amount { font-weight: 800; text-align: right; color: #ef4444; font-variant-numeric: tabular-nums; }
+.exp-row__amount { font-weight: 800; text-align: right; color: var(--error); font-variant-numeric: tabular-nums; }
 
 .btn {
   height: 44px; padding: 0 18px; border-radius: 12px; border: 1px solid transparent;
@@ -253,7 +253,7 @@ onMounted(() => void init());
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &:active:not(:disabled) { transform: scale(0.97); }
 }
-.btn.primary { background: var(--accent-primary, #ff7a00); color: #fff; }
+.btn.primary { background: var(--accent-primary, #ff7a00); color: var(--on-primary); }
 .btn.secondary { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--border-color); }
 
 /* full-screen add */
@@ -275,7 +275,7 @@ onMounted(() => void init());
 .add__label { font-size: 12px; color: var(--text-muted); }
 .add__value { font-size: 26px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .add__value--text { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.add__err { font-size: 13px; color: #ef4444; }
+.add__err { font-size: 13px; color: var(--error); }
 .add__kb { margin-top: auto; }
 .add__foot { display: flex; gap: 12px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--border-color); background: var(--bg-surface); }
 

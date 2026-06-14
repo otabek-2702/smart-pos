@@ -616,7 +616,7 @@ function resetToDefaults(): void {
   justify-content: center;
 
   &:hover {
-    background: #c62828;
+    background: var(--error);
   }
 }
 
@@ -674,7 +674,7 @@ function resetToDefaults(): void {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 
   &:hover:not(:disabled) {
     opacity: 0.9;
@@ -733,7 +733,7 @@ function resetToDefaults(): void {
   flex: 1;
   padding: 12px;
   overflow-y: auto;
-  background: #e5e5e5;
+  background: var(--surface-2);
   display: flex;
   justify-content: center;
 }

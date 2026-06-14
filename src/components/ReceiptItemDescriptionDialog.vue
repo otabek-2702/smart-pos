@@ -138,7 +138,7 @@ function close(): void {
 
 .btn.primary {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--on-primary);
 }
 
 .btn.secondary {

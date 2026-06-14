@@ -44,9 +44,9 @@ const tooltip = computed(() => {
   gap: 8px;
   padding: 6px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(245, 158, 11, 0.45);
-  background: rgba(245, 158, 11, 0.08);
-  color: #f59e0b;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  background: var(--warning-weak);
+  color: var(--warning);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -54,7 +54,7 @@ const tooltip = computed(() => {
   user-select: none;
   transition: background 120ms ease, transform 80ms ease;
 
-  &:hover { background: rgba(245, 158, 11, 0.14); }
+  &:hover { background: color-mix(in srgb, var(--warning) 14%, transparent); }
   &:active { transform: scale(0.96); }
 }
 

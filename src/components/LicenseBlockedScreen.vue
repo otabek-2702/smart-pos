@@ -221,7 +221,7 @@ function formatDate(s: string): string {
   gap: 14px;
 }
 .lic__head-icon {
-  color: #ef4444;
+  color: var(--error);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -302,14 +302,14 @@ function formatDate(s: string): string {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #22c55e;
+  color: var(--success);
   font-weight: 600;
 }
 .lic__v--bad {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #ef4444;
+  color: var(--error);
   font-weight: 600;
 }
 
@@ -350,7 +350,7 @@ function formatDate(s: string): string {
 .lic__btn--primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 }
 
 /* ===== Fade ===== */

@@ -265,12 +265,12 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   padding: 14px 16px;
-  background: rgba(255, 184, 0, 0.08);
-  border: 1px solid rgba(255, 184, 0, 0.35);
+  background: var(--warning-weak);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
   border-radius: 12px;
   color: var(--text-primary);
 }
-.api-banner__icon { color: #f59e0b; flex-shrink: 0; margin-top: 2px; }
+.api-banner__icon { color: var(--warning); flex-shrink: 0; margin-top: 2px; }
 .api-banner__title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .api-banner__text { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
 .api-banner__text code {
@@ -337,7 +337,7 @@ onMounted(() => {
 }
 .role-tab.active .role-tab__count {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 
 /* Permission groups */
@@ -425,5 +425,5 @@ onMounted(() => {
   &:disabled { opacity: 0.55; cursor: not-allowed; }
   &:active:not(:disabled) { transform: scale(0.97); }
 }
-.btn.primary { background: var(--accent-primary); color: #fff; }
+.btn.primary { background: var(--accent-primary); color: var(--on-primary); }
 </style>

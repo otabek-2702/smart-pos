@@ -586,14 +586,14 @@ onMounted(() => {
   gap: 12px;
   padding: 14px 16px;
   margin-bottom: 16px;
-  background: rgba(255, 184, 0, 0.08);
-  border: 1px solid rgba(255, 184, 0, 0.35);
+  background: var(--warning-weak);
+  border: 1px solid var(--warning-border);
   border-radius: 12px;
   color: var(--text-primary);
 }
 
 .api-banner__icon {
-  color: #f59e0b;
+  color: var(--warning);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -721,18 +721,18 @@ onMounted(() => {
   width: fit-content;
 
   &.role-admin {
-    background: #fef2f2;
-    color: #dc2626;
+    background: var(--error-weak);
+    color: var(--error);
   }
 
   &.role-cook {
-    background: #fef3c7;
-    color: #d97706;
+    background: var(--warning-weak);
+    color: var(--warning);
   }
 
   &.role-cashier {
-    background: #ecfdf5;
-    color: #059669;
+    background: var(--success-weak);
+    color: var(--success);
   }
 }
 
@@ -1038,9 +1038,9 @@ onMounted(() => {
 .btn-delete {
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid #ef4444;
+  border: 1px solid var(--error);
   background: transparent;
-  color: #ef4444;
+  color: var(--error);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -1050,7 +1050,7 @@ onMounted(() => {
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: #fef2f2;
+    background: var(--error-weak);
   }
 
   &:disabled {
@@ -1096,7 +1096,7 @@ onMounted(() => {
   padding: 12px 24px;
   border-radius: 12px;
   border: none;
-  background: #ef4444;
+  background: var(--error);
   color: white;
   font-size: 15px;
   font-weight: 600;
@@ -1107,7 +1107,7 @@ onMounted(() => {
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: #dc2626;
+    background: var(--error-strong);
   }
 
   &:disabled {

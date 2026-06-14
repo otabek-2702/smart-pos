@@ -88,23 +88,23 @@ function onClear(): void {
 
 /* CLEAR BUTTON */
 .nk-key.clear {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #d97706;
+  background: var(--warning-weak);
+  border-color: var(--warning-border);
+  color: var(--warning);
 
   &:active {
-    background: #fde68a;
+    background: var(--warning-weak);
   }
 }
 
 /* BACKSPACE BUTTON */
 .nk-key.backspace {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #dc2626;
+  background: var(--error-weak);
+  border-color: var(--error-border);
+  color: var(--error);
 
   &:active {
-    background: #fecaca;
+    background: var(--error-weak);
   }
 }
 </style>

@@ -553,10 +553,10 @@ async function copy(text: string, successMsg: string): Promise<void> {
 }
 
 .diag__head-icon {
-  color: #ef4444;
+  color: var(--error);
   flex-shrink: 0;
   margin-top: 2px;
-  &.is-warn { color: #f59e0b; }
+  &.is-warn { color: var(--warning); }
 }
 
 .diag__head-text { flex: 1; min-width: 0; }
@@ -648,7 +648,7 @@ async function copy(text: string, successMsg: string): Promise<void> {
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
   }
   &:disabled {
     opacity: 0.6;
@@ -672,14 +672,14 @@ async function copy(text: string, successMsg: string): Promise<void> {
   font-weight: 600;
 
   &.ok {
-    background: rgba(22, 163, 74, 0.08);
-    border: 1px solid rgba(22, 163, 74, 0.4);
-    color: #16a34a;
+    background: var(--success-weak);
+    border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
+    color: var(--success);
   }
   &.fail {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+    background: var(--error-weak);
+    border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+    color: var(--error);
   }
 }
 
@@ -716,9 +716,9 @@ async function copy(text: string, successMsg: string): Promise<void> {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 10px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  background: var(--error-weak);
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  color: var(--error);
   font-size: 13px;
 }
 
@@ -746,16 +746,16 @@ async function copy(text: string, successMsg: string): Promise<void> {
   gap: 10px;
   padding: 12px 14px;
   background: var(--bg-surface-2);
-  border: 1px solid rgba(22, 163, 74, 0.4);
+  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
   border-radius: 10px;
   cursor: pointer;
   transition: background 120ms ease, transform 80ms ease;
 
-  &:hover { background: rgba(22, 163, 74, 0.06); }
+  &:hover { background: color-mix(in srgb, var(--success) 6%, transparent); }
   &:active { transform: scale(0.99); }
 }
 
-.found-row__ok { color: #16a34a; flex-shrink: 0; }
+.found-row__ok { color: var(--success); flex-shrink: 0; }
 .found-row__ip {
   flex: 1;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -794,8 +794,8 @@ async function copy(text: string, successMsg: string): Promise<void> {
 .status-row__icon {
   flex-shrink: 0;
   color: var(--text-muted);
-  &.ok { color: #16a34a; }
-  &.fail { color: #ef4444; }
+  &.ok { color: var(--success); }
+  &.fail { color: var(--error); }
 }
 
 .status-row__body { flex: 1; min-width: 0; }
@@ -838,7 +838,7 @@ async function copy(text: string, successMsg: string): Promise<void> {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  &:hover { background: rgba(255, 122, 0, 0.08); }
+  &:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
   &:active { transform: scale(0.97); }
 }
 
@@ -863,7 +863,7 @@ async function copy(text: string, successMsg: string): Promise<void> {
   font-size: 18px;
   transition: background 120ms ease, transform 80ms ease;
   align-self: flex-start;
-  &:hover  { background: rgba(255, 122, 0, 0.06); }
+  &:hover  { background: color-mix(in srgb, var(--primary) 6%, transparent); }
   &:active { transform: scale(0.98); }
 }
 .support-phone__num {
@@ -949,7 +949,7 @@ async function copy(text: string, successMsg: string): Promise<void> {
 .btn--primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 }
 
 /* ===== FOOTER ===== */

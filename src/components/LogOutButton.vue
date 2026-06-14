@@ -205,7 +205,7 @@ async function doLogout(): Promise<void> {
 .btn.shift {
   width: 100%;
   background: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -287,7 +287,7 @@ async function handleBackToPreparing(): Promise<void> {
 
 /* TIMER */
 .timer {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--kds-text-muted);
   font-variant-numeric: tabular-nums;
@@ -298,7 +298,7 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .timer-late {
-  color: var(--cancel);
+  color: var(--cancel-light);
 }
 
 /* CASHIER */

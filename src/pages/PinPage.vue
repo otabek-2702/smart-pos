@@ -422,7 +422,7 @@ onUnmounted(() => {
 .error-text {
   margin-bottom: 12px;
   font-size: 12px;
-  color: #c62828;
+  color: var(--error);
 }
 
 /* Keypad */

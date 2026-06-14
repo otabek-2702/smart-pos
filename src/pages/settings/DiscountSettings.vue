@@ -163,5 +163,5 @@ async function onSave(): Promise<void> {
   &:disabled { opacity: 0.55; cursor: not-allowed; }
   &:active:not(:disabled) { transform: scale(0.97); }
 }
-.btn-primary { background: var(--accent-primary, #ff7a00); color: #fff; }
+.btn-primary { background: var(--accent-primary, #ff7a00); color: var(--on-primary); }
 </style>

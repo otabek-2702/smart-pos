@@ -800,7 +800,7 @@ onMounted(async () => {
   0% {
     background-color: var(--brand-soft);
     border-color: var(--brand);
-    box-shadow: 0 0 12px rgba(22, 163, 74, 0.4);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 40%, transparent);
   }
   100% {
     background-color: var(--surface-2);
@@ -854,7 +854,7 @@ onMounted(async () => {
 @keyframes qty-flash-effect {
   0% {
     background-color: var(--brand-soft);
-    box-shadow: 0 0 8px rgba(22, 163, 74, 0.5);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 50%, transparent);
     transform: scale(1.1);
   }
   50% {
@@ -911,7 +911,7 @@ onMounted(async () => {
 @keyframes total-flash-effect {
   0% {
     background-color: var(--brand-soft);
-    box-shadow: 0 0 12px rgba(22, 163, 74, 0.5);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 50%, transparent);
     transform: scale(1.05);
   }
   50% {
@@ -1131,7 +1131,7 @@ onMounted(async () => {
 .primary {
   background: var(--brand);
   color: var(--surface);
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--brand) 30%, transparent);
   &:active {
     transform: scale(0.97);
   }

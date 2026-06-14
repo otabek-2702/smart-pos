@@ -309,7 +309,7 @@
               type="text"
               v-model="settings.readyColor"
               class="form-input hex-input"
-              placeholder="#16a34a"
+              placeholder="#3a5bdb"
               maxlength="7"
             />
           </div>
@@ -650,6 +650,7 @@ const fontSizeMap: Record<DisplaySettings['titleFontSize'], string> = {
 
 // Preset brand colors
 const presetColors: PresetColor[] = [
+  { value: '#3a5bdb', name: 'Indigo (standart)' },
   { value: '#ff6b00', name: 'Apelsin' },
   { value: '#e53935', name: 'Qizil' },
   { value: '#d81b60', name: 'Pushti' },
@@ -901,7 +902,7 @@ async function openClientDisplay(): Promise<void> {
 
   &.active {
     border-color: var(--accent-primary);
-    background: rgba(22, 163, 74, 0.05);
+    background: var(--primary-weak);
   }
 }
 

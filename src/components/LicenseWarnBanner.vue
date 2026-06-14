@@ -52,8 +52,8 @@ const message = computed(() => {
   justify-content: center;
   gap: 10px;
   padding: 8px 16px;
-  background: #b45309;
-  color: #fff;
+  background: var(--warning);
+  color: var(--on-primary);
   font-size: 13px;
   font-weight: 600;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);

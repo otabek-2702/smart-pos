@@ -86,7 +86,7 @@ function onClear(): void {
   &:active {
     transform: scale(0.95);
     background: var(--accent-primary);
-    color: white;
+    color: var(--on-primary);
     box-shadow: none;
   }
 }

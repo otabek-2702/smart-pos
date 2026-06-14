@@ -403,7 +403,7 @@ function resetToDefaults(): void {
 
 .form-error {
   display: block;
-  color: #c62828;
+  color: var(--error);
   font-size: 12px;
   margin-top: 6px;
 }
@@ -470,13 +470,13 @@ function resetToDefaults(): void {
   }
 
   &.success {
-    background: rgba(46, 125, 50, 0.1);
-    color: #2e7d32;
+    background: var(--success-weak);
+    color: var(--success);
   }
 
   &.error {
-    background: rgba(198, 40, 40, 0.1);
-    color: #c62828;
+    background: var(--error-weak);
+    color: var(--error);
   }
 }
 
@@ -511,7 +511,7 @@ function resetToDefaults(): void {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 
   &:hover:not(:disabled) {
     opacity: 0.9;

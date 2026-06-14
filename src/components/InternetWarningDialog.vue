@@ -174,8 +174,8 @@ defineExpose({
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
+  background: var(--warning-weak);
+  color: var(--warning);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -244,7 +244,7 @@ defineExpose({
 .btn--primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 }
 
 .iw-fade-enter-active,

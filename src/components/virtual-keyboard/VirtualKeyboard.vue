@@ -502,14 +502,14 @@ defineExpose({
 .vk__key--shift-on {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
-  svg { color: white; }
+  color: var(--on-primary);
+  svg { color: var(--on-primary); }
 }
 .vk__key--shift-caps {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
-  svg { color: white; }
+  color: var(--on-primary);
+  svg { color: var(--on-primary); }
   // small inset bar to telegraph "locked" — like a caps-lock LED
   box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.55);
 }
@@ -528,7 +528,7 @@ defineExpose({
 .vk__key--enter {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: white;
+  color: var(--on-primary);
 }
 
 /* ========= ENTRANCE ANIMATION ========= */

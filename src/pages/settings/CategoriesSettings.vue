@@ -854,9 +854,9 @@ onMounted(() => {
 .btn-delete {
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid #ef4444;
+  border: 1px solid var(--error);
   background: transparent;
-  color: #ef4444;
+  color: var(--error);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -866,7 +866,7 @@ onMounted(() => {
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: #fef2f2;
+    background: var(--error-weak);
   }
 
   &:disabled {
@@ -912,7 +912,7 @@ onMounted(() => {
   padding: 12px 24px;
   border-radius: 12px;
   border: none;
-  background: #ef4444;
+  background: var(--error);
   color: white;
   font-size: 15px;
   font-weight: 600;
@@ -923,7 +923,7 @@ onMounted(() => {
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: #dc2626;
+    background: var(--error-strong);
   }
 
   &:disabled {

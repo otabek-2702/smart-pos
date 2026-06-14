@@ -931,7 +931,7 @@ async function onCancelOrder(): Promise<void> {
   border: none;
   cursor: pointer;
   background: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
   font-weight: 700;
   font-size: 14px;
   display: inline-flex;
@@ -976,7 +976,7 @@ async function onCancelOrder(): Promise<void> {
   border-radius: 10px;
   border: 1px solid var(--accent-primary, #ff7a00);
   background: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -1001,11 +1001,11 @@ async function onCancelOrder(): Promise<void> {
   gap: 4px;
   font-size: 12px;
   font-weight: 700;
-  color: #16a34a;
+  color: var(--success);
 }
 .disc-error {
   font-size: 12px;
-  color: #ef4444;
+  color: var(--error);
 }
 .disc-quick {
   height: 44px;
@@ -1097,7 +1097,7 @@ async function onCancelOrder(): Promise<void> {
 }
 .pinpad__err {
   font-size: 12px;
-  color: #ef4444;
+  color: var(--error);
 }
 .pinpad__grid {
   display: grid;
@@ -1133,7 +1133,7 @@ async function onCancelOrder(): Promise<void> {
 }
 .sum__off {
   margin-left: 6px;
-  color: #ef4444;
+  color: var(--error);
   font-weight: 700;
   text-decoration: none;
 }
@@ -1281,13 +1281,13 @@ async function onCancelOrder(): Promise<void> {
   font-variant-numeric: tabular-nums;
 }
 .calc__status-val.is-due {
-  color: #f59e0b;
+  color: var(--warning);
 }
 .calc__status-val.is-change {
-  color: #ef4444;
+  color: var(--error);
 }
 .calc__status-val.is-ok {
-  color: #16a34a;
+  color: var(--success);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1353,10 +1353,10 @@ async function onCancelOrder(): Promise<void> {
 .quick-btn--max {
   background: var(--accent-primary, #ff7a00);
   border-color: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
 }
 .quick-btn--reset {
-  color: #ef4444;
+  color: var(--error);
 }
 
 /* footer (slim) */
@@ -1395,7 +1395,7 @@ async function onCancelOrder(): Promise<void> {
 }
 .btn.primary {
   background: var(--accent-primary, #ff7a00);
-  color: #fff;
+  color: var(--on-primary);
   min-width: 160px;
 }
 .btn.secondary {
@@ -1404,9 +1404,9 @@ async function onCancelOrder(): Promise<void> {
   border-color: var(--border-color);
 }
 .btn.danger {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.4);
+  background: var(--error-weak);
+  color: var(--error);
+  border-color: var(--error-border);
 }
 
 @media (max-width: 860px) {
