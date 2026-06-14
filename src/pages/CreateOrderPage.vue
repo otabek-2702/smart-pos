@@ -55,7 +55,7 @@
               </div>
             </div>
           </div>
-          <div class="left-footer" v-if="!virtualKeyboardEnabled">
+          <div class="left-footer" v-if="!virtualKeyboardEnabled || !keyboardOpen">
             <button type="button" class="btn secondary" @click="onCancel">
               <q-icon name="chevron_left" size="28px" class="back-icon" /> Orqaga
             </button>
@@ -162,27 +162,24 @@
           <!-- Keyboard -->
         </div>
       </div>
-      <div class="vk" v-if="virtualKeyboardEnabled">
-        <!-- KEYS — collapse when a category is picked; the action row below stays
-             put so Saqlash/Bekor never move. -->
-        <div class="vk-keys" v-show="keyboardOpen">
-          <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
-            <button
-              v-for="key in row"
-              :key="key"
-              type="button"
-              class="vk-key"
-              @click="onKeyPress(key.toLowerCase())"
-            >
-              {{ key }}
-            </button>
-          </div>
-          <div class="vk-row">
-            <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
-          </div>
+      <!-- On-screen keyboard — only while open. When hidden (a category is
+           picked), the Save/Cancel buttons fall back to the left-footer (their
+           old place) and the space key is hidden with the rest of the keyboard. -->
+      <div class="vk" v-if="virtualKeyboardEnabled && keyboardOpen">
+        <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
+          <button
+            v-for="key in row"
+            :key="key"
+            type="button"
+            class="vk-key"
+            @click="onKeyPress(key.toLowerCase())"
+          >
+            {{ key }}
+          </button>
         </div>
-
-        <!-- ACTION ROW — always visible, fixed at the bottom edge. -->
+        <div class="vk-row">
+          <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
+        </div>
         <div class="vk-row vk-actions">
           <button type="button" class="btn secondary" @click="onCancel">Bekor qilish</button>
           <button
@@ -1148,14 +1145,6 @@ onMounted(async () => {
   border: 1px solid var(--line);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
   user-select: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* keys area — stacks the letter rows; collapses (v-show) when the keyboard is
-   closed, leaving only the action row below, which keeps its place. */
-.vk-keys {
   display: flex;
   flex-direction: column;
   gap: 8px;
