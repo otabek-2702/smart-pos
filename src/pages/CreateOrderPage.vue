@@ -92,10 +92,16 @@
                 type="text"
                 v-model="search"
                 placeholder="Mahsulot qidirish"
+                @focus="keyboardOpen = true"
               />
 
               <!-- v-if="search" -->
-              <q-icon class="search-clear" @click="search = ''" name="close" size="25px" />
+              <q-icon
+                class="search-clear"
+                @click="((search = ''), (keyboardOpen = true))"
+                name="close"
+                size="25px"
+              />
             </div>
 
             <OrderDetailsDialog v-model:description="description" v-model:phone="phone_number" />
@@ -157,21 +163,28 @@
         </div>
       </div>
       <div class="vk" v-if="virtualKeyboardEnabled">
-        <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
-          <button
-            v-for="key in row"
-            :key="key"
-            type="button"
-            class="vk-key"
-            :class="{ wide: key === 'SPACE' }"
-            @click="onKeyPress(key.toLowerCase())"
-          >
-            {{ key }}
-          </button>
+        <!-- KEYS — collapse when a category is picked; the action row below stays
+             put so Saqlash/Bekor never move. -->
+        <div class="vk-keys" v-show="keyboardOpen">
+          <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
+            <button
+              v-for="key in row"
+              :key="key"
+              type="button"
+              class="vk-key"
+              @click="onKeyPress(key.toLowerCase())"
+            >
+              {{ key }}
+            </button>
+          </div>
+          <div class="vk-row">
+            <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
+          </div>
         </div>
-        <div class="vk-row">
+
+        <!-- ACTION ROW — always visible, fixed at the bottom edge. -->
+        <div class="vk-row vk-actions">
           <button type="button" class="btn secondary" @click="onCancel">Bekor qilish</button>
-          <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
           <button
             type="button"
             class="btn primary"
@@ -333,6 +346,9 @@ const search = ref<string>('');
 const products = ref<ApiProduct[]>([]);
 const categories = ref<Category[]>([]);
 const selectedCategory = ref<number | null>(null);
+// On-screen keyboard visibility (only the keys; the action row stays put).
+// Picking a category hides it (browse mode); searching / adding reopens it.
+const keyboardOpen = ref<boolean>(true);
 const loadingProducts = ref<boolean>(false);
 const loadingCategories = ref<boolean>(false);
 const submitting = ref<boolean>(false);
@@ -397,9 +413,11 @@ async function fetchCategories(): Promise<void> {
   }
 }
 
-// Select category filter
+// Select category filter — close the keyboard so the product grid gets the room
+// (the cashier is now browsing the category, not typing).
 function selectCategory(categoryId: number | null): void {
   selectedCategory.value = categoryId;
+  keyboardOpen.value = false;
   void fetchProducts('');
 }
 
@@ -509,8 +527,12 @@ function addProduct(product: ApiProduct): void {
   // Flash the total
   triggerTotalFlash();
 
-  // UX FIX
+  // After adding: clear search, reset the category back to "Barchasi", and
+  // reopen the keyboard so the cashier can immediately search the next item.
   search.value = '';
+  selectedCategory.value = null;
+  keyboardOpen.value = true;
+  void fetchProducts('');
 }
 
 function increaseQty(item: ReceiptItem): void {
@@ -615,6 +637,7 @@ function resetForm(): void {
   createdOrderId.value = null;
   createdDisplayId.value = null;
   selectedCategory.value = null;
+  keyboardOpen.value = true;
   // Reload products
   void fetchProducts('');
 }
@@ -1125,6 +1148,14 @@ onMounted(async () => {
   border: 1px solid var(--line);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
   user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* keys area — stacks the letter rows; collapses (v-show) when the keyboard is
+   closed, leaving only the action row below, which keeps its place. */
+.vk-keys {
   display: flex;
   flex-direction: column;
   gap: 8px;
