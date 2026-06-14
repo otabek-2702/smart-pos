@@ -12,17 +12,20 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-// Unified Alpha POS brand (one green accent) — see _design_ref SPEC §1.
-// Setting $primary greens every built-in Quasar component (q-toggle,
-// q-spinner, q-skeleton shimmer, q-btn color="primary", :rules focus).
-$primary: #16a34a;
-$secondary: #5b6472;
-$accent: #16a34a;
+// Alpha POS design system — indigo accent + Hanken Grotesk / JetBrains Mono.
+// Setting $primary tints every built-in Quasar component (q-toggle, q-spinner,
+// q-skeleton shimmer, q-btn color="primary", :rules focus). $typography-font-family
+// drives the body font for Quasar's own components.
+$primary: #3a5bdb;
+$secondary: #586172;
+$accent: #3a5bdb;
 
-$dark: #1d1d1d;
-$dark-page: #121212;
+$dark: #161b24;
+$dark-page: #0e1219;
 
-$positive: #15803d;
-$negative: #b91c1c;
-$info: #1d4ed8;
-$warning: #b45309;
+$positive: #15935a;
+$negative: #c8372a;
+$info: #1180be;
+$warning: #b26a00;
+
+$typography-font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

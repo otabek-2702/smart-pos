@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@emnapi/runtime": "^1.8.0",
+    "@fontsource/hanken-grotesk": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
     "electron-store": "^11.0.2",

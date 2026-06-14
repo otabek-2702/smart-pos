@@ -7,96 +7,155 @@
    ============================================================ */
 
 :root {
-  /* ---- BRAND (single accent) ---- */
-  --brand: #16a34a;
-  --brand-press: #15893f;
-  --brand-soft: #e7f5ee;
-  --brand-softer: #f1faf4;
+  /* ============================================================
+     ALPHA POS design system (indigo). Brief tokens are the source
+     of truth; the app's existing token names are ALIASED onto them
+     just below, so every component reskins from this one block.
+     Dark theme overrides only the base hex tokens (see [data-theme]).
+     ============================================================ */
 
-  /* ---- SURFACES ---- */
+  /* ---- TYPE FAMILIES ---- */
+  --font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---- BRAND / PRIMARY ---- */
+  --primary: #3a5bdb;
+  --primary-hover: #2e49b8;
+  --primary-active: #263ea0;
+  --primary-weak: #edf0fd;
+  --primary-weak-2: #dee4fb;
+  --primary-border: #c7d1f7;
+  --primary-ring: rgba(58, 91, 219, 0.28);
+  --on-primary: #ffffff;
+
+  /* ---- SURFACES & LINES ---- */
+  --bg: #f4f6f8;
+  --bg-subtle: #eef1f4;
   --surface: #ffffff;
-  --surface-2: #f7f8fa;
-  --surface-3: #eef0f3;
-
-  /* ---- BORDERS ---- */
-  --line: #e8eaee;
-  --line-strong: #d8dce2;
+  --surface-2: #f8fafb;
+  --surface-inset: #f1f4f7;
+  --border: #e4e7ec;
+  --border-strong: #d3d8e0;
+  --overlay: rgba(15, 23, 34, 0.42);
 
   /* ---- TEXT ---- */
-  --ink: #111827;
-  --ink-2: #5b6472;
-  --ink-3: #9aa1ad;
+  --text: #0f1722;
+  --text-secondary: #586172;
+  --text-tertiary: #8a929e;
+  --text-disabled-color: #b4bac4;
+  --text-on-accent: #ffffff;
 
-  /* ---- STATUS (chips only) ---- */
-  --paid: #15803d;   --paid-bg: #e8f5ec;
-  --unpaid: #b45309; --unpaid-bg: #fdf3e3;
-  --cancel: #b91c1c; --cancel-bg: #fdeaea;
-  --prep: #1d4ed8;   --prep-bg: #e8eefc;
-  --ready: #15803d;  --ready-bg: #e8f5ec;
+  /* ---- SEMANTIC ---- */
+  --success: #15935a; --success-strong: #0f7a4a; --success-weak: #e6f4ec; --success-border: #bde3cd;
+  --warning: #b26a00; --warning-strong: #8a5200; --warning-weak: #fbf0dd; --warning-border: #f0d7a6;
+  --error: #c8372a;   --error-strong: #a82c21;   --error-weak: #fbebe9;   --error-border: #f1c8c3;
+  --info: #1180be;    --info-strong: #0e6a9e;    --info-weak: #e6f3fa;    --info-border: #bce0f1;
+  --neutral-weak: #eef1f4; --neutral-border: #dce1e8;
+
+  /* ---- CHART PALETTE ---- */
+  --chart-revenue: #3a5bdb; --chart-expense: #e0823c; --chart-cash: #15935a; --chart-card: #3a5bdb;
+  --c1: #3a5bdb; --c2: #15935a; --c3: #e0823c; --c4: #6e8bff; --c5: #9aa3b2;
+
+  /* ---- ELEVATION ---- */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 6px 16px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14), 0 4px 10px rgba(16, 24, 40, 0.06);
+  --shadow-focus: 0 0 0 3px var(--primary-ring);
 
   /* ---- RADII ---- */
-  --r-xs: 8px; --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
-
-  /* ---- SHADOWS (faint) ---- */
-  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-md: 0 6px 18px rgba(17, 24, 39, 0.07);
-  --shadow-lg: 0 18px 48px rgba(17, 24, 39, 0.14);
+  --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
 
   /* ---- SPACING (4pt) ---- */
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
-  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-7: 32px; --sp-8: 40px; --sp-9: 48px; --sp-10: 64px;
 
-  /* ---- TYPE ---- */
-  --font: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --t-display: 30px; --t-h1: 22px; --t-h2: 18px; --t-body: 16px; --t-sm: 14px; --t-xs: 12px;
+  /* ---- TYPE SCALE ---- */
+  --fs-display: 32px; --lh-display: 40px;
+  --fs-h1: 24px;      --lh-h1: 32px;
+  --fs-h2: 19px;      --lh-h2: 28px;
+  --fs-h3: 15px;      --lh-h3: 22px;
+  --fs-body: 14px;    --lh-body: 22px;
+  --fs-sm: 13px;      --lh-sm: 20px;
+  --fs-label: 12px;   --lh-label: 16px;
+  --fs-micro: 11px;   --lh-micro: 14px;
+  --tracking-label: 0.06em;
 
   /* ---- TOUCH ---- */
   --touch: 48px; --touch-lg: 56px;
 
-  /* ========================================================
-     LEGACY ALIASES — existing components reference these names;
-     map them onto the unified palette so they reskin for free.
-     ======================================================== */
-  --bg-app: #f4f5f7;
+  /* ============================================================
+     ALIASES — the app's existing token names mapped onto the palette
+     above. Edit a base token above and all of these reskin with it.
+     ============================================================ */
+  --brand: var(--primary);
+  --brand-press: var(--primary-hover);
+  --brand-soft: var(--primary-weak);
+  --brand-softer: var(--primary-weak-2);
+
+  --surface-3: var(--surface-inset);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+
+  --ink: var(--text);
+  --ink-2: var(--text-secondary);
+  --ink-3: var(--text-tertiary);
+
+  /* status (chips) → semantic */
+  --paid: var(--success);   --paid-bg: var(--success-weak);
+  --unpaid: var(--warning); --unpaid-bg: var(--warning-weak);
+  --cancel: var(--error);   --cancel-bg: var(--error-weak);
+  --cancel-light: #f87171;
+  --prep: var(--info);      --prep-bg: var(--info-weak);
+  --ready: var(--success);  --ready-bg: var(--success-weak);
+
+  /* spacing + type legacy names */
+  --s-1: var(--sp-1); --s-2: var(--sp-2); --s-3: var(--sp-3); --s-4: var(--sp-4);
+  --s-5: var(--sp-5); --s-6: var(--sp-6); --s-7: var(--sp-7); --s-8: var(--sp-8);
+  --font: var(--font-sans);
+  --t-display: var(--fs-display); --t-h1: var(--fs-h1); --t-h2: var(--fs-h2);
+  --t-body: var(--fs-body); --t-sm: var(--fs-sm); --t-xs: var(--fs-label);
+
+  --bg-app: var(--bg);
   --bg-surface: var(--surface);
   --bg-surface-2: var(--surface-2);
-  --border-color: var(--line);
+  --border-color: var(--border);
 
-  --text-primary: var(--ink);
-  --text-muted: var(--ink-2);
-  --text-disabled: var(--ink-3);
+  --text-primary: var(--text);
+  --text-muted: var(--text-secondary);
+  --text-disabled: var(--text-disabled-color);
 
-  --accent-primary: var(--brand);
-  --accent-soft: var(--brand-soft);
+  --accent-primary: var(--primary);
+  --accent-soft: var(--primary-weak);
 
   --btn-secondary-bg: var(--surface-2);
-  --btn-secondary-text: #374151;
+  --btn-secondary-text: var(--text);
 
-  --danger-bg: var(--cancel-bg);
-  --danger-text: var(--cancel);
-  --warning-bg: var(--unpaid-bg);
-  --warning-text: var(--unpaid);
-  --success-text: var(--paid);
+  --danger-bg: var(--error-weak);
+  --danger-text: var(--error);
+  --warning-bg: var(--warning-weak);
+  --warning-text: var(--warning);
+  --success-text: var(--success);
 
-  /* KDS now shares the unified tokens (SPEC §1: drop the parallel --kds-* set) */
-  --kds-bg-app: var(--bg-app);
+  /* KDS shares the unified tokens */
+  --kds-bg-app: var(--bg);
   --kds-bg-card: var(--surface);
-  --kds-text-primary: var(--ink);
-  --kds-text-muted: var(--ink-2);
-  --kds-border-color: var(--line);
+  --kds-text-primary: var(--text);
+  --kds-text-muted: var(--text-secondary);
+  --kds-border-color: var(--border);
   --kds-status-ready-bg: var(--ready-bg);
   --kds-item-bg: var(--surface-2);
   --kds-item-hover: var(--surface-3);
   --kds-item-done-bg: var(--ready-bg);
   --kds-item-done-text: var(--ready);
-  --kds-btn-primary-bg: var(--brand);
-  --kds-btn-primary-text: #ffffff;
+  --kds-btn-primary-bg: var(--primary);
+  --kds-btn-primary-text: var(--on-primary);
   /* order-type pill (HALL/PICKUP/DELIVERY) — themes override these so the
      text never ends up the same hue as its own tinted background. */
-  --kds-pill-bg: var(--brand-soft);
-  --kds-pill-text: var(--brand);
+  --kds-pill-bg: var(--primary-weak);
+  --kds-pill-text: var(--primary);
   --kds-btn-secondary-bg: var(--surface);
-  --kds-btn-secondary-text: var(--ink-2);
+  --kds-btn-secondary-text: var(--text-secondary);
   --kds-btn-secondary-hover: var(--surface-2);
   --kds-shadow-sm: var(--shadow-sm);
   --kds-shadow-md: var(--shadow-md);
@@ -104,9 +163,84 @@
 }
 
 /* ============================================================
+   DARK THEME — toggled by [data-theme="dark"] on <html>. Only base
+   hex tokens are overridden; every alias above follows via var().
+   ============================================================ */
+[data-theme='dark'] {
+  --primary: #6e8bff;
+  --primary-hover: #819aff;
+  --primary-active: #5c7bf5;
+  --primary-weak: #1c2640;
+  --primary-weak-2: #243154;
+  --primary-border: #34467a;
+  --primary-ring: rgba(110, 139, 255, 0.34);
+  --on-primary: #0b1020;
+
+  --bg: #0e1219;
+  --bg-subtle: #0a0d13;
+  --surface: #161b24;
+  --surface-2: #1b212c;
+  --surface-inset: #11161e;
+  --border: #262e3b;
+  --border-strong: #323c4c;
+  --overlay: rgba(3, 6, 12, 0.6);
+
+  --text: #e8ebf1;
+  --text-secondary: #9aa4b2;
+  --text-tertiary: #6b7585;
+  --text-disabled-color: #4b5563;
+  --text-on-accent: #ffffff;
+
+  --success: #36c07e; --success-strong: #45ce8c; --success-weak: #14271e; --success-border: #1f4733;
+  --warning: #e5a53b; --warning-strong: #f0b557; --warning-weak: #2a2113; --warning-border: #4a3a1b;
+  --error: #ef6a5b;   --error-strong: #f48376;   --error-weak: #2c1714;   --error-border: #50271f;
+  --info: #45a8e0;    --info-strong: #5fb7ea;    --info-weak: #11242f;    --info-border: #1e3d4f;
+  --neutral-weak: #1e2530; --neutral-border: #2c3543;
+
+  --chart-revenue: #6e8bff; --chart-expense: #e89a5c; --chart-cash: #36c07e; --chart-card: #6e8bff;
+  --c1: #6e8bff; --c2: #36c07e; --c3: #e89a5c; --c4: #9db0ff; --c5: #7e8a9c;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px var(--primary-ring);
+
+  --cancel-light: #f48376;
+}
+
+/* ============================================================
    BASE
    ============================================================ */
-.tnum { font-variant-numeric: tabular-nums; }
+/* UI font everywhere (Hanken Grotesk via @fontsource, boot/fonts). */
+body,
+.q-app,
+input,
+button,
+textarea,
+select,
+.q-field__native,
+.q-btn {
+  font-family: var(--font-sans);
+}
+
+/* Numbers in JetBrains Mono + tabular figures. `.tnum`/`.num` are opt-in;
+   the common numeric class names below are mono app-wide (totals, prices,
+   timers, ids) so figures line up without touching every component. */
+.tnum,
+.num,
+.price,
+.product-price,
+.total-row,
+.grand-total,
+.display_id,
+.timer,
+.qty-value,
+.order-id {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
 
 /* Accessible focus ring — keyboard users only */
 :focus-visible {
