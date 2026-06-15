@@ -207,6 +207,9 @@
       @paid="onOrderPaid"
       @cancel="onPaymentCancel"
       :order-description="description"
+      :creator-id="currentUserId"
+      :creator-name="currentUserName"
+      :phone-number="phone_number"
     />
     <ReceiptItemDescriptionDialog
       v-model="showDescriptionDialog"
@@ -334,6 +337,13 @@ const ORDER_TYPES = computed<ReadonlyArray<{ value: OrderType; label: string }>>
   { value: 'PICKUP', label: orderLabels.value.PICKUP },
   { value: 'DELIVERY', label: orderLabels.value.DELIVERY },
 ]);
+
+// Current cashier = the creator of orders made here. Passed to the payment
+// dialog so the printed receipt shows them and the cross-cashier warning knows
+// who built the order.
+const me = read<{ id?: number; first_name?: string; last_name?: string }>('auth_user');
+const currentUserId = me?.id ?? null;
+const currentUserName = me ? `${me.first_name ?? ''} ${me.last_name ?? ''}`.trim() : null;
 
 const receiptItems = ref<ReceiptItem[]>([]);
 

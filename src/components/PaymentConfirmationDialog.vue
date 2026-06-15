@@ -222,7 +222,7 @@
           </section>
         </div>
 
-        <!-- FOOTER (slim) -->
+        <!-- FOOTER (slim): left = cancel, center = print, right = later / paid -->
         <div class="pay__foot">
           <button
             type="button"
@@ -233,6 +233,12 @@
             <span v-if="cancelLoading">Bekor qilinmoqda...</span>
             <span v-else>Bekor qilish</span>
           </button>
+
+          <button type="button" class="btn ghost foot-print" @click="onPrintCheck">
+            <q-icon name="print" size="20px" />
+            Chek chiqarish
+          </button>
+
           <div class="foot-right">
             <button
               type="button"
@@ -325,6 +331,24 @@
             </div>
           </div>
         </Transition>
+
+        <!-- Cross-cashier warning — this order was created by someone else, so
+             the payment will land in the CURRENT cashier's cashbox. -->
+        <div v-if="showCrossWarn" class="xwarn" @click.self="showCrossWarn = false">
+          <div class="xwarn__box">
+            <q-icon name="account_balance_wallet" size="34px" class="xwarn__icon" />
+            <div class="xwarn__title">Diqqat!</div>
+            <div class="xwarn__text">
+              Bu buyurtmani boshqa kassir<template v-if="creatorName">
+                ({{ creatorName }})</template
+              >
+              yaratgan. To'lov <strong>sizning kassangizga</strong> qo'shiladi.
+            </div>
+            <button type="button" class="btn primary xwarn__ok" @click="ackCrossCashier">
+              OK, tushundim
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </Transition>
@@ -363,9 +387,18 @@ interface Props {
   items: ReceiptItem[];
   navigateOnClose?: boolean;
   orderDescription: string;
+  // Who CREATED the order (for the receipt name + the cross-cashier warning).
+  creatorId?: number | null;
+  creatorName?: string | null;
+  phoneNumber?: string | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { navigateOnClose: true });
+const props = withDefaults(defineProps<Props>(), {
+  navigateOnClose: true,
+  creatorId: null,
+  creatorName: null,
+  phoneNumber: null,
+});
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
@@ -654,13 +687,61 @@ watch(isOpen, (open) => {
     pinEntry.value = '';
     pinError.value = false;
     activeDiscField.value = null;
+    crossWarnAck.value = false;
+    showCrossWarn.value = false;
   }
 });
 
 /* ============ submit ============ */
 
+/* ---- cross-cashier guard ---- */
+// The payment is captured in the CURRENT cashier's shift/cashbox. If this order
+// was created by someone else, warn before confirming so the cashier knows the
+// money lands in their drawer, not the creator's.
+const loggedInId = computed<number | null>(() => getAuthUser()?.id ?? null);
+const isCrossCashier = computed<boolean>(
+  () =>
+    props.creatorId != null &&
+    loggedInId.value != null &&
+    props.creatorId !== loggedInId.value,
+);
+const crossWarnAck = ref(false);
+const showCrossWarn = ref(false);
+
+function ackCrossCashier(): void {
+  crossWarnAck.value = true;
+  showCrossWarn.value = false;
+  void onConfirmPayment();
+}
+
+/* ---- print the check (center footer) ---- */
+function onPrintCheck(): void {
+  const fallback = getAuthUser();
+  const cashierName =
+    props.creatorName ||
+    (fallback ? `${fallback.first_name ?? ''} ${fallback.last_name ?? ''}`.trim() : 'Kassir');
+  void window.electron?.printer.printReceipt({
+    displayId: props.displayId ?? 0,
+    orderType: props.orderType,
+    cashierName,
+    items: props.items.map((it) => ({
+      name: it.name,
+      quantity: it.quantity,
+      price: it.price,
+    })),
+    total: props.totalAmount,
+    description: props.orderDescription || undefined,
+    phoneNumber: props.phoneNumber || undefined,
+  });
+}
+
 async function onConfirmPayment(): Promise<void> {
   if (!props.orderId || !canPay.value || payLoading.value) return;
+  // First confirm for a cross-cashier order requires an explicit acknowledgement.
+  if (isCrossCashier.value && !crossWarnAck.value) {
+    showCrossWarn.value = true;
+    return;
+  }
   payLoading.value = true;
   try {
     await api.post(`/orders/${props.orderId}/pay`, {
@@ -1361,18 +1442,34 @@ async function onCancelOrder(): Promise<void> {
 
 /* footer (slim) */
 .pay__foot {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-surface);
   flex-shrink: 0;
 }
+.pay__foot > .btn.danger {
+  justify-self: start;
+}
+.foot-print {
+  justify-self: center;
+}
 .foot-right {
+  justify-self: end;
   display: flex;
   gap: 10px;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+.btn.ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 .btn {
   height: 46px;
@@ -1407,6 +1504,52 @@ async function onCancelOrder(): Promise<void> {
   background: var(--error-weak);
   color: var(--error);
   border-color: var(--error-border);
+}
+
+/* cross-cashier warning overlay */
+.xwarn {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.xwarn__box {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.xwarn__icon {
+  color: var(--warning);
+}
+.xwarn__title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+.xwarn__text {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.xwarn__text strong {
+  color: var(--text);
+}
+.xwarn__ok {
+  margin-top: 8px;
+  min-width: 180px;
 }
 
 @media (max-width: 860px) {

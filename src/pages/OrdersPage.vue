@@ -109,6 +109,9 @@
       @cancel="onPaymentCancel"
       @cancelled="onOrderCancelled"
       :order-description="selectedOrder?.description ?? ''"
+      :creator-id="selectedCreator?.id ?? null"
+      :creator-name="selectedCreator?.name ?? null"
+      :phone-number="selectedOrder?.phone_number ?? null"
     />
     <OrderInfoDialog
       v-model="showInfoDialog"
@@ -118,6 +121,7 @@
       :order-description="selectedOrder?.description || null"
       :total-amount="selectedOrder?.totalAmount ?? 0"
       :phone-number="selectedOrder?.phone_number ?? null"
+      :cashier-name="selectedCreator?.name ?? null"
     />
 
     <!-- Footer -->
@@ -217,6 +221,10 @@ interface ApiOrder {
   description: string;
   phone_number: string;
   is_paid: boolean;
+  // Creator — list sends `cashier`, detail sends `user`. Either identifies who
+  // made the order (for the receipt name + the cross-cashier payment warning).
+  cashier?: { id: number; name: string } | null;
+  user?: { id: number; name: string } | null;
 }
 
 interface OrdersResponse {
@@ -279,6 +287,9 @@ async function onOrderClick(order: Order): Promise<void> {
 
   selectedOrder.value = order;
   selectedOrderItems.value = mapOrderItems(orderDetails.items || []);
+  // Detail carries `user` (the creator account); fall back to `cashier`.
+  const creator = orderDetails.user ?? orderDetails.cashier ?? null;
+  selectedCreator.value = creator ? { id: creator.id, name: creator.name } : null;
   if (status.value === 'UNPAID') {
     showPaymentDialog.value = true;
   } else {
@@ -290,6 +301,8 @@ async function onOrderClick(order: Order): Promise<void> {
 const showPaymentDialog = ref<boolean>(false);
 const selectedOrder = ref<Order | null>(null);
 const selectedOrderItems = ref<ReceiptItem[]>([]);
+// Who created the selected order (for receipt name + cross-cashier warning).
+const selectedCreator = ref<{ id: number; name: string } | null>(null);
 
 function getStatusLabel(orderStatus: string): string {
   return STATUS_LABELS[orderStatus] || orderStatus;

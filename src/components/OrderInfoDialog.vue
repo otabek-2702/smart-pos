@@ -135,6 +135,8 @@ const props = withDefaults(
     items: ReceiptItem[];
     totalAmount: number;
     phoneNumber?: string | null;
+    // Name of who CREATED the order — printed as the receipt's cashier.
+    cashierName?: string | null;
   }>(),
   {
     modelValue: false,
@@ -143,6 +145,7 @@ const props = withDefaults(
     orderDescription: null,
     items: () => [],
     phoneNumber: null,
+    cashierName: null,
   },
 );
 
@@ -154,8 +157,11 @@ async function printCheck(): Promise<void> {
   if (printing.value || !props.items.length) return;
   printing.value = true;
   try {
+    // Prefer the order's creator (passed in); fall back to the logged-in user.
     const authUser = read<{ first_name: string; last_name: string }>('auth_user');
-    const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
+    const cashierName =
+      props.cashierName ||
+      (authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir');
     const printData = {
       displayId: props.displayId ?? 0,
       orderType: props.orderType,
