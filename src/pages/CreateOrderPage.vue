@@ -55,20 +55,6 @@
               </div>
             </div>
           </div>
-          <div class="left-footer">
-            <button type="button" class="btn secondary" @click="onCancel">
-              <q-icon name="chevron_left" size="28px" class="back-icon" /> Orqaga
-            </button>
-            <button
-              type="button"
-              class="btn primary"
-              :disabled="!receiptItems.length || submitting"
-              @click="createOrderAndOpenPayment"
-            >
-              <span v-if="submitting">Yuklanmoqda...</span>
-              <span v-else>Saqlash</span>
-            </button>
-          </div>
         </div>
 
         <!-- RIGHT: Search + Results  -->
@@ -162,23 +148,45 @@
           <!-- Keyboard -->
         </div>
       </div>
-      <!-- On-screen keyboard — keys + space ONLY, shown while open. The Save/
-           Cancel buttons live OUTSIDE it (left-footer, always visible); the
-           space key hides/shows with the keyboard. -->
-      <div class="vk" v-if="virtualKeyboardEnabled && keyboardOpen">
-        <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
-          <button
-            v-for="key in row"
-            :key="key"
-            type="button"
-            class="vk-key"
-            @click="onKeyPress(key.toLowerCase())"
-          >
-            {{ key }}
+      <!-- Bottom panel. Letter keys toggle (only when the keyboard is open).
+           The action row (Orqaga | Bo'sh joy | Saqlash) is ALWAYS visible; the
+           space key shows only while the keyboard is open. -->
+      <div class="vk">
+        <template v-if="virtualKeyboardEnabled && keyboardOpen">
+          <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
+            <button
+              v-for="key in row"
+              :key="key"
+              type="button"
+              class="vk-key"
+              @click="onKeyPress(key.toLowerCase())"
+            >
+              {{ key }}
+            </button>
+          </div>
+        </template>
+
+        <div class="vk-row vk-actions">
+          <button type="button" class="btn secondary" @click="onCancel">
+            <q-icon name="chevron_left" size="28px" class="back-icon" /> Orqaga
           </button>
-        </div>
-        <div class="vk-row">
-          <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
+          <button
+            v-if="virtualKeyboardEnabled && keyboardOpen"
+            type="button"
+            class="vk-key space-key"
+            @click="onKeyPress(' ')"
+          >
+            Bo'sh joy
+          </button>
+          <button
+            type="button"
+            class="btn primary"
+            :disabled="!receiptItems.length || submitting"
+            @click="createOrderAndOpenPayment"
+          >
+            <span v-if="submitting">Yuklanmoqda...</span>
+            <span v-else>Saqlash</span>
+          </button>
         </div>
       </div>
     </div>
@@ -1097,12 +1105,6 @@ onMounted(async () => {
 }
 
 /* BUTTONS */
-.left-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 5px;
-  padding-top: 15px;
-}
 .btn {
   height: 48px;
   border-radius: 12px;
@@ -1184,6 +1186,23 @@ onMounted(async () => {
 
 .vk-key.wide {
   flex: 3;
+}
+
+/* Action row: Orqaga | Bo'sh joy | Saqlash on one level. Back + Save keep their
+   content width at the edges; the space key fills the middle (only present when
+   the keyboard is open). When the space key is absent, space-between keeps Back
+   left / Save right. */
+.vk-actions {
+  justify-content: space-between;
+}
+.vk-actions .btn {
+  flex: 0 0 auto;
+  min-height: 56px;
+  height: auto;
+  padding: 0 28px;
+}
+.vk-actions .space-key {
+  flex: 1;
 }
 
 /* ==================== */
