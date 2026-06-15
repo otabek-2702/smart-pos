@@ -55,7 +55,7 @@
               </div>
             </div>
           </div>
-          <div class="left-footer" v-if="!virtualKeyboardEnabled || !keyboardOpen">
+          <div class="left-footer">
             <button type="button" class="btn secondary" @click="onCancel">
               <q-icon name="chevron_left" size="28px" class="back-icon" /> Orqaga
             </button>
@@ -162,9 +162,9 @@
           <!-- Keyboard -->
         </div>
       </div>
-      <!-- On-screen keyboard — only while open. When hidden (a category is
-           picked), the Save/Cancel buttons fall back to the left-footer (their
-           old place) and the space key is hidden with the rest of the keyboard. -->
+      <!-- On-screen keyboard — keys + space ONLY, shown while open. The Save/
+           Cancel buttons live OUTSIDE it (left-footer, always visible); the
+           space key hides/shows with the keyboard. -->
       <div class="vk" v-if="virtualKeyboardEnabled && keyboardOpen">
         <div v-for="(row, rowIndex) in KEYBOARD_LAYOUT" :key="rowIndex" class="vk-row">
           <button
@@ -179,18 +179,6 @@
         </div>
         <div class="vk-row">
           <button type="button" class="vk-key wide" @click="onKeyPress(' ')">Bo'sh joy</button>
-        </div>
-        <div class="vk-row vk-actions">
-          <button type="button" class="btn secondary" @click="onCancel">Bekor qilish</button>
-          <button
-            type="button"
-            class="btn primary"
-            :disabled="!receiptItems.length || submitting"
-            @click="createOrderAndOpenPayment"
-          >
-            <span v-if="submitting">Yuklanmoqda...</span>
-            <span v-else>Saqlash</span>
-          </button>
         </div>
       </div>
     </div>
