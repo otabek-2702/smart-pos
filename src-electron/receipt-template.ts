@@ -104,13 +104,13 @@ function esc(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
-// Palette — print-safe. Primary near-black; secondary a mid grey that still
-// dithers to readable ink; hairline the lightest tone we trust the head to mark.
+// Palette — ALL BLACK. Thermal heads dither grey to a faint, smeary result, so
+// every text tone (and the hairline) prints as solid #000 for crisp output.
 const C = {
-  ink: '#16181b',
-  sub: '#5f656c',
-  faint: '#8a9098',
-  hair: '#aeb3b9',
+  ink: '#000',
+  sub: '#000',
+  faint: '#000',
+  hair: '#000',
 };
 
 // One stylesheet, parameterised by output medium. Text sizes are in `em` so the
@@ -154,7 +154,8 @@ function receiptStyle(print: boolean, scale: number): string {
   }
 
   .logo { text-align: center; margin: 0.4em 0 0.2em; }
-  .logo img { max-width: ${dim.logoW}; max-height: ${dim.logoH}; height: auto; }
+  /* full printable width */
+  .logo img { width: 100%; height: auto; }
 
   .meta { text-align: center; color: ${C.sub}; font-size: 0.92em; line-height: 1.55; margin-top: 0.5em; }
 
