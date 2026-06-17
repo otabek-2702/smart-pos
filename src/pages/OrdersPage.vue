@@ -71,8 +71,17 @@
       >
         <div class="order-id">#{{ order.displayId }}</div>
 
-        <div class="order-type">
-          {{ getOrderTypeLabel(order.orderType) }}
+        <!-- Tur — tap to change the order type inline (doesn't open the row). -->
+        <div class="order-type-cell">
+          <button
+            type="button"
+            class="otype-btn"
+            :disabled="order.status === 'CANCELLED'"
+            @click.stop="openTypePicker(order, $event)"
+          >
+            {{ getOrderTypeLabel(order.orderType) }}
+            <q-icon name="expand_more" size="14px" />
+          </button>
         </div>
 
         <div class="order-meta">{{ order.itemsCount }} ta mahsulot</div>
@@ -94,6 +103,29 @@
         </div>
       </div>
     </div>
+
+    <!-- inline order-type picker — teleported + fixed so the scrolling list
+         doesn't clip it; positioned under the tapped Tur chip. -->
+    <Teleport to="body">
+      <template v-if="typePickerOrder">
+        <div class="otype-backdrop" @click="typePickerOrder = null" />
+        <div
+          class="otype-pop"
+          :style="{ top: typePickerPos.top + 'px', left: typePickerPos.left + 'px' }"
+        >
+          <button
+            v-for="t in ORDER_TYPE_VALUES"
+            :key="t"
+            type="button"
+            class="otype-opt"
+            :class="{ active: typePickerOrder.orderType === t }"
+            @click="changeRowType(typePickerOrder, t)"
+          >
+            {{ getOrderTypeLabel(t) }}
+          </button>
+        </div>
+      </template>
+    </Teleport>
 
     <!-- Payment Confirmation Dialog -->
     <PaymentConfirmationDialog
@@ -323,6 +355,32 @@ function getStatusClass(orderStatus: string): string {
 
 function getOrderTypeLabel(type: string): string {
   return labelFor(type);
+}
+
+/* ---- inline order-type change directly on the list row ---- */
+const ORDER_TYPE_VALUES: ReadonlyArray<OrderType> = ['HALL', 'DELIVERY', 'PICKUP'];
+const typePickerOrder = ref<Order | null>(null);
+const typePickerPos = ref<{ top: number; left: number }>({ top: 0, left: 0 });
+
+function openTypePicker(order: Order, e: MouseEvent): void {
+  if (typePickerOrder.value?.id === order.id) {
+    typePickerOrder.value = null;
+    return;
+  }
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  typePickerPos.value = { top: r.bottom + 4, left: r.left };
+  typePickerOrder.value = order;
+}
+
+async function changeRowType(order: Order, t: OrderType): Promise<void> {
+  typePickerOrder.value = null;
+  if (order.orderType === t) return;
+  try {
+    await api.patch(`/orders/${order.id}/type`, { order_type: t });
+    void fetchOrders(false);
+  } catch (e) {
+    console.error('Order type change failed:', e);
+  }
 }
 
 function mapOrder(order: ApiOrder): Order {
@@ -670,6 +728,68 @@ onUnmounted(() => {
 .order-type {
   color: var(--text-muted);
   font-size: 14px;
+}
+
+/* inline type chip on the row */
+.otype-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+}
+
+/* teleported type picker (fixed so the scroll list can't clip it) */
+.otype-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  background: transparent;
+}
+.otype-pop {
+  position: fixed;
+  z-index: 4001;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+.otype-opt {
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover {
+    background: var(--surface-2);
+  }
+  &.active {
+    background: var(--primary-weak);
+    color: var(--primary);
+  }
 }
 
 .order-meta {
