@@ -425,7 +425,7 @@ function selectCategory(categoryId: number | null): void {
 }
 
 // Add this function to your script setup
-async function printReceipt(displayId: number): Promise<void> {
+async function printReceipt(displayId: number, isPaid = false): Promise<void> {
   const authUser = read<{ first_name: string; last_name: string }>('auth_user');
   const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
 
@@ -456,6 +456,7 @@ async function printReceipt(displayId: number): Promise<void> {
     total: totalAmount.value,
     description: description.value || undefined,
     phoneNumber: phone_number.value || undefined,
+    isPaid,
     // logoBase64,
   };
 
@@ -608,8 +609,12 @@ async function createOrderAndOpenPayment(): Promise<void> {
     createdOrderId.value = response.data.data.order_id;
     createdDisplayId.value = response.data.data.display_id;
 
-    // 🖨️ Print receipt here!
-    void printReceipt(response.data.data.display_id);
+    // Print at creation ONLY for delivery/pickup (their ticket must print
+    // regardless of payment). Hall prints after payment is confirmed (the
+    // payment dialog fetches the paid order from the backend and prints it).
+    if (orderType.value === 'DELIVERY' || orderType.value === 'PICKUP') {
+      void printReceipt(response.data.data.display_id, false);
+    }
 
     // Open payment confirmation dialog
     showPaymentDialog.value = true;

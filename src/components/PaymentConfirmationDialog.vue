@@ -222,9 +222,12 @@
           </section>
         </div>
 
-        <!-- FOOTER (slim): left = cancel, center = print, right = later / paid -->
+        <!-- FOOTER (slim). Left: managers cancel the order; cashiers can't, so
+             the print button sits there instead. Center: print (managers only,
+             cashiers' print is on the left). Right: later / paid. -->
         <div class="pay__foot">
           <button
+            v-if="isManager"
             type="button"
             class="btn danger"
             :disabled="payLoading || cancelLoading || !orderId"
@@ -233,11 +236,26 @@
             <span v-if="cancelLoading">Bekor qilinmoqda...</span>
             <span v-else>Bekor qilish</span>
           </button>
-
-          <button type="button" class="btn ghost foot-print" @click="onPrintCheck">
+          <button
+            v-else
+            type="button"
+            class="btn ghost foot-print foot-print--left"
+            @click="onPrintCheck"
+          >
             <q-icon name="print" size="20px" />
             Chek chiqarish
           </button>
+
+          <button
+            v-if="isManager"
+            type="button"
+            class="btn ghost foot-print"
+            @click="onPrintCheck"
+          >
+            <q-icon name="print" size="20px" />
+            Chek chiqarish
+          </button>
+          <span v-else></span>
 
           <div class="foot-right">
             <button
@@ -490,8 +508,10 @@ function submitPin(): void {
 }
 function set10Percent(): void {
   if (discountMode.value !== 'open') return;
+  // Quick preset — just set the value; don't pop the keyboard. The numpad
+  // opens only when the percent input itself is tapped.
   discountInput.value = '10';
-  activeDiscField.value = 'percent';
+  activeDiscField.value = null;
 }
 
 /* ---- on-screen keyboards for the discount inputs ---- */
@@ -714,7 +734,8 @@ function ackCrossCashier(): void {
   void onConfirmPayment();
 }
 
-/* ---- print the check (center footer) ---- */
+/* ---- print the check (manual, center/left footer) — UNPAID copy from the
+   current dialog data; the cashier can print it any time. ---- */
 function onPrintCheck(): void {
   const fallback = getAuthUser();
   const cashierName =
@@ -732,7 +753,49 @@ function onPrintCheck(): void {
     total: props.totalAmount,
     description: props.orderDescription || undefined,
     phoneNumber: props.phoneNumber || undefined,
+    isPaid: false,
   });
+}
+
+// After payment, print the PAID receipt built from the FRESH backend order
+// (correct discount, final total, creator, paid state). The new richer design
+// will consume the same fields later.
+interface OrderDetail {
+  display_id: number;
+  order_type: string;
+  cashier?: { name: string } | null;
+  user?: { name: string } | null;
+  items: Array<{ product: { name: string }; quantity: number; price: string }>;
+  total_amount: string;
+  description?: string | null;
+  phone_number?: string | null;
+  is_paid: boolean;
+}
+
+async function printPaidFromBackend(): Promise<void> {
+  if (!props.orderId) return;
+  try {
+    const res = await api.get(`/orders/${props.orderId}`);
+    const data = res.data?.data as { order?: OrderDetail } & Partial<OrderDetail>;
+    const d = (data?.order ?? (data as OrderDetail)) ?? null;
+    if (!d) return;
+    void window.electron?.printer.printReceipt({
+      displayId: d.display_id,
+      orderType: d.order_type,
+      cashierName: d.cashier?.name || d.user?.name || props.creatorName || 'Kassir',
+      items: (d.items || []).map((it) => ({
+        name: it.product.name,
+        quantity: it.quantity,
+        price: Number(it.price) || 0,
+      })),
+      total: Number(d.total_amount) || props.totalAmount,
+      description: d.description || undefined,
+      phoneNumber: d.phone_number || undefined,
+      isPaid: d.is_paid,
+    });
+  } catch (e) {
+    console.error('Print after pay failed:', e);
+  }
 }
 
 async function onConfirmPayment(): Promise<void> {
@@ -749,6 +812,8 @@ async function onConfirmPayment(): Promise<void> {
       discount_percent: discountPercent.value,
       payment_method: dominantMethod.value,
     });
+    // Backend confirmed paid — print the PAID receipt from the fresh order data.
+    void printPaidFromBackend();
     emit('paid');
     isOpen.value = false;
     if (props.navigateOnClose) void router.push({ name: 'orders' });
@@ -1456,6 +1521,9 @@ async function onCancelOrder(): Promise<void> {
 }
 .foot-print {
   justify-self: center;
+}
+.foot-print--left {
+  justify-self: start;
 }
 .foot-right {
   justify-self: end;

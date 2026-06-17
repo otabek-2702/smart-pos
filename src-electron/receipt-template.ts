@@ -30,6 +30,9 @@ export interface ReceiptData {
   total: number;
   description?: string;
   phoneNumber?: string;
+  // Paid state — printed as TO'LANGAN / TO'LANMAGAN when provided. (The richer
+  // paid receipt — payment type, discount, time — comes with the new design.)
+  isPaid?: boolean;
 }
 
 // Same kv key the renderer's useOrderTypes composable writes — one source, so
@@ -231,6 +234,11 @@ export function generateReceiptHtml(
           <div><span class="label">Kassir:</span> ${data.cashierName}</div>
           <div><span class="label">Chek №:</span> ${data.displayId}</div>
           <div><span class="label">Turi:</span> ${orderTypeLabel}</div>
+          ${
+            data.isPaid !== undefined
+              ? `<div><span class="label">Holat:</span> ${data.isPaid ? "TO'LANGAN" : "TO'LANMAGAN"}</div>`
+              : ''
+          }
         </div>
         
         <div class="divider"></div>

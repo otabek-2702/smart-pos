@@ -6,25 +6,30 @@
     Chiqish
   </button>
 
-  <!-- CONFIRM DIALOG -->
-  <div v-if="showConfirm" class="confirm-backdrop" @click.self="closeConfirm">
-    <div class="confirm-modal">
-      <div class="confirm-title">Chiqishni tasdiqlaysizmi?</div>
+  <!-- CONFIRM DIALOG — teleported to body so the Orders footer/header (their
+       own stacking context) don't bleed over the backdrop. -->
+  <Teleport to="body">
+    <div v-if="showConfirm" class="confirm-backdrop" @click.self="closeConfirm">
+      <div class="confirm-modal">
+        <div class="confirm-title">Chiqishni tasdiqlaysizmi?</div>
 
-      <div class="confirm-text">Tizimdan chiqilgandan so‘ng qayta kirish talab qilinadi.</div>
+        <div class="confirm-text">Tizimdan chiqilgandan so‘ng qayta kirish talab qilinadi.</div>
 
-      <button type="button" class="btn shift" @click="openShiftClose">
-        <q-icon name="point_of_sale" size="18px" />
-        Smenani yakunlash va chiqish
-      </button>
+        <button type="button" class="btn shift" @click="openShiftClose">
+          <q-icon name="point_of_sale" size="18px" />
+          Smenani yakunlash va chiqish
+        </button>
 
-      <div class="confirm-actions">
-        <button type="button" class="btn secondary" @click="closeConfirm">Bekor qilish</button>
+        <div class="confirm-actions">
+          <button type="button" class="btn secondary" @click="closeConfirm">Bekor qilish</button>
 
-        <button type="button" class="btn danger" @click="confirmLogout">Chiqish (smena ochiq)</button>
+          <button type="button" class="btn danger" @click="confirmLogout">
+            Chiqish (smena ochiq)
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 
   <!-- Shift close (per-payment-type reconciliation) → then logout -->
   <ShiftCloseDialog v-model="showShiftClose" @closed="doLogout" />
@@ -118,11 +123,12 @@ async function doLogout(): Promise<void> {
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.45);
+  background: var(--overlay);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 3000;
+  z-index: 4100;
 }
 
 /* MODAL */
@@ -204,6 +210,10 @@ async function doLogout(): Promise<void> {
 
 .btn.shift {
   width: 100%;
+  height: auto;
+  min-height: 54px;
+  padding-block: 14px;
+  margin-block: 2px;
   background: var(--accent-primary, #ff7a00);
   color: var(--on-primary);
   display: inline-flex;

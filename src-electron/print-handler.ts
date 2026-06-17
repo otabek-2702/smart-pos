@@ -101,6 +101,7 @@ interface PrintReceiptData {
   description?: string;
   phoneNumber?: string;
   logoBase64?: string;
+  isPaid?: boolean;
 }
 
 interface PrintResult {

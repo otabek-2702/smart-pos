@@ -13,15 +13,12 @@
           </button>
         </div>
 
-        <!-- real shift summary (from /shifts/current) -->
+        <!-- real shift summary (from /shifts/current) — orders only; revenue is
+             reconciled by the manager, not shown to the cashier here. -->
         <div class="sc__summary">
           <div class="sc__sum">
             <span class="sc__sum-label">Buyurtmalar</span>
             <span class="sc__sum-val">{{ loadingShift ? '…' : (shift?.total_orders ?? 0) }}</span>
-          </div>
-          <div class="sc__sum">
-            <span class="sc__sum-label">Tushum</span>
-            <span class="sc__sum-val">{{ loadingShift ? '…' : formatPrice(shift?.total_revenue ?? 0) }} <small>so'm</small></span>
           </div>
         </div>
 
