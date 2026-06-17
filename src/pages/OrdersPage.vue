@@ -165,6 +165,7 @@
         <AdminSettingsButton show-label />
         <LogOutButton />
         <ThemeToggleButton />
+        <OperatorModeButton />
       </div>
 
       <div class="footer-center">
@@ -217,6 +218,7 @@ import { formatPhoneNumber } from 'src/utils';
 import LogOutButton from 'src/components/LogOutButton.vue';
 import AdminSettingsButton from 'src/components/AdminSettingsButton.vue';
 import ThemeToggleButton from 'src/components/ThemeToggleButton.vue';
+import OperatorModeButton from 'src/components/OperatorModeButton.vue';
 import AppClock from 'src/components/AppClock.vue';
 import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';

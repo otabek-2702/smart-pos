@@ -33,23 +33,39 @@
       actually blocks the POS.
     -->
     <LicenseWarnBanner />
+
+    <!--
+      CTI operator mode (mounted ONCE, app-wide): the QR pairing dialog and the
+      incoming-call dialog. The store wires the single phone-call event listener
+      via init() in onMounted below.
+    -->
+    <OperatorQrDialog />
+    <IncomingCallDialog />
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import InternetWarningDialog from 'src/components/InternetWarningDialog.vue';
 import LicenseBlockedScreen from 'src/components/LicenseBlockedScreen.vue';
 import LicenseWarnBanner from 'src/components/LicenseWarnBanner.vue';
+import OperatorQrDialog from 'src/components/OperatorQrDialog.vue';
+import IncomingCallDialog from 'src/components/IncomingCallDialog.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useDeviceRole } from 'src/composables/useDeviceRole';
 import { useLicenseStatus } from 'src/composables/useLicenseStatus';
+import { useOperatorStore } from 'src/stores/operator';
 
 const network = useNetworkStatus();
 const role = useDeviceRole();
 const license = useLicenseStatus();
 const route = useRoute();
+const router = useRouter();
+
+// Wire the operator-mode call-event listener once for the whole app.
+const operator = useOperatorStore();
+onMounted(() => operator.init(router));
 
 // Mirror LicenseWarnBanner's visibility so the page content can reserve the
 // space the fixed banner occupies (otherwise it covers the top of the page).

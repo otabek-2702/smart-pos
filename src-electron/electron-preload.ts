@@ -119,6 +119,18 @@ contextBridge.exposeInMainWorld('electron', {
   },
 });
 
+// CTI operator mode — start/stop the LAN WebSocket server (main process) and
+// subscribe to caller events streamed from the operator's phone.
+contextBridge.exposeInMainWorld('operator', {
+  start: (): Promise<{ url: string }> => invoke<{ url: string }>('operator:start'),
+  stop: (): Promise<void> => invoke<void>('operator:stop'),
+  onCallEvent: (callback: (data: unknown) => void): (() => void) => {
+    const handler = (_event: unknown, data: unknown): void => callback(data);
+    ipcRenderer.on('operator:call-event', handler);
+    return () => ipcRenderer.removeListener('operator:call-event', handler);
+  },
+});
+
 contextBridge.exposeInMainWorld('backend', {
   onError: (callback: (msg: string) => void) =>
     ipcRenderer.on('backend-error', (_, msg) => callback(msg)),

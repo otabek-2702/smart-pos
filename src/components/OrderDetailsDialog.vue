@@ -49,9 +49,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import VirtualKeyboard from 'components/virtual-keyboard/VirtualKeyboard.vue';
 import NumericKeyboard from 'components/numeric-keyboard/NumericKeyboard.vue';
+
+/* PROPS — `phone` (v-model:phone). Lets the parent pre-fill the number, e.g.
+   operator-mode prefilling a caller's phone. */
+const props = withDefaults(defineProps<{ phone?: string }>(), { phone: '' });
 
 /* EMITS */
 const emit = defineEmits<{
@@ -63,6 +67,17 @@ const emit = defineEmits<{
 const showDetails = ref(false);
 const descriptionLocal = ref('');
 const phoneDigitsLocal = ref('');
+
+// Seed the editable digits from the bound phone (last 9), so a prefilled
+// number shows when the operator opens the editor.
+watch(
+  () => props.phone,
+  (p) => {
+    const d = (p || '').replace(/\D/g, '').slice(-9);
+    if (d) phoneDigitsLocal.value = d;
+  },
+  { immediate: true },
+);
 
 /* FORMAT PHONE */
 const formattedPhone = computed(() => {

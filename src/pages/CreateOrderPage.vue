@@ -217,8 +217,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { api } from 'boot/axios';
+import { useOperatorStore } from 'src/stores/operator';
 import OrderDetailsDialog from 'src/components/OrderDetailsDialog.vue';
 import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.vue';
 import { formatPrice } from 'src/utils/formatPrice';
@@ -358,6 +359,29 @@ const submitting = ref<boolean>(false);
 
 const description = ref('');
 const phone_number = ref('');
+
+/* ---- operator-mode phone prefill ----
+   Fill the phone field from (priority) the route ?phone query, else the live
+   operator call. Works both when navigating in from the incoming-call dialog
+   AND when a call lands while the operator is already on this page (watch). */
+const route = useRoute();
+const operator = useOperatorStore();
+
+function toFullPhone(raw: string): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  const last9 = digits.slice(-9);
+  return last9.length === 9 ? `+998${last9}` : raw;
+}
+function prefillPhone(raw: string | undefined | null): void {
+  if (raw) phone_number.value = toFullPhone(String(raw));
+}
+watch(
+  () => operator.activeCall,
+  (c) => {
+    if (c?.phone) prefillPhone(c.phone);
+  },
+  { deep: true },
+);
 
 // Payment dialog state
 const showPaymentDialog = ref<boolean>(false);
@@ -655,6 +679,10 @@ function onCancel(): void {
 }
 
 onMounted(async () => {
+  // Operator prefill: ?phone query (navigated in from the call dialog) wins,
+  // else a live call already in progress.
+  prefillPhone((route.query.phone as string | undefined) || operator.activeCall?.phone);
+
   // First fetch categories, then products
   await fetchCategories();
   await fetchProducts('');

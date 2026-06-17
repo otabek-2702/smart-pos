@@ -95,5 +95,11 @@ declare global {
       onError: (callback: (msg: string) => void) => void;
       onLog: (callback: (msg: string) => void) => void;
     };
+    operator: {
+      start(): Promise<{ url: string }>;
+      stop(): Promise<void>;
+      // Subscribe to caller events from the phone; returns an unsubscribe fn.
+      onCallEvent(callback: (data: unknown) => void): () => void;
+    };
   }
 }
