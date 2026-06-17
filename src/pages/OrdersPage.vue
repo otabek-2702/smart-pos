@@ -108,6 +108,7 @@
       @paid="onOrderPaid"
       @cancel="onPaymentCancel"
       @cancelled="onOrderCancelled"
+      @type-changed="onOrderTypeChanged"
       :order-description="selectedOrder?.description ?? ''"
       :creator-id="selectedCreator?.id ?? null"
       :creator-name="selectedCreator?.name ?? null"
@@ -115,6 +116,7 @@
     />
     <OrderInfoDialog
       v-model="showInfoDialog"
+      :order-id="selectedOrder?.id ?? null"
       :display-id="selectedOrder?.displayId ?? null"
       :order-type="selectedOrder?.orderType ?? 'HALL'"
       :items="selectedOrderItems"
@@ -122,6 +124,7 @@
       :total-amount="selectedOrder?.totalAmount ?? 0"
       :phone-number="selectedOrder?.phone_number ?? null"
       :cashier-name="selectedCreator?.name ?? null"
+      @type-changed="onOrderTypeChanged"
     />
 
     <!-- Footer -->
@@ -270,8 +273,10 @@ const STATUSES: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 const STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Ochiq',
   PREPARING: 'Jarayonda',
   READY: 'Tayyor',
+  PAID: "To'langan",
   CANCELLED: 'Bekor qilingan',
 };
 
@@ -409,6 +414,12 @@ function onPaymentCancel(): void {
 function onOrderCancelled(): void {
   void fetchOrders();
   resetSelection();
+}
+
+// Order type was changed inside a dialog — keep the open dialog in sync and
+// refresh the list quietly (no spinner) so the row's Tur column updates.
+function onOrderTypeChanged(): void {
+  void fetchOrders(false);
 }
 
 function resetSelection(): void {

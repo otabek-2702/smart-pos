@@ -11,7 +11,28 @@
         <div class="pay__head">
           <div class="pay__title">
             <span class="pay__hash">#{{ displayId ?? '—' }}</span>
-            <span class="pay__type">{{ orderTypeLabel }}</span>
+            <!-- tap the type to change it (HALL/DELIVERY/PICKUP) -->
+            <button
+              type="button"
+              class="pay__type pay__type--btn"
+              :disabled="typeSaving || !orderId"
+              @click="showTypePicker = !showTypePicker"
+            >
+              {{ orderTypeLabel }}
+              <q-icon :name="showTypePicker ? 'expand_less' : 'expand_more'" size="16px" />
+            </button>
+            <div v-if="showTypePicker" class="type-pop" @click.self="showTypePicker = false">
+              <button
+                v-for="t in orderTypeOptions"
+                :key="t.value"
+                type="button"
+                class="type-opt"
+                :class="{ active: t.value === orderTypeLocal }"
+                @click="changeOrderType(t.value)"
+              >
+                {{ t.label }}
+              </button>
+            </div>
           </div>
           <button type="button" class="pay__close" aria-label="Yopish" @click="onCancel">
             <q-icon name="close" size="22px" />
@@ -407,6 +428,7 @@ const emit = defineEmits<{
   paid: [];
   cancel: [];
   cancelled: [];
+  'type-changed': [];
 }>();
 
 const router = useRouter();
@@ -414,7 +436,33 @@ const payLoading = ref(false);
 const cancelLoading = ref(false);
 
 const { labelFor } = useOrderTypes();
-const orderTypeLabel = computed(() => labelFor(props.orderType));
+// Local copy so a change reflects immediately; synced from the prop on open.
+const orderTypeLocal = ref<OrderType>(props.orderType);
+const orderTypeLabel = computed(() => labelFor(orderTypeLocal.value));
+const orderTypeOptions = computed<ReadonlyArray<{ value: OrderType; label: string }>>(() =>
+  (['HALL', 'DELIVERY', 'PICKUP'] as OrderType[]).map((v) => ({ value: v, label: labelFor(v) })),
+);
+const showTypePicker = ref(false);
+const typeSaving = ref(false);
+
+// Change the order type via the backend (PATCH /orders/{id}/type). Categorical
+// only — allowed even on a paid order; a cancelled order is rejected by the API.
+async function changeOrderType(t: OrderType): Promise<void> {
+  showTypePicker.value = false;
+  if (!props.orderId || typeSaving.value || t === orderTypeLocal.value) return;
+  typeSaving.value = true;
+  try {
+    await api.patch(`/orders/${props.orderId}/type`, { order_type: t });
+    orderTypeLocal.value = t;
+    emit('type-changed');
+  } catch (e) {
+    console.error('Order type change failed:', e);
+    alert("Buyurtma turini o'zgartirib bo'lmadi");
+  } finally {
+    typeSaving.value = false;
+  }
+}
+
 const { methods } = usePaymentMethods();
 
 const isOpen = computed({
@@ -691,6 +739,8 @@ watch(isOpen, (open) => {
     pinEntry.value = '';
     pinError.value = false;
     activeDiscField.value = null;
+    orderTypeLocal.value = props.orderType;
+    showTypePicker.value = false;
   }
 });
 
@@ -720,7 +770,7 @@ function onPrintCheck(): void {
     (fallback ? `${fallback.first_name ?? ''} ${fallback.last_name ?? ''}`.trim() : 'Kassir');
   void window.electron?.printer.printReceipt({
     displayId: props.displayId ?? 0,
-    orderType: props.orderType,
+    orderType: orderTypeLocal.value,
     cashierName,
     items: props.items.map((it) => ({
       name: it.name,
@@ -865,6 +915,7 @@ async function onCancelOrder(): Promise<void> {
   background: var(--bg-surface);
 }
 .pay__title {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -877,6 +928,59 @@ async function onCancelOrder(): Promise<void> {
 .pay__type {
   font-size: 14px;
   color: var(--text-muted);
+}
+.pay__type--btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+.type-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+.type-opt {
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover {
+    background: var(--surface-2);
+  }
+  &.active {
+    background: var(--primary-weak);
+    color: var(--primary);
+  }
 }
 .pay__close {
   width: 40px;

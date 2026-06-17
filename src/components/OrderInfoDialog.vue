@@ -8,10 +8,28 @@
             <div class="title-section">
               <div class="meta">
                 <span class="order-id">#{{ displayId }}</span>
-                <span :class="['order-type', orderType.toLowerCase()]">
+                <!-- tap to change the order type (HALL/DELIVERY/PICKUP) -->
+                <button
+                  type="button"
+                  :class="['order-type', 'order-type--btn', orderTypeLocal.toLowerCase()]"
+                  :disabled="typeSaving || !orderId"
+                  @click="showTypePicker = !showTypePicker"
+                >
                   <span class="type-dot"></span>
                   {{ orderTypeLabel }}
-                </span>
+                </button>
+                <div v-if="showTypePicker" class="type-pop">
+                  <button
+                    v-for="t in orderTypeOptions"
+                    :key="t.value"
+                    type="button"
+                    class="type-opt"
+                    :class="{ active: t.value === orderTypeLocal }"
+                    @click="changeOrderType(t.value)"
+                  >
+                    {{ t.label }}
+                  </button>
+                </div>
               </div>
             </div>
             <button class="close-btn" @click="close" aria-label="Yopish">
@@ -113,7 +131,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 import { read } from 'src/utils/storage';
@@ -129,6 +148,7 @@ interface ReceiptItem {
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
+    orderId?: number | null;
     displayId: number | null;
     orderType: string;
     orderDescription?: string | null;
@@ -140,6 +160,7 @@ const props = withDefaults(
   }>(),
   {
     modelValue: false,
+    orderId: null,
     displayId: null,
     orderType: 'HALL',
     orderDescription: null,
@@ -164,7 +185,7 @@ async function printCheck(): Promise<void> {
       (authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir');
     const printData = {
       displayId: props.displayId ?? 0,
-      orderType: props.orderType,
+      orderType: orderTypeLocal.value,
       cashierName,
       items: props.items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price ?? 0 })),
       total: props.totalAmount,
@@ -182,6 +203,7 @@ async function printCheck(): Promise<void> {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
+  (e: 'type-changed'): void;
 }>();
 
 function close(): void {
@@ -191,7 +213,42 @@ function close(): void {
 // computed (not a one-shot const): the dialog is reused across orders, so the
 // label must track prop changes — otherwise it shows the previous order's type.
 const { labelFor } = useOrderTypes();
-const orderTypeLabel = computed(() => labelFor(props.orderType));
+// Local copy so a change shows immediately; re-synced when the prop changes.
+const orderTypeLocal = ref<string>(props.orderType);
+watch(
+  () => props.orderType,
+  (t) => {
+    orderTypeLocal.value = t;
+  },
+);
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!open) showTypePicker.value = false;
+  },
+);
+const orderTypeLabel = computed(() => labelFor(orderTypeLocal.value));
+const orderTypeOptions = computed(() =>
+  ['HALL', 'DELIVERY', 'PICKUP'].map((v) => ({ value: v, label: labelFor(v) })),
+);
+const showTypePicker = ref(false);
+const typeSaving = ref(false);
+
+// Change the order type (PATCH /orders/{id}/type) — exists on the backend.
+async function changeOrderType(t: string): Promise<void> {
+  showTypePicker.value = false;
+  if (!props.orderId || typeSaving.value || t === orderTypeLocal.value) return;
+  typeSaving.value = true;
+  try {
+    await api.patch(`/orders/${props.orderId}/type`, { order_type: t });
+    orderTypeLocal.value = t;
+    emit('type-changed');
+  } catch (e) {
+    console.error('Order type change failed:', e);
+  } finally {
+    typeSaving.value = false;
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -266,8 +323,10 @@ const orderTypeLabel = computed(() => labelFor(props.orderType));
 }
 
 .meta {
+  position: relative;
   margin-top: 10px;
   display: flex;
+  align-items: center;
   gap: 14px;
   font-size: 14px;
 }
@@ -304,6 +363,56 @@ const orderTypeLabel = computed(() => labelFor(props.orderType));
 
   &.hall .type-dot {
     background: var(--warning);
+  }
+}
+
+/* tappable type chip + picker */
+.order-type--btn {
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-2);
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+.type-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+.type-opt {
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover {
+    background: var(--surface-2);
+  }
+  &.active {
+    background: var(--primary-weak);
+    color: var(--primary);
   }
 }
 
