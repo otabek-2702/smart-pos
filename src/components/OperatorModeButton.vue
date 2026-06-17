@@ -3,10 +3,11 @@
     type="button"
     class="op-btn"
     :class="{ on: store.operatorMode }"
+    :title="store.operatorMode ? 'Operator ON' : 'Operator rejimi'"
+    :aria-label="store.operatorMode ? 'Operator ON' : 'Operator rejimi'"
     @click="store.toggle()"
   >
-    <q-icon name="headset_mic" size="20px" />
-    {{ store.operatorMode ? 'Operator ON' : 'Operator rejimi' }}
+    <q-icon name="headset_mic" size="22px" />
   </button>
 </template>
 
@@ -20,9 +21,10 @@ const store = useOperatorStore();
 .op-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   height: 44px;
-  padding: 0 16px;
+  width: 44px;
+  padding: 0;
   border-radius: 14px;
   border: 1px solid var(--border-color);
   background: var(--btn-secondary-bg);

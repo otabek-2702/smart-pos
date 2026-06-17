@@ -165,7 +165,6 @@
         <AdminSettingsButton show-label />
         <LogOutButton />
         <ThemeToggleButton />
-        <OperatorModeButton />
       </div>
 
       <div class="footer-center">
@@ -185,6 +184,8 @@
           <q-icon name="system_update_alt" size="20px" />
           Yangilanish mavjud
         </button>
+
+        <OperatorModeButton />
 
         <button
           v-if="canSeeExpenses"
