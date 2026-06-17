@@ -20,36 +20,18 @@ export class ThermalPrinter {
     const width = image.getWidth();
     const height = image.getHeight();
 
-    // Floyd–Steinberg dithering → 1-bit. The new receipt design leans on mid-grey
-    // text and hairlines for hierarchy; a hard threshold would drop everything
-    // lighter than 50% to white. Diffusing the error renders those greys as fine
-    // dot patterns (readable, faithful to the mock) while pure black/white areas
-    // — logo edges, the QR — stay crisp. monoPixels[i] = 1 → black dot.
-    const gray = new Float32Array(width * height);
+    // HARD THRESHOLD → 1-bit. The receipt is pure black-on-white, so dithering
+    // only adds speckle and renders the logo's baked-grey wordmark as a muddy
+    // dot pattern. A threshold instead snaps anything that isn't near-white to
+    // solid black (crisp text, solid logo) and keeps the background clean white.
+    // Tune MONO_THRESHOLD (0–255): higher = more pixels forced black.
+    const MONO_THRESHOLD = 200;
+    const monoPixels = new Uint8Array(width * height);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // grayscale() made r=g=b, so r is the luma.
-        gray[y * width + x] = Jimp.intToRGBA(image.getPixelColor(x, y)).r;
-      }
-    }
-
-    const monoPixels = new Uint8Array(width * height);
-    const diffuse = (j: number, v: number): void => {
-      gray[j] = (gray[j] ?? 0) + v;
-    };
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = y * width + x;
-        const old = gray[i] ?? 0;
-        const nv = old < 128 ? 0 : 255;
-        monoPixels[i] = nv === 0 ? 1 : 0;
-        const err = old - nv;
-        if (x + 1 < width) diffuse(i + 1, (err * 7) / 16);
-        if (y + 1 < height) {
-          if (x > 0) diffuse(i + width - 1, (err * 3) / 16);
-          diffuse(i + width, (err * 5) / 16);
-          if (x + 1 < width) diffuse(i + width + 1, (err * 1) / 16);
-        }
+        const luma = Jimp.intToRGBA(image.getPixelColor(x, y)).r;
+        monoPixels[y * width + x] = luma < MONO_THRESHOLD ? 1 : 0; // 1 = black dot
       }
     }
 

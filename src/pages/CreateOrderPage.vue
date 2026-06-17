@@ -220,6 +220,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from 'boot/axios';
 import { useOperatorStore } from 'src/stores/operator';
+import { useInstantProducts } from 'src/composables/useInstantProducts';
 import OrderDetailsDialog from 'src/components/OrderDetailsDialog.vue';
 import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.vue';
 import { formatPrice } from 'src/utils/formatPrice';
@@ -366,6 +367,7 @@ const phone_number = ref('');
    AND when a call lands while the operator is already on this page (watch). */
 const route = useRoute();
 const operator = useOperatorStore();
+const { isAllInstant } = useInstantProducts();
 
 function toFullPhone(raw: string): string {
   const digits = (raw || '').replace(/\D/g, '');
@@ -634,9 +636,11 @@ async function createOrderAndOpenPayment(): Promise<void> {
     createdDisplayId.value = response.data.data.display_id;
 
     // Print at creation ONLY for delivery/pickup (their ticket must print
-    // regardless of payment). Hall prints after payment is confirmed (the
-    // payment dialog fetches the paid order from the backend and prints it).
-    if (orderType.value === 'DELIVERY' || orderType.value === 'PICKUP') {
+    // regardless of payment). Hall prints after payment is confirmed. An
+    // all-instant order (drinks/packaged only) is NEVER auto-printed — the
+    // cashier can still print it manually.
+    const allInstant = isAllInstant(receiptItems.value.map((i) => i.productId));
+    if (!allInstant && (orderType.value === 'DELIVERY' || orderType.value === 'PICKUP')) {
       void printReceipt(response.data.data.display_id, false);
     }
 

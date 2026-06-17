@@ -71,6 +71,7 @@ import { api } from 'boot/axios';
 import { read, write } from 'src/utils/storage';
 import { usePinHandoffStore } from 'src/stores/pin-handoff';
 import { loadPaymentMethods } from 'src/composables/usePaymentMethods';
+import { loadInstantProducts } from 'src/composables/useInstantProducts';
 import { ensureShiftStarted } from 'src/composables/useShift';
 import type { AxiosError } from 'axios';
 
@@ -240,6 +241,10 @@ async function submitPin(): Promise<void> {
     // Cache the payment-methods catalog once per session (not on the hot
     // payment path). Fire-and-forget; falls back to built-ins if absent.
     void loadPaymentMethods();
+
+    // Cache the set of instant products (no auto-printed receipt for all-instant
+    // orders). Fire-and-forget.
+    void loadInstantProducts();
 
     // Open the cashier's shift (manual now — login no longer auto-starts it).
     // Resumes if one's already open. Fire-and-forget.

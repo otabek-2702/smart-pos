@@ -390,6 +390,7 @@ import { getAuthUser } from 'src/composables/usePermissions';
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 import { usePaymentPrefs } from 'src/composables/usePaymentPrefs';
+import { useInstantProducts } from 'src/composables/useInstantProducts';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -464,6 +465,7 @@ async function changeOrderType(t: OrderType): Promise<void> {
 }
 
 const { methods } = usePaymentMethods();
+const { isAllInstant } = useInstantProducts();
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -792,7 +794,7 @@ interface OrderDetail {
   order_type: string;
   cashier?: { name: string } | null;
   user?: { name: string } | null;
-  items: Array<{ product: { name: string }; quantity: number; price: string }>;
+  items: Array<{ product: { id: number; name: string }; quantity: number; price: string }>;
   total_amount: string;
   description?: string | null;
   phone_number?: string | null;
@@ -806,6 +808,9 @@ async function printPaidFromBackend(): Promise<void> {
     const data = res.data?.data as { order?: OrderDetail } & Partial<OrderDetail>;
     const d = (data?.order ?? (data as OrderDetail)) ?? null;
     if (!d) return;
+    // All-instant orders (drinks/packaged only) are NEVER auto-printed — the
+    // cashier can still print manually via the button.
+    if (isAllInstant((d.items || []).map((it) => it.product?.id))) return;
     void window.electron?.printer.printReceipt({
       displayId: d.display_id,
       orderType: d.order_type,

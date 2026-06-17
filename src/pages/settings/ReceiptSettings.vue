@@ -948,7 +948,7 @@ function resetToDefaults(): void {
   height: max-content;
   padding: 24px 20px;
   font-family: 'Manrope', 'Hanken Grotesk', system-ui, sans-serif;
-  color: #1a1d21;
+  color: #000;
   line-height: 1.5;
   box-shadow: 0 18px 46px rgba(20, 22, 26, 0.14);
   border-radius: 14px;
@@ -956,7 +956,7 @@ function resetToDefaults(): void {
   :deep(.r-logo) {
     text-align: center;
     margin: 4px 0 2px;
-    color: #c2c6cb;
+    color: #000;
     letter-spacing: 0.3em;
     font-size: 0.85em;
     font-weight: 600;
@@ -968,29 +968,28 @@ function resetToDefaults(): void {
     justify-content: center;
   }
   :deep(.r-logo img) {
-    max-width: 200px;
-    max-height: 84px;
+    width: 100%;
     height: auto;
     letter-spacing: 0;
   }
 
   :deep(.r-meta) {
     text-align: center;
-    color: #9aa0a6;
+    color: #000;
     font-size: 0.92em;
     line-height: 1.55;
     margin-top: 0.6em;
   }
 
   :deep(.r-rule) {
-    border-top: 1px solid #e7e9ec;
+    border-top: 1px solid #000;
     margin: 0.9em 0;
   }
 
   :deep(.r-seclabel) {
     font-size: 0.82em;
     letter-spacing: 0.12em;
-    color: #b0b5bb;
+    color: #000;
     font-weight: 700;
     text-transform: uppercase;
     margin-bottom: 0.6em;
@@ -1003,7 +1002,7 @@ function resetToDefaults(): void {
     margin-bottom: 0.4em;
   }
   :deep(.r-kv .k) {
-    color: #9aa0a6;
+    color: #000;
     font-size: 0.92em;
     flex-shrink: 0;
   }
@@ -1027,7 +1026,7 @@ function resetToDefaults(): void {
     font-weight: 600;
   }
   :deep(.r-item .qty) {
-    color: #9aa0a6;
+    color: #000;
     font-size: 0.92em;
   }
   :deep(.r-item .sum) {
@@ -1047,12 +1046,12 @@ function resetToDefaults(): void {
     font-weight: 600;
   }
   :deep(.r-free .promo) {
-    color: #9aa0a6;
+    color: #000;
     font-size: 0.82em;
     font-weight: 600;
   }
   :deep(.r-free .badge) {
-    background: #1a1d21;
+    background: #000;
     color: #fff;
     border-radius: 0.45em;
     padding: 0.1em 0.6em;
@@ -1063,14 +1062,14 @@ function resetToDefaults(): void {
   :deep(.r-tot) {
     display: flex;
     justify-content: space-between;
-    color: #7a8088;
+    color: #000;
     margin-bottom: 0.4em;
   }
   :deep(.r-tot .val) {
     font-variant-numeric: tabular-nums;
   }
   :deep(.r-tot .off) {
-    color: #1a1d21;
+    color: #000;
     font-weight: 700;
   }
   :deep(.r-grand) {
@@ -1092,7 +1091,7 @@ function resetToDefaults(): void {
   :deep(.r-grand .cur) {
     font-size: 0.6em;
     font-weight: 600;
-    color: #9aa0a6;
+    color: #000;
   }
 
   :deep(.r-status) {
@@ -1108,7 +1107,7 @@ function resetToDefaults(): void {
     font-weight: 700;
   }
   :deep(.r-pill.paid) {
-    background: #1a1d21;
+    background: #000;
     color: #fff;
     padding: 0.5em 1.1em;
   }
@@ -1134,7 +1133,7 @@ function resetToDefaults(): void {
   }
   :deep(.r-qr .handle) {
     font-size: 0.82em;
-    color: #9aa0a6;
+    color: #000;
   }
 
   :deep(.r-orderno) {
@@ -1144,7 +1143,7 @@ function resetToDefaults(): void {
   :deep(.r-orderno .lbl) {
     font-size: 0.82em;
     letter-spacing: 0.16em;
-    color: #b0b5bb;
+    color: #000;
     font-weight: 600;
   }
   :deep(.r-orderno .num) {
@@ -1157,14 +1156,14 @@ function resetToDefaults(): void {
 
   :deep(.r-foot) {
     text-align: center;
-    color: #7a8088;
+    color: #000;
     font-size: 0.85em;
     line-height: 1.6;
     margin-top: 1.2em;
   }
   :deep(.r-foot .strong) {
     font-weight: 700;
-    color: #1a1d21;
+    color: #000;
   }
   :deep(.r-foot .extra) {
     margin-top: 0.5em;
