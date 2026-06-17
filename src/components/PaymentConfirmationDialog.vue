@@ -258,6 +258,7 @@
           <span v-else></span>
 
           <div class="foot-right">
+            <span v-if="isCrossCashier" class="foot-note" :title="crossNote">{{ crossNote }}</span>
             <button
               type="button"
               class="btn secondary"
@@ -269,7 +270,8 @@
             <button
               type="button"
               class="btn primary"
-              :disabled="!canPay || payLoading || cancelLoading || !orderId"
+              :disabled="!canPay || payLoading || cancelLoading || !orderId || isCrossCashier"
+              :title="isCrossCashier ? crossNote : undefined"
               @click="onConfirmPayment"
             >
               <span v-if="payLoading">Yuklanmoqda...</span>
@@ -349,24 +351,6 @@
             </div>
           </div>
         </Transition>
-
-        <!-- Cross-cashier warning — this order was created by someone else, so
-             the payment will land in the CURRENT cashier's cashbox. -->
-        <div v-if="showCrossWarn" class="xwarn" @click.self="showCrossWarn = false">
-          <div class="xwarn__box">
-            <q-icon name="account_balance_wallet" size="34px" class="xwarn__icon" />
-            <div class="xwarn__title">Diqqat!</div>
-            <div class="xwarn__text">
-              Bu buyurtmani boshqa kassir<template v-if="creatorName">
-                ({{ creatorName }})</template
-              >
-              yaratgan. To'lov <strong>sizning kassangizga</strong> qo'shiladi.
-            </div>
-            <button type="button" class="btn primary xwarn__ok" @click="ackCrossCashier">
-              OK, tushundim
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </Transition>
@@ -707,17 +691,14 @@ watch(isOpen, (open) => {
     pinEntry.value = '';
     pinError.value = false;
     activeDiscField.value = null;
-    crossWarnAck.value = false;
-    showCrossWarn.value = false;
   }
 });
 
 /* ============ submit ============ */
 
 /* ---- cross-cashier guard ---- */
-// The payment is captured in the CURRENT cashier's shift/cashbox. If this order
-// was created by someone else, warn before confirming so the cashier knows the
-// money lands in their drawer, not the creator's.
+// A cashier may only pay an order they created. If it was created by someone
+// else, the Pay button is disabled (no confirming on another's behalf).
 const loggedInId = computed<number | null>(() => getAuthUser()?.id ?? null);
 const isCrossCashier = computed<boolean>(
   () =>
@@ -725,14 +706,10 @@ const isCrossCashier = computed<boolean>(
     loggedInId.value != null &&
     props.creatorId !== loggedInId.value,
 );
-const crossWarnAck = ref(false);
-const showCrossWarn = ref(false);
-
-function ackCrossCashier(): void {
-  crossWarnAck.value = true;
-  showCrossWarn.value = false;
-  void onConfirmPayment();
-}
+const crossNote = computed<string>(
+  () =>
+    `Buyurtmani boshqa kassir${props.creatorName ? ` (${props.creatorName})` : ''} yaratgan — faqat o'sha to'lay oladi`,
+);
 
 /* ---- print the check (manual, center/left footer) — UNPAID copy from the
    current dialog data; the cashier can print it any time. ---- */
@@ -799,12 +776,8 @@ async function printPaidFromBackend(): Promise<void> {
 }
 
 async function onConfirmPayment(): Promise<void> {
-  if (!props.orderId || !canPay.value || payLoading.value) return;
-  // First confirm for a cross-cashier order requires an explicit acknowledgement.
-  if (isCrossCashier.value && !crossWarnAck.value) {
-    showCrossWarn.value = true;
-    return;
-  }
+  // Only the creator may pay; the button is disabled for cross-cashier orders.
+  if (!props.orderId || !canPay.value || payLoading.value || isCrossCashier.value) return;
   payLoading.value = true;
   try {
     await api.post(`/orders/${props.orderId}/pay`, {
@@ -1574,50 +1547,14 @@ async function onCancelOrder(): Promise<void> {
   border-color: var(--error-border);
 }
 
-/* cross-cashier warning overlay */
-.xwarn {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.xwarn__box {
-  width: 100%;
-  max-width: 420px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  padding: 28px 24px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-.xwarn__icon {
+/* cross-cashier note next to a disabled Pay button */
+.foot-note {
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.3;
   color: var(--warning);
-}
-.xwarn__title {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--text);
-}
-.xwarn__text {
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-.xwarn__text strong {
-  color: var(--text);
-}
-.xwarn__ok {
-  margin-top: 8px;
-  min-width: 180px;
+  text-align: right;
+  align-self: center;
 }
 
 @media (max-width: 860px) {
