@@ -17,6 +17,18 @@ export interface ReceiptSettings {
   // Additional footer text (Instagram, address, etc.)
   additionalFooterText: string;
   showAdditionalFooter: boolean;
+
+  // QR code — user types a link/text, the app generates the QR (qrImageBase64,
+  // a PNG data URL) which both print paths embed as an <img>. Caption + handle
+  // are the two lines printed under it.
+  showQr: boolean;
+  qrData: string;
+  qrCaption: string;
+  qrHandle: string;
+  qrImageBase64: string | null;
+
+  // Global text-size multiplier for the printed receipt (0.8–1.4). 1 = design size.
+  fontScale: number;
 }
 
 export interface PrinterSettings {
@@ -56,6 +68,12 @@ export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
   showFooterPhone: true,
   additionalFooterText: '',
   showAdditionalFooter: false,
+  showQr: false,
+  qrData: '',
+  qrCaption: 'Telegram botimizga ulaning',
+  qrHandle: '@smartfood_bot',
+  qrImageBase64: null,
+  fontScale: 1,
 };
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {

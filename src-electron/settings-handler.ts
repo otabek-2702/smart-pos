@@ -15,6 +15,12 @@ export interface ReceiptSettings {
   showFooterPhone: boolean;
   additionalFooterText: string;
   showAdditionalFooter: boolean;
+  showQr: boolean;
+  qrData: string;
+  qrCaption: string;
+  qrHandle: string;
+  qrImageBase64: string | null;
+  fontScale: number;
 }
 
 export interface PrinterSettings {
@@ -54,6 +60,12 @@ const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
   showFooterPhone: true,
   additionalFooterText: '',
   showAdditionalFooter: false,
+  showQr: false,
+  qrData: '',
+  qrCaption: 'Telegram botimizga ulaning',
+  qrHandle: '@smartfood_bot',
+  qrImageBase64: null,
+  fontScale: 1,
 };
 
 const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {

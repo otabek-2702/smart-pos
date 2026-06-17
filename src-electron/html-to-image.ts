@@ -18,8 +18,18 @@ export async function htmlToImage(html: string): Promise<Buffer> {
   try {
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-    // Wait for content to render
-    await delay(500);
+    // Wait for fonts AND every image (logo, QR) to decode before measuring —
+    // capturing too early clips the height or rasterises a blank logo/QR.
+    await win.webContents.executeJavaScript(`
+      (async () => {
+        try { await document.fonts.ready; } catch (e) {}
+        try {
+          await Promise.all(Array.from(document.images).map((img) =>
+            img.complete ? 0 : img.decode().catch(() => 0)));
+        } catch (e) {}
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      })()
+    `);
 
     // Get content height
     const height = await win.webContents.executeJavaScript(

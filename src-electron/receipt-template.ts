@@ -1,4 +1,13 @@
 // src-electron/receipt-template.ts
+//
+// Minimalist 80mm receipt (Manrope, hairlines, whitespace) — ported from the
+// "Chek dizayni 80mm" Claude Design handoff. One markup, two stylesheets:
+//   • SCREEN px  → captured by the network ESC/POS raster path (htmlToImage @576).
+//   • print mm   → the USB/Chromium @page print path (true 1:1, no zoom).
+// Logo and QR are plain <img> (data URLs) so both paths render them identically.
+// Colours are kept print-safe: secondary text is mid-grey (still inks via the
+// Floyd–Steinberg dither in thermal-printer.ts / the driver halftone), never the
+// >50%-luma greys of the on-screen mock which a 1-bit head would drop entirely.
 
 import { formatPhoneNumber } from 'src/utils';
 import { kvGet } from './kv-store';
@@ -8,6 +17,11 @@ export interface ReceiptItem {
   quantity: number;
   price: number;
   description?: string;
+}
+
+export interface ReceiptFreeItem {
+  name: string;
+  promo?: string;
 }
 
 export interface ReceiptSettings {
@@ -20,6 +34,14 @@ export interface ReceiptSettings {
   showFooterPhone: boolean;
   additionalFooterText: string;
   showAdditionalFooter: boolean;
+  // QR — qrImageBase64 is the rendered PNG data URL (generated in the renderer
+  // from qrData); the print paths only ever embed this image.
+  showQr: boolean;
+  qrData: string;
+  qrCaption: string;
+  qrHandle: string;
+  qrImageBase64: string | null;
+  fontScale: number;
 }
 
 export interface ReceiptData {
@@ -30,9 +52,18 @@ export interface ReceiptData {
   total: number;
   description?: string;
   phoneNumber?: string;
-  // Paid state — printed as TO'LANGAN / TO'LANMAGAN when provided. (The richer
-  // paid receipt — payment type, discount, time — comes with the new design.)
+  // Delivery address (DELIVERY orders) — shown in the "Yetkazib berish" block.
+  address?: string;
+  // Totals breakdown — when discountPercent > 0 and subtotal is given, the
+  // receipt prints Oraliq summa / Chegirma / Jami; otherwise just Jami.
+  subtotal?: number;
+  discountPercent?: number;
+  // Free (promo) products — printed with a "Bepul" tag.
+  freeItems?: ReceiptFreeItem[];
+  // Paid state — TO'LANDI / TO'LANMAGAN pill. paymentMethodLabel (e.g. "Karta")
+  // is appended to the paid pill when provided.
   isPaid?: boolean;
+  paymentMethodLabel?: string;
 }
 
 // Same kv key the renderer's useOrderTypes composable writes — one source, so
@@ -51,7 +82,9 @@ function orderTypeLabels(): Record<string, string> {
 }
 
 function formatPrice(price: number): string {
-  return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return Math.round(price)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 function formatDate(): string {
@@ -61,232 +94,292 @@ function formatDate(): string {
   const year = now.getFullYear();
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
-  return `${day}.${month}.${year} ${hours}:${minutes}`;
+  return `${day}.${month}.${year} · ${hours}:${minutes}`;
 }
 
-// 576px design — captured by the network ESC/POS raster (576 dots @203dpi).
-const SCREEN_STYLE_PX = `
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { width: 576px; background: white; font-family: 'Arial', sans-serif; padding: 0 10px; color: #000; }
-  .logo { text-align: center; margin-bottom: 20px; }
-  .logo img { max-width: 480px; height: auto; }
-  .order-info { font-size: 26px; line-height: 1.7; margin-bottom: 20px; }
-  .order-info div { display: flex; }
-  .order-info .label { min-width: 140px; font-weight: bold; }
-  .divider { border-top: 3px dashed #000; margin: 15px 0; }
-  .items-table { width: 100%; font-size: 26px; border-collapse: collapse; margin-bottom: 15px; }
-  .items-table th { text-align: left; padding: 10px 0; border-bottom: 2px solid #000; font-size: 24px; }
-  .items-table th:nth-child(2), .items-table th:nth-child(3) { text-align: right; }
-  .items-table td { padding: 10px 0; vertical-align: top; }
-  .item-name { max-width: 300px; word-wrap: break-word; }
-  .item-qty { text-align: right; min-width: 70px; }
-  .item-price { text-align: right; min-width: 120px; }
-  .thank-you { text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0; padding: 12px 0; }
-  .total-section { margin: 15px 0; }
-  .total-row { display: flex; justify-content: space-between; font-size: 28px; padding: 8px 0; }
-  .total-row.grand-total { font-size: 34px; font-weight: bold; border-top: 3px solid #000; padding-top: 12px; margin-top: 8px; }
-  .client-info { margin: 12px 0; font-size: 35px; padding: 8px 0; width: 100%; }
-  .client-label { font-weight: bold; display: block; margin-bottom: 5px; }
-  .client-value { display: block; font-size: 36px; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; max-width: 536px; line-height: 1.4; }
-  .footer { margin-top: 25px; text-align: center; font-size: 22px; }
-  .footer-title { font-weight: bold; margin-bottom: 8px; }
-  .footer-phone { font-size: 26px; font-weight: bold; }
-  .additional-footer { margin-top: 15px; text-align: center; font-size: 20px; line-height: 1.6; }
-  .display_id { font-size: 90px; font-weight: bold; text-align: center; margin: 20px 0; }
-  .brand-stamp { margin-top: 22px; padding-top: 12px; border-top: 2px dashed #000; text-align: center; font-size: 18px; color: #111; letter-spacing: 0.6px; }
-  .brand-stamp strong { font-weight: 800; }
-  .brand-stamp .sub { margin-top: 4px; font-size: 20px; color: #444; letter-spacing: 0.3px; }
-`;
+function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
-// Physical mm design for the USB/Chromium print path — 80mm thermal paper
-// (72mm printable, centered). All sizes in mm; edit these to resize the receipt.
-function printStyleMm(): string {
+// Palette — print-safe. Primary near-black; secondary a mid grey that still
+// dithers to readable ink; hairline the lightest tone we trust the head to mark.
+const C = {
+  ink: '#16181b',
+  sub: '#5f656c',
+  faint: '#8a9098',
+  hair: '#aeb3b9',
+};
+
+// One stylesheet, parameterised by output medium. Text sizes are in `em` so the
+// single `fontScale` on the body resizes the whole receipt; only the physical
+// dimensions (paper width, font base, logo/QR size, hairline) switch px↔mm.
+function receiptStyle(print: boolean, scale: number): string {
+  const s = Math.min(1.4, Math.max(0.8, scale || 1));
+  const dim = print
+    ? {
+        width: '72mm',
+        pad: '0 2mm',
+        base: `${(3.05 * s).toFixed(2)}mm`,
+        logoW: '44mm',
+        logoH: '22mm',
+        qr: '26mm',
+        hair: '0.25mm',
+      }
+    : {
+        width: '576px',
+        pad: '0 16px',
+        base: `${Math.round(24 * s)}px`,
+        logoW: '300px',
+        logoH: '150px',
+        qr: '200px',
+        hair: '2px',
+      };
+
   return `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   @page { size: 80mm auto; margin: 0; }
   html, body { margin: 0; padding: 0; }
-  /* LEFT-aligned (the head's printable starts at the paper's left edge). Width =
-     the printable span (~75mm of an 80mm head); the right edge must stay inside
-     it or it cuts. Nudge this down 1mm at a time until the right stops cutting. */
-  body { width: 72mm; margin: 0; background: white; font-family: 'Arial', sans-serif; color: #000; }
-  .logo { text-align: center; margin-bottom: 2.5mm; }
-  .logo img { max-width: 60mm; height: auto; }
-  .order-info { font-size: 3.2mm; line-height: 1.6; margin-bottom: 2.5mm; }
-  .order-info div { display: flex; }
-  .order-info .label { min-width: 17mm; font-weight: bold; }
-  .divider { border-top: 0.4mm dashed #000; margin: 1.8mm 0; }
-  .items-table { width: 100%; font-size: 3.2mm; border-collapse: collapse; margin-bottom: 1.8mm; }
-  .items-table th { text-align: left; padding: 1.2mm 0; border-bottom: 0.3mm solid #000; font-size: 3mm; }
-  .items-table th:nth-child(2), .items-table th:nth-child(3) { text-align: right; }
-  .items-table td { padding: 1.2mm 0; vertical-align: top; }
-  .item-name { max-width: 37mm; word-wrap: break-word; }
-  .item-qty { text-align: right; min-width: 9mm; }
-  .item-price { text-align: right; min-width: 15mm; }
-  .thank-you { text-align: center; font-size: 3mm; font-weight: bold; margin: 2.5mm 0; padding: 1.5mm 0; }
-  .total-section { margin: 1.8mm 0; }
-  .total-row { display: flex; justify-content: space-between; font-size: 3.5mm; padding: 1mm 0; }
-  .total-row.grand-total { font-size: 4.3mm; font-weight: bold; border-top: 0.4mm solid #000; padding-top: 1.5mm; margin-top: 1mm; }
-  .client-info { margin: 1.5mm 0; font-size: 4mm; padding: 1mm 0; width: 100%; }
-  .client-label { font-weight: bold; display: block; margin-bottom: 0.6mm; }
-  .client-value { display: block; font-size: 4mm; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; max-width: 76mm; line-height: 1.35; }
-  .footer { margin-top: 3mm; text-align: center; font-size: 2.8mm; }
-  .footer-title { font-weight: bold; margin-bottom: 1mm; }
-  .footer-phone { font-size: 3.2mm; font-weight: bold; }
-  .additional-footer { margin-top: 1.8mm; text-align: center; font-size: 2.5mm; line-height: 1.5; }
-  .display_id { font-size: 11mm; font-weight: bold; text-align: center; margin: 2.5mm 0; }
-  .brand-stamp { margin-top: 2.5mm; padding-top: 1.5mm; border-top: 0.3mm dashed #000; text-align: center; font-size: 2.3mm; color: #111; }
-  .brand-stamp strong { font-weight: 800; }
-  .brand-stamp .sub { margin-top: 0.5mm; font-size: 2.5mm; color: #444; }
-`;
+  body {
+    width: ${dim.width};
+    padding: ${dim.pad};
+    background: #fff;
+    color: ${C.ink};
+    font-family: 'Manrope', 'Hanken Grotesk', Arial, sans-serif;
+    font-size: ${dim.base};
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .logo { text-align: center; margin: 0.4em 0 0.2em; }
+  .logo img { max-width: ${dim.logoW}; max-height: ${dim.logoH}; height: auto; }
+
+  .meta { text-align: center; color: ${C.sub}; font-size: 0.92em; line-height: 1.55; margin-top: 0.5em; }
+
+  .rule { border-top: ${dim.hair} solid ${C.hair}; margin: 0.85em 0; }
+
+  .sec-label { font-size: 0.82em; letter-spacing: 0.12em; color: ${C.faint}; font-weight: 700; text-transform: uppercase; margin-bottom: 0.55em; }
+
+  .kv { display: flex; justify-content: space-between; gap: 0.8em; margin-bottom: 0.4em; }
+  .kv .k { color: ${C.sub}; font-size: 0.92em; flex-shrink: 0; }
+  .kv .v { font-weight: 700; text-align: right; line-height: 1.35; word-break: break-word; }
+  .v.nums { font-variant-numeric: tabular-nums; }
+
+  .item { display: flex; justify-content: space-between; align-items: baseline; gap: 0.7em; margin-bottom: 0.7em; }
+  .item .name { flex: 1; font-weight: 600; }
+  .item .qty { color: ${C.sub}; font-size: 0.92em; white-space: nowrap; }
+  .item .sum { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .free { display: flex; justify-content: space-between; align-items: center; gap: 0.7em; margin-bottom: 0.7em; }
+  .free .name { flex: 1; font-weight: 600; }
+  .free .promo { color: ${C.faint}; font-size: 0.82em; font-weight: 600; }
+  .badge { background: ${C.ink}; color: #fff; border-radius: 0.45em; padding: 0.1em 0.6em; font-size: 0.82em; font-weight: 700; white-space: nowrap; }
+
+  .tot { display: flex; justify-content: space-between; color: ${C.sub}; margin-bottom: 0.4em; }
+  .tot .val { font-variant-numeric: tabular-nums; }
+  .tot .off { color: ${C.ink}; font-weight: 700; }
+  .grand { display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.7em; }
+  .grand .lbl { font-size: 1.15em; font-weight: 700; }
+  .grand .amt { font-size: 1.7em; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .grand .amt .cur { font-size: 0.6em; font-weight: 600; color: ${C.faint}; }
+
+  .status { text-align: center; margin-top: 1.1em; }
+  .pill { display: inline-flex; align-items: center; gap: 0.5em; border-radius: 999px; font-size: 0.92em; font-weight: 700; }
+  .pill.paid { background: ${C.ink}; color: #fff; padding: 0.5em 1.1em; }
+  .pill.paid .dot { width: 0.45em; height: 0.45em; border-radius: 50%; background: #fff; }
+  .pill.unpaid { background: #fff; border: 0.12em solid ${C.ink}; color: ${C.ink}; padding: 0.42em 1em; }
+  .pill.unpaid .dot { width: 0.5em; height: 0.5em; border-radius: 50%; border: 0.12em solid ${C.ink}; }
+
+  .note { margin-top: 0.6em; }
+  .note .k { font-size: 0.82em; letter-spacing: 0.06em; color: ${C.faint}; font-weight: 700; text-transform: uppercase; }
+  .note .t { line-height: 1.35; word-break: break-word; }
+
+  .qr { text-align: center; }
+  .qr img { width: ${dim.qr}; height: ${dim.qr}; image-rendering: pixelated; }
+  .qr .cap { font-size: 0.92em; font-weight: 600; margin-top: 0.45em; }
+  .qr .handle { font-size: 0.82em; color: ${C.faint}; }
+
+  .orderno { text-align: center; margin-top: 1.2em; }
+  .orderno .lbl { font-size: 0.82em; letter-spacing: 0.16em; color: ${C.faint}; font-weight: 600; }
+  .orderno .num { font-size: 5em; font-weight: 800; line-height: 1; letter-spacing: -0.03em; margin-top: 0.06em; }
+
+  .foot { text-align: center; color: ${C.sub}; font-size: 0.85em; line-height: 1.6; margin-top: 1.2em; }
+  .foot .strong { font-weight: 700; color: ${C.ink}; }
+  .foot .extra { margin-top: 0.5em; }
+  `;
 }
 
-// `print` mode emits the receipt in physical mm + @page (for the USB/Chromium
-// print path → true 1:1 size, no zoom). Default (off) keeps the 576px design
-// that the network ESC/POS raster path captures at the head's native dots.
 export function generateReceiptHtml(
   data: ReceiptData,
   logoBase64: string,
   settings: ReceiptSettings,
   opts: { print?: boolean } = {},
 ): string {
+  const print = !!opts.print;
+  const styleCss = receiptStyle(print, settings.fontScale ?? 1);
   const orderTypeLabel = orderTypeLabels()[data.orderType] || data.orderType;
+  const isDelivery = data.orderType === 'DELIVERY';
 
-  const styleCss = opts.print ? printStyleMm() : SCREEN_STYLE_PX;
-
-  const itemsHtml = data.items
-    .map(
-      (item) => `
-      <tr>
-        <td class="item-name">${item.name}</td>
-        <td class="item-qty">${item.quantity}</td>
-        <td class="item-price">${formatPrice(item.price * item.quantity)}</td>
-      </tr>
-    `,
-    )
-    .join('');
-
-  // Logo section
   const logoHtml = logoBase64
     ? `<div class="logo"><img src="${logoBase64}" alt="Logo" /></div>`
     : '';
 
-  // Thank you message section
-  const thankYouHtml =
-    settings.showThankYouMessage && settings.thankYouMessage
-      ? `<div class="thank-you">${settings.thankYouMessage}</div>`
-      : '';
+  // Delivery block (client phone + address) — only for DELIVERY orders.
+  let deliveryHtml = '';
+  if (isDelivery && (data.phoneNumber || data.address)) {
+    const rows: string[] = [];
+    if (data.phoneNumber) {
+      rows.push(
+        `<div class="kv"><span class="k">Mijoz</span><span class="v nums">${esc(formatPhoneNumber(data.phoneNumber))}</span></div>`,
+      );
+    }
+    if (data.address) {
+      rows.push(
+        `<div class="kv"><span class="k">Manzil</span><span class="v">${esc(data.address)}</span></div>`,
+      );
+    }
+    deliveryHtml = `
+      <div class="rule"></div>
+      <div class="sec-label">Yetkazib berish</div>
+      ${rows.join('')}`;
+  }
 
-  // Client info sections
-  const descriptionHtml = data.description
-    ? `
-      <div class="client-info">
-        <span class="client-label">Izoh:</span>
-        <span class="client-value">${data.description}</span>
-      </div>
-    `
-    : '';
+  const itemsHtml = data.items
+    .map(
+      (item) => `
+      <div class="item">
+        <span class="name">${esc(item.name)}</span>
+        <span class="qty">${item.quantity}×</span>
+        <span class="sum">${formatPrice(item.price * item.quantity)}</span>
+      </div>`,
+    )
+    .join('');
 
-  const phoneHtml = data.phoneNumber
-    ? `
-      <div class="client-info">
-        <span class="client-label">Mijoz tel:</span>
-        <span class="client-value bigger">${formatPhoneNumber(data.phoneNumber)}</span>
-      </div>
-    `
-    : '';
+  const freeHtml = (data.freeItems || [])
+    .map(
+      (f) => `
+      <div class="free">
+        <span class="name">${esc(f.name)}${f.promo ? ` <span class="promo">· ${esc(f.promo)}</span>` : ''}</span>
+        <span class="badge">Bepul</span>
+      </div>`,
+    )
+    .join('');
 
-  // Footer sections
-  const footerPhoneHtml =
-    settings.showFooterPhone && (settings.footerTitle || settings.footerPhone)
+  // Totals — show the breakdown only when a discount actually applied.
+  const hasDiscount =
+    !!data.discountPercent && data.discountPercent > 0 && data.subtotal != null;
+  const subtotal = hasDiscount ? (data.subtotal as number) : data.total;
+  const totalsHtml = `
+    ${
+      hasDiscount
+        ? `<div class="tot"><span>Oraliq summa</span><span class="val">${formatPrice(subtotal)}</span></div>
+           <div class="tot"><span>Chegirma ${data.discountPercent}%</span><span class="off">−${formatPrice(subtotal - data.total)}</span></div>`
+        : ''
+    }
+    <div class="grand">
+      <span class="lbl">Jami</span>
+      <span class="amt">${formatPrice(data.total)}<span class="cur"> so'm</span></span>
+    </div>`;
+
+  // Paid / unpaid pill.
+  let statusHtml = '';
+  if (data.isPaid === true) {
+    const label = data.paymentMethodLabel ? ` · ${esc(data.paymentMethodLabel)}` : '';
+    statusHtml = `<div class="status"><span class="pill paid"><span class="dot"></span>To'landi${label}</span></div>`;
+  } else if (data.isPaid === false) {
+    statusHtml = `<div class="status"><span class="pill unpaid"><span class="dot"></span>To'lanmagan</span></div>`;
+  }
+
+  // Izoh + (non-delivery) client phone.
+  const noteParts: string[] = [];
+  if (data.description) {
+    noteParts.push(
+      `<div class="note"><div class="k">Izoh</div><div class="t">${esc(data.description)}</div></div>`,
+    );
+  }
+  if (!isDelivery && data.phoneNumber) {
+    noteParts.push(
+      `<div class="note"><div class="k">Mijoz tel</div><div class="t">${esc(formatPhoneNumber(data.phoneNumber))}</div></div>`,
+    );
+  }
+  const noteHtml = noteParts.length ? `<div class="rule"></div>${noteParts.join('')}` : '';
+
+  // QR — embed the pre-rendered image straight from settings.
+  const qrHtml =
+    settings.showQr && settings.qrImageBase64
       ? `
-      <div class="footer">
-        ${settings.footerTitle ? `<div class="footer-title">${settings.footerTitle}</div>` : ''}
-        ${settings.footerPhone ? `<div class="footer-phone">${settings.footerPhone}</div>` : ''}
-      </div>
-    `
+      <div class="rule"></div>
+      <div class="qr">
+        <img src="${settings.qrImageBase64}" alt="QR" />
+        ${settings.qrCaption ? `<div class="cap">${esc(settings.qrCaption)}</div>` : ''}
+        ${settings.qrHandle ? `<div class="handle">${esc(settings.qrHandle)}</div>` : ''}
+      </div>`
       : '';
 
-  // Additional footer (Instagram, address, etc.)
-  const additionalFooterHtml =
-    settings.showAdditionalFooter && settings.additionalFooterText
-      ? `
-      <div class="additional-footer">
-        ${settings.additionalFooterText
-          .split('\n')
-          .map((line) => `<div>${line}</div>`)
-          .join('')}
-      </div>
-    `
-      : '';
+  // Footer — thank-you + feedback phone + extra lines.
+  const footParts: string[] = [];
+  if (settings.showThankYouMessage && settings.thankYouMessage) {
+    footParts.push(`<div class="strong">${esc(settings.thankYouMessage)}</div>`);
+  }
+  if (settings.showFooterPhone && (settings.footerTitle || settings.footerPhone)) {
+    const line = [settings.footerTitle, settings.footerPhone]
+      .filter(Boolean)
+      .map((t) => esc(t))
+      .join(' ');
+    footParts.push(`<div>${line}</div>`);
+  }
+  if (settings.showAdditionalFooter && settings.additionalFooterText) {
+    const extra = settings.additionalFooterText
+      .split('\n')
+      .map((l) => esc(l))
+      .join('<br>');
+    footParts.push(`<div class="extra">${extra}</div>`);
+  }
+  const footHtml = footParts.length ? `<div class="foot">${footParts.join('')}</div>` : '';
 
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="UTF-8">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>${styleCss}</style>
       </head>
       <body>
         ${logoHtml}
-        
-        <div class="order-info">
-          <div><span class="label">Sana:</span> ${formatDate()}</div>
-          <div><span class="label">Kassir:</span> ${data.cashierName}</div>
-          <div><span class="label">Chek №:</span> ${data.displayId}</div>
-          <div><span class="label">Turi:</span> ${orderTypeLabel}</div>
-          ${
-            data.isPaid !== undefined
-              ? `<div><span class="label">Holat:</span> ${data.isPaid ? "TO'LANGAN" : "TO'LANMAGAN"}</div>`
-              : ''
-          }
-        </div>
-        
-        <div class="divider"></div>
-        
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>Nomi</th>
-              <th>Soni</th>
-              <th>Summa</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-        
-        <div class="divider"></div>
-        
-        ${thankYouHtml}
-        
-        <div class="total-section">
-          <div class="total-row">
-            <span>Summa:</span>
-            <span>${formatPrice(data.total)} so'm</span>
-          </div>
-          <div class="total-row grand-total">
-            <span>JAMI:</span>
-            <span>${formatPrice(data.total)} so'm</span>
-          </div>
-        </div>
-        
-        <div class="divider"></div>
-        
-        ${phoneHtml}
-        ${descriptionHtml}
 
-        ${data.description || data.phoneNumber ? '<div class="divider"></div>' : ''}
-
-        <div class="display_id">${data.displayId}</div>
-        
-        ${footerPhoneHtml}
-        ${additionalFooterHtml}
-
-        <div class="brand-stamp">
-          <div class="sub">RetailFlow tomonidan qo‘llab-quvvatlangan</div>
-          <strong>retailflow.uz</strong>
+        <div class="meta">
+          <div>${formatDate()}</div>
+          <div>Chek №${data.displayId} · ${esc(orderTypeLabel)} · ${esc(data.cashierName)}</div>
         </div>
+
+        ${deliveryHtml}
+
+        <div class="rule"></div>
+
+        ${itemsHtml}
+        ${freeHtml}
+
+        <div class="rule"></div>
+
+        ${totalsHtml}
+
+        ${statusHtml}
+
+        ${noteHtml}
+
+        ${qrHtml}
+
+        <div class="orderno">
+          <div class="lbl">BUYURTMA RAQAMI</div>
+          <div class="num">${data.displayId}</div>
+        </div>
+
+        ${footHtml}
       </body>
     </html>
   `;

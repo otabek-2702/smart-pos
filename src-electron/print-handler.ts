@@ -100,8 +100,13 @@ interface PrintReceiptData {
   total: number;
   description?: string;
   phoneNumber?: string;
+  address?: string;
+  subtotal?: number;
+  discountPercent?: number;
+  freeItems?: Array<{ name: string; promo?: string }>;
   logoBase64?: string;
   isPaid?: boolean;
+  paymentMethodLabel?: string;
 }
 
 interface PrintResult {
@@ -252,16 +257,22 @@ export function registerPrintHandler(): void {
 
       const testData = {
         displayId: 999,
-        orderType: 'HALL',
+        orderType: 'DELIVERY',
         cashierName: 'Test Kassir',
         items: [
-          { name: 'Lavash (Test)', quantity: 2, price: 25000 },
+          { name: 'Lavash Klassik', quantity: 2, price: 25000 },
           { name: 'Cola 0.5L', quantity: 1, price: 8000 },
           { name: 'Kartoshka Fri', quantity: 1, price: 12000 },
         ],
-        total: 70000,
+        freeItems: [{ name: 'Souz BBQ', promo: 'SMART10' }],
+        subtotal: 70000,
+        discountPercent: 10,
+        total: 63000,
         description: 'Test buyurtma',
         phoneNumber: '+998901234567',
+        address: 'Chilonzor t., 12-kvartal, 5-uy, 14-xonadon',
+        isPaid: true,
+        paymentMethodLabel: 'Karta',
       };
 
       const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb' });

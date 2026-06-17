@@ -52,6 +52,26 @@
         </div>
       </div>
 
+      <!-- Text size -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="format_size" size="20px" />
+          Matn o'lchami
+        </h3>
+        <div class="size-options">
+          <button
+            v-for="step in FONT_STEPS"
+            :key="step.value"
+            type="button"
+            class="size-btn"
+            :class="{ active: settings.fontScale === step.value }"
+            @click="settings.fontScale = step.value"
+          >
+            {{ step.label }}
+          </button>
+        </div>
+      </div>
+
       <!-- Thank You Message -->
       <div class="form-section">
         <h3 class="form-section-title">
@@ -77,8 +97,80 @@
             type="text"
             v-model="settings.thankYouMessage"
             class="form-input"
-            placeholder="XARIDINGIZ UCHUN RAHMAT!"
+            placeholder="Rahmat!"
           />
+        </div>
+      </div>
+
+      <!-- QR code -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="qr_code_2" size="20px" />
+          QR kod
+        </h3>
+
+        <div class="form-group">
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              v-model="settings.showQr"
+              class="toggle-input"
+            />
+            <span class="toggle-switch"></span>
+            <span>Ko'rsatish (Telegram bot / aksiyalar)</span>
+          </label>
+        </div>
+
+        <div v-if="settings.showQr">
+          <div class="form-group">
+            <label class="form-label">Havola yoki matn</label>
+            <input
+              type="text"
+              v-model="settings.qrData"
+              class="form-input"
+              placeholder="https://t.me/smartfood_bot"
+            />
+            <span class="field-hint">
+              Havolani kiriting — QR avtomatik yaratiladi
+            </span>
+          </div>
+
+          <div class="qr-row">
+            <div class="qr-box">
+              <img
+                v-if="settings.qrImageBase64"
+                :src="settings.qrImageBase64"
+                alt="QR"
+              />
+              <div v-else-if="qrGenerating" class="qr-state">Yaratilmoqda…</div>
+              <div v-else-if="qrError" class="qr-state error">{{ qrError }}</div>
+              <div v-else class="qr-state">
+                <q-icon name="qr_code_2" size="28px" />
+                <span>Havola kiriting</span>
+              </div>
+            </div>
+
+            <div class="qr-fields">
+              <div class="form-group">
+                <label class="form-label">Sarlavha</label>
+                <input
+                  type="text"
+                  v-model="settings.qrCaption"
+                  class="form-input"
+                  placeholder="Telegram botimizga ulaning"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tagidagi matn</label>
+                <input
+                  type="text"
+                  v-model="settings.qrHandle"
+                  class="form-input"
+                  placeholder="@smartfood_bot"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -108,7 +200,7 @@
               type="text"
               v-model="settings.footerTitle"
               class="form-input"
-              placeholder="FIKR BILDIRISH UCHUN TEL:"
+              placeholder="Fikr bildirish"
             />
           </div>
 
@@ -118,7 +210,7 @@
               type="text"
               v-model="settings.footerPhone"
               class="form-input"
-              placeholder="+998 90 123 45 67"
+              placeholder="+998 90 205 50 80"
             />
           </div>
         </div>
@@ -196,16 +288,21 @@
       </div>
 
       <div class="preview-container">
-        <div class="receipt-preview" v-html="previewHtml"></div>
+        <div
+          class="receipt-preview"
+          :style="previewStyle"
+          v-html="previewHtml"
+        ></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import type { ReceiptSettings } from 'src/types/settings';
 import { DEFAULT_RECEIPT_SETTINGS } from 'src/types/settings';
+import { generateQrDataUrl } from 'src/utils/qr';
 
 // Types for Electron IPC
 interface IpcResult {
@@ -213,22 +310,70 @@ interface IpcResult {
   error?: string;
 }
 
+const FONT_STEPS = [
+  { label: 'Kichik', value: 0.85 },
+  { label: "O'rta", value: 1 },
+  { label: 'Katta', value: 1.15 },
+  { label: 'Juda katta', value: 1.3 },
+];
+
 // State
 const settings = reactive<ReceiptSettings>({ ...DEFAULT_RECEIPT_SETTINGS });
 const saving = ref(false);
 const testPrinting = ref(false);
 const previewHtml = ref<string>('');
+const qrGenerating = ref(false);
+const qrError = ref<string>('');
+
+const previewStyle = computed(() => ({
+  fontSize: `${Math.round(13 * (settings.fontScale || 1))}px`,
+}));
 
 // Load settings on mount
 onMounted(async () => {
   await loadSettings();
+  await regenerateQr();
   updatePreview();
 });
 
 // Watch for changes and update preview
-watch(settings, () => {
-  updatePreview();
-}, { deep: true });
+watch(
+  settings,
+  () => {
+    updatePreview();
+  },
+  { deep: true },
+);
+
+// Regenerate the QR whenever the link or the toggle changes (debounced).
+let qrTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => [settings.showQr, settings.qrData] as const,
+  () => {
+    if (qrTimer) clearTimeout(qrTimer);
+    qrTimer = setTimeout(() => void regenerateQr(), 250);
+  },
+);
+
+async function regenerateQr(): Promise<void> {
+  const data = settings.qrData.trim();
+  if (!settings.showQr || !data) {
+    settings.qrImageBase64 = null;
+    qrError.value = '';
+    return;
+  }
+  qrGenerating.value = true;
+  qrError.value = '';
+  try {
+    settings.qrImageBase64 = await generateQrDataUrl(data);
+  } catch (e) {
+    console.error('QR generation failed:', e);
+    settings.qrImageBase64 = null;
+    qrError.value = 'QR yaratib bo\'lmadi';
+  } finally {
+    qrGenerating.value = false;
+  }
+}
 
 async function loadSettings(): Promise<void> {
   try {
@@ -259,7 +404,6 @@ async function saveSettings(): Promise<void> {
 
 function updatePreview(): void {
   try {
-    // Generate preview HTML locally (simpler approach)
     previewHtml.value = generateLocalPreview();
   } catch (error) {
     console.error('Failed to update preview:', error);
@@ -277,104 +421,75 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// Mirrors the print template (src-electron/receipt-template.ts) so the on-screen
+// preview matches what prints. Sample = a paid delivery order showcasing every
+// optional block; toggles/text/QR/size come straight from `settings`.
 function generateLocalPreview(): string {
-  const thankYouHtml = settings.showThankYouMessage && settings.thankYouMessage
-    ? `<div class="thank-you">${esc(settings.thankYouMessage)}</div>`
-    : '';
+  const s = settings;
 
-  const footerPhoneHtml = settings.showFooterPhone
-    ? `
-      <div class="footer">
-        ${settings.footerTitle ? `<div class="footer-title">${esc(settings.footerTitle)}</div>` : ''}
-        ${settings.footerPhone ? `<div class="footer-phone">${esc(settings.footerPhone)}</div>` : ''}
-      </div>
-    `
-    : '';
+  let logo = '';
+  if (s.useDefaultLogo) logo = '<div class="r-logo placeholder">LOGO</div>';
+  else if (s.logoBase64) logo = `<div class="r-logo"><img src="${s.logoBase64}" /></div>`;
 
-  const additionalFooterHtml = settings.showAdditionalFooter && settings.additionalFooterText
-    ? `
-      <div class="additional-footer">
-        ${settings.additionalFooterText.split('\n').map(line => `<div>${esc(line)}</div>`).join('')}
-      </div>
-    `
-    : '';
+  const thank =
+    s.showThankYouMessage && s.thankYouMessage
+      ? `<div class="strong">${esc(s.thankYouMessage)}</div>`
+      : '';
+  const footPhone =
+    s.showFooterPhone && (s.footerTitle || s.footerPhone)
+      ? `<div>${[s.footerTitle, s.footerPhone].filter(Boolean).map((t) => esc(t)).join(' ')}</div>`
+      : '';
+  const extra =
+    s.showAdditionalFooter && s.additionalFooterText
+      ? `<div class="extra">${s.additionalFooterText.split('\n').map((l) => esc(l)).join('<br>')}</div>`
+      : '';
+  const foot = thank || footPhone || extra ? `<div class="r-foot">${thank}${footPhone}${extra}</div>` : '';
 
-  // Determine logo HTML
-  let logoSection = '';
-  if (settings.useDefaultLogo) {
-    logoSection = '<div class="logo-placeholder">LOGO</div>';
-  } else if (settings.logoBase64) {
-    logoSection = `<div class="logo"><img src="${settings.logoBase64}" /></div>`;
-  }
+  const qr =
+    s.showQr && s.qrImageBase64
+      ? `
+        <div class="r-rule"></div>
+        <div class="r-qr">
+          <img src="${s.qrImageBase64}" />
+          ${s.qrCaption ? `<div class="cap">${esc(s.qrCaption)}</div>` : ''}
+          ${s.qrHandle ? `<div class="handle">${esc(s.qrHandle)}</div>` : ''}
+        </div>`
+      : '';
 
   return `
-    <div class="receipt-mock">
-      ${logoSection}
+    <div class="r-receipt">
+      ${logo}
 
-      <div class="order-info">
-        <div><span class="label">Sana:</span> 15.01.2025 14:30</div>
-        <div><span class="label">Kassir:</span> Kassir Ismi</div>
-        <div><span class="label">Chek №:</span> 123</div>
-        <div><span class="label">Turi:</span> Zal</div>
+      <div class="r-meta">
+        <div>15.01.2025 · 14:30</div>
+        <div>Chek №123 · Yetkazib berish · Kassir Ismi</div>
       </div>
 
-      <div class="divider"></div>
+      <div class="r-rule"></div>
+      <div class="r-seclabel">Yetkazib berish</div>
+      <div class="r-kv"><span class="k">Mijoz</span><span class="v nums">+998 90 123 45 67</span></div>
+      <div class="r-kv"><span class="k">Manzil</span><span class="v">Chilonzor t., 12-kvartal, 5-uy</span></div>
 
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Nomi</th>
-            <th>Soni</th>
-            <th>Summa</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Lavash Klassik</td>
-            <td>2</td>
-            <td>50 000</td>
-          </tr>
-          <tr>
-            <td>Cola 0.5L</td>
-            <td>1</td>
-            <td>8 000</td>
-          </tr>
-          <tr>
-            <td>Kartoshka Fri</td>
-            <td>1</td>
-            <td>12 000</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="r-rule"></div>
 
-      <div class="divider"></div>
+      <div class="r-item"><span class="name">Lavash Klassik</span><span class="qty">2×</span><span class="sum">50 000</span></div>
+      <div class="r-item"><span class="name">Cola 0.5L</span><span class="qty">1×</span><span class="sum">8 000</span></div>
+      <div class="r-item"><span class="name">Kartoshka Fri</span><span class="qty">1×</span><span class="sum">12 000</span></div>
+      <div class="r-free"><span class="name">Souz BBQ <span class="promo">· SMART10</span></span><span class="badge">Bepul</span></div>
 
-      ${thankYouHtml}
+      <div class="r-rule"></div>
 
-      <div class="total-section">
-        <div class="total-row">
-          <span>Summa:</span>
-          <span>70 000 so'm</span>
-        </div>
-        <div class="total-row grand-total">
-          <span>JAMI:</span>
-          <span>70 000 so'm</span>
-        </div>
-      </div>
+      <div class="r-tot"><span>Oraliq summa</span><span class="val">70 000</span></div>
+      <div class="r-tot"><span>Chegirma 10%</span><span class="off">−7 000</span></div>
+      <div class="r-grand"><span class="lbl">Jami</span><span class="amt">63 000<span class="cur"> so'm</span></span></div>
 
-      <div class="divider"></div>
+      <div class="r-status"><span class="r-pill paid"><span class="dot"></span>To'landi · Karta</span></div>
 
-      <div class="client-info">
-        <div class="client-label">Mijoz tel:</div>
-        <div class="client-value">+998 90 123 45 67</div>
-      </div>
+      ${qr}
 
-      <div class="divider"></div>
+      <div class="r-orderno"><div class="lbl">BUYURTMA RAQAMI</div><div class="num">123</div></div>
 
-      <div class="display_id">123</div>
-
-      ${footerPhoneHtml}
-      ${additionalFooterHtml}
+      ${foot}
     </div>
   `;
 }
@@ -434,7 +549,7 @@ function resetToDefaults(): void {
 <style scoped lang="scss">
 .receipt-settings {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1fr 320px;
   gap: 12px;
   height: 100%;
 }
@@ -493,6 +608,13 @@ function resetToDefaults(): void {
   margin-bottom: 8px;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .form-input {
   width: 100%;
   height: 44px;
@@ -535,6 +657,85 @@ function resetToDefaults(): void {
   }
 }
 
+// Text-size segmented control
+.size-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.size-btn {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--accent-primary);
+  }
+
+  &.active {
+    background: var(--accent-primary);
+    color: var(--on-primary);
+    border-color: var(--accent-primary);
+  }
+}
+
+// QR settings row
+.qr-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.qr-box {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 104px;
+    height: 104px;
+    image-rendering: pixelated;
+  }
+}
+
+.qr-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px;
+
+  &.error {
+    color: var(--error);
+  }
+}
+
+.qr-fields {
+  flex: 1;
+  min-width: 0;
+
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+}
+
 // Toggle switch
 .toggle-label {
   display: flex;
@@ -556,6 +757,7 @@ function resetToDefaults(): void {
   border-radius: 13px;
   position: relative;
   transition: background 0.2s ease;
+  flex-shrink: 0;
 
   &::after {
     content: '';
@@ -731,151 +933,241 @@ function resetToDefaults(): void {
 
 .preview-container {
   flex: 1;
-  padding: 12px;
+  padding: 16px;
   overflow-y: auto;
   background: var(--surface-2);
   display: flex;
   justify-content: center;
 }
 
+// On-screen receipt mock — mirrors the print template. Authored in em so the
+// font-size set on this container (from fontScale) resizes the whole mock.
 .receipt-preview {
-  background: white;
+  background: #fff;
   width: 300px;
-  padding: 15px;
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  color: #000;
+  height: max-content;
+  padding: 24px 20px;
+  font-family: 'Manrope', 'Hanken Grotesk', system-ui, sans-serif;
+  color: #1a1d21;
+  line-height: 1.5;
+  box-shadow: 0 18px 46px rgba(20, 22, 26, 0.14);
+  border-radius: 14px;
 
-  :deep(.logo-placeholder) {
+  :deep(.r-logo) {
     text-align: center;
-    padding: 20px;
-    background: #f5f5f5;
-    border: 1px dashed #ccc;
-    margin-bottom: 15px;
-    font-weight: bold;
-    color: #999;
+    margin: 4px 0 2px;
+    color: #c2c6cb;
+    letter-spacing: 0.3em;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  :deep(.r-logo.placeholder) {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  :deep(.r-logo img) {
+    max-width: 200px;
+    max-height: 84px;
+    height: auto;
+    letter-spacing: 0;
   }
 
-  :deep(.logo) {
+  :deep(.r-meta) {
     text-align: center;
-    margin-bottom: 15px;
-
-    img {
-      max-width: 200px;
-      height: auto;
-    }
+    color: #9aa0a6;
+    font-size: 0.92em;
+    line-height: 1.55;
+    margin-top: 0.6em;
   }
 
-  :deep(.order-info) {
-    font-size: 11px;
+  :deep(.r-rule) {
+    border-top: 1px solid #e7e9ec;
+    margin: 0.9em 0;
+  }
+
+  :deep(.r-seclabel) {
+    font-size: 0.82em;
+    letter-spacing: 0.12em;
+    color: #b0b5bb;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 0.6em;
+  }
+
+  :deep(.r-kv) {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8em;
+    margin-bottom: 0.4em;
+  }
+  :deep(.r-kv .k) {
+    color: #9aa0a6;
+    font-size: 0.92em;
+    flex-shrink: 0;
+  }
+  :deep(.r-kv .v) {
+    font-weight: 700;
+    text-align: right;
+  }
+  :deep(.r-kv .v.nums) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :deep(.r-item) {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.7em;
+    margin-bottom: 0.7em;
+  }
+  :deep(.r-item .name) {
+    flex: 1;
+    font-weight: 600;
+  }
+  :deep(.r-item .qty) {
+    color: #9aa0a6;
+    font-size: 0.92em;
+  }
+  :deep(.r-item .sum) {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :deep(.r-free) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.7em;
+    margin-bottom: 0.7em;
+  }
+  :deep(.r-free .name) {
+    flex: 1;
+    font-weight: 600;
+  }
+  :deep(.r-free .promo) {
+    color: #9aa0a6;
+    font-size: 0.82em;
+    font-weight: 600;
+  }
+  :deep(.r-free .badge) {
+    background: #1a1d21;
+    color: #fff;
+    border-radius: 0.45em;
+    padding: 0.1em 0.6em;
+    font-size: 0.82em;
+    font-weight: 700;
+  }
+
+  :deep(.r-tot) {
+    display: flex;
+    justify-content: space-between;
+    color: #7a8088;
+    margin-bottom: 0.4em;
+  }
+  :deep(.r-tot .val) {
+    font-variant-numeric: tabular-nums;
+  }
+  :deep(.r-tot .off) {
+    color: #1a1d21;
+    font-weight: 700;
+  }
+  :deep(.r-grand) {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 0.7em;
+  }
+  :deep(.r-grand .lbl) {
+    font-size: 1.15em;
+    font-weight: 700;
+  }
+  :deep(.r-grand .amt) {
+    font-size: 1.7em;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  :deep(.r-grand .cur) {
+    font-size: 0.6em;
+    font-weight: 600;
+    color: #9aa0a6;
+  }
+
+  :deep(.r-status) {
+    text-align: center;
+    margin-top: 1.1em;
+  }
+  :deep(.r-pill) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    border-radius: 999px;
+    font-size: 0.92em;
+    font-weight: 700;
+  }
+  :deep(.r-pill.paid) {
+    background: #1a1d21;
+    color: #fff;
+    padding: 0.5em 1.1em;
+  }
+  :deep(.r-pill.paid .dot) {
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  :deep(.r-qr) {
+    text-align: center;
+  }
+  :deep(.r-qr img) {
+    width: 96px;
+    height: 96px;
+    image-rendering: pixelated;
+  }
+  :deep(.r-qr .cap) {
+    font-size: 0.92em;
+    font-weight: 600;
+    margin-top: 0.45em;
+  }
+  :deep(.r-qr .handle) {
+    font-size: 0.82em;
+    color: #9aa0a6;
+  }
+
+  :deep(.r-orderno) {
+    text-align: center;
+    margin-top: 1.2em;
+  }
+  :deep(.r-orderno .lbl) {
+    font-size: 0.82em;
+    letter-spacing: 0.16em;
+    color: #b0b5bb;
+    font-weight: 600;
+  }
+  :deep(.r-orderno .num) {
+    font-size: 5em;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin-top: 0.06em;
+  }
+
+  :deep(.r-foot) {
+    text-align: center;
+    color: #7a8088;
+    font-size: 0.85em;
     line-height: 1.6;
-    margin-bottom: 10px;
-
-    .label {
-      font-weight: bold;
-      display: inline-block;
-      min-width: 60px;
-    }
+    margin-top: 1.2em;
   }
-
-  :deep(.divider) {
-    border-top: 1px dashed #000;
-    margin: 10px 0;
+  :deep(.r-foot .strong) {
+    font-weight: 700;
+    color: #1a1d21;
   }
-
-  :deep(.items-table) {
-    width: 100%;
-    font-size: 11px;
-    border-collapse: collapse;
-
-    th {
-      text-align: left;
-      padding: 5px 0;
-      border-bottom: 1px solid #000;
-      font-size: 10px;
-    }
-
-    th:nth-child(2),
-    th:nth-child(3) {
-      text-align: right;
-    }
-
-    td {
-      padding: 4px 0;
-      vertical-align: top;
-    }
-
-    td:nth-child(2),
-    td:nth-child(3) {
-      text-align: right;
-    }
-  }
-
-  :deep(.thank-you) {
-    text-align: center;
-    font-size: 11px;
-    font-weight: bold;
-    margin: 10px 0;
-    padding: 8px 0;
-  }
-
-  :deep(.total-section) {
-    margin: 10px 0;
-
-    .total-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      padding: 3px 0;
-
-      &.grand-total {
-        font-size: 13px;
-        font-weight: bold;
-        border-top: 1px solid #000;
-        padding-top: 8px;
-        margin-top: 5px;
-      }
-    }
-  }
-
-  :deep(.client-info) {
-    margin: 8px 0;
-    font-size: 10px;
-
-    .client-label {
-      font-weight: bold;
-    }
-  }
-
-  :deep(.display_id) {
-    font-size: 36px;
-    font-weight: bold;
-    text-align: center;
-    margin: 15px 0;
-  }
-
-  :deep(.footer) {
-    text-align: center;
-    font-size: 10px;
-    margin-top: 15px;
-
-    .footer-title {
-      font-weight: bold;
-      margin-bottom: 3px;
-    }
-
-    .footer-phone {
-      font-size: 12px;
-      font-weight: bold;
-    }
-  }
-
-  :deep(.additional-footer) {
-    text-align: center;
-    font-size: 9px;
-    margin-top: 10px;
-    line-height: 1.5;
+  :deep(.r-foot .extra) {
+    margin-top: 0.5em;
   }
 }
 </style>
