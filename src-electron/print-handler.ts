@@ -1,11 +1,21 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
 import { ThermalPrinter } from './thermal-printer';
 import { htmlToImage } from './html-to-image';
-import { generateReceiptHtml } from './receipt-template';
+import { generateReceiptHtml, RECEIPT_SIZE_KEYS } from './receipt-template';
 import { getSettings } from './settings-handler';
+import { getTweakValue } from './tweaks-handler';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+
+// Per-part receipt sizes from the scoped tweak store (default scope 'global').
+function receiptSizes(): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const k of RECEIPT_SIZE_KEYS) {
+    m[k] = getTweakValue<number>(`receipt.size.${k}`, 1, 'global');
+  }
+  return m;
+}
 
 // Get the path to the default logo
 function getDefaultLogoPath(): string {
@@ -234,7 +244,7 @@ export function registerPrintHandler(): void {
         console.log('Using logo from print data');
       }
 
-      const html = generateReceiptHtml(data, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb' });
+      const html = generateReceiptHtml(data, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb', sizes: receiptSizes() });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -275,7 +285,7 @@ export function registerPrintHandler(): void {
         paymentMethodLabel: 'Karta',
       };
 
-      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb' });
+      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb', sizes: receiptSizes() });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -327,7 +337,7 @@ export function registerPrintHandler(): void {
         phoneNumber: '+998901234567',
       };
 
-      const html = generateReceiptHtml(previewData, logoBase64, receiptSettings);
+      const html = generateReceiptHtml(previewData, logoBase64, receiptSettings, { sizes: receiptSizes() });
 
       return { success: true, html };
     } catch (err: unknown) {
@@ -362,7 +372,7 @@ export function registerPrintHandler(): void {
         phoneNumber: '+998901234567',
       };
 
-      const html = generateReceiptHtml(testData, logoBase64, receiptSettings);
+      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { sizes: receiptSizes() });
       const imageBuffer = await htmlToImage(html);
 
       const desktopPath = app.getPath('desktop');

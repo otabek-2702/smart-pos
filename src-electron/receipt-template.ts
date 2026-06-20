@@ -116,8 +116,10 @@ const C = {
 // One stylesheet, parameterised by output medium. Text sizes are in `em` so the
 // single `fontScale` on the body resizes the whole receipt; only the physical
 // dimensions (paper width, font base, logo/QR size, hairline) switch px↔mm.
-function receiptStyle(print: boolean, scale: number): string {
+function receiptStyle(print: boolean, scale: number, sizes: Record<string, number> = {}): string {
   const s = Math.min(1.4, Math.max(0.8, scale || 1));
+  // Per-part size multipliers → CSS vars on the body. Clamp to a sane range.
+  const sz = (k: string): string => Math.min(2, Math.max(0.6, Number(sizes[k]) || 1)).toFixed(3);
   const dim = print
     ? {
         width: '72mm',
@@ -151,13 +153,21 @@ function receiptStyle(print: boolean, scale: number): string {
     font-size: ${dim.base};
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    /* per-part size multipliers (Settings → receipt preview) */
+    --sz-meta: ${sz('meta')};
+    --sz-items: ${sz('items')};
+    --sz-total: ${sz('total')};
+    --sz-grand: ${sz('grand')};
+    --sz-status: ${sz('status')};
+    --sz-orderno: ${sz('orderno')};
+    --sz-footer: ${sz('footer')};
   }
 
   .logo { text-align: center; margin: 0.4em 0 0.2em; }
   /* full printable width */
   .logo img { width: 100%; height: auto; }
 
-  .meta { text-align: center; color: ${C.sub}; font-size: 0.92em; line-height: 1.55; margin-top: 0.5em; }
+  .meta { text-align: center; color: ${C.sub}; font-size: calc(0.92em * var(--sz-meta, 1)); line-height: 1.55; margin-top: 0.5em; }
 
   .rule { border-top: ${dim.hair} solid ${C.hair}; margin: 0.85em 0; }
 
@@ -168,7 +178,7 @@ function receiptStyle(print: boolean, scale: number): string {
   .kv .v { font-weight: 700; text-align: right; line-height: 1.35; word-break: break-word; }
   .v.nums { font-variant-numeric: tabular-nums; }
 
-  .item { display: flex; justify-content: space-between; align-items: baseline; gap: 0.7em; margin-bottom: 0.7em; }
+  .item { display: flex; justify-content: space-between; align-items: baseline; gap: 0.7em; margin-bottom: 0.7em; font-size: calc(1em * var(--sz-items, 1)); }
   .item .name { flex: 1; font-weight: 600; }
   .item .qty { color: ${C.sub}; font-size: 0.92em; white-space: nowrap; }
   .item .sum { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -178,15 +188,15 @@ function receiptStyle(print: boolean, scale: number): string {
   .free .promo { color: ${C.faint}; font-size: 0.82em; font-weight: 600; }
   .badge { background: ${C.ink}; color: #fff; border-radius: 0.45em; padding: 0.1em 0.6em; font-size: 0.82em; font-weight: 700; white-space: nowrap; }
 
-  .tot { display: flex; justify-content: space-between; color: ${C.sub}; margin-bottom: 0.4em; }
+  .tot { display: flex; justify-content: space-between; color: ${C.sub}; margin-bottom: 0.4em; font-size: calc(1em * var(--sz-total, 1)); }
   .tot .val { font-variant-numeric: tabular-nums; }
   .tot .off { color: ${C.ink}; font-weight: 700; }
-  .grand { display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.7em; }
+  .grand { display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.7em; font-size: calc(1em * var(--sz-grand, 1)); }
   .grand .lbl { font-size: 1.15em; font-weight: 700; }
   .grand .amt { font-size: 1.7em; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
   .grand .amt .cur { font-size: 0.6em; font-weight: 600; color: ${C.faint}; }
 
-  .status { text-align: center; margin-top: 1.1em; }
+  .status { text-align: center; margin-top: 1.1em; font-size: calc(1em * var(--sz-status, 1)); }
   .pill { display: inline-flex; align-items: center; gap: 0.5em; border-radius: 999px; font-size: 0.92em; font-weight: 700; }
   .pill.paid { background: ${C.ink}; color: #fff; padding: 0.5em 1.1em; }
   .pill.paid .dot { width: 0.45em; height: 0.45em; border-radius: 50%; background: #fff; }
@@ -202,24 +212,35 @@ function receiptStyle(print: boolean, scale: number): string {
   .qr .cap { font-size: 0.92em; font-weight: 600; margin-top: 0.45em; }
   .qr .handle { font-size: 0.82em; color: ${C.faint}; }
 
-  .orderno { text-align: center; margin-top: 1.2em; }
+  .orderno { text-align: center; margin-top: 1.2em; font-size: calc(1em * var(--sz-orderno, 1)); }
   .orderno .lbl { font-size: 0.82em; letter-spacing: 0.16em; color: ${C.faint}; font-weight: 600; }
   .orderno .num { font-size: 5em; font-weight: 800; line-height: 1; letter-spacing: -0.03em; margin-top: 0.06em; }
 
-  .foot { text-align: center; color: ${C.sub}; font-size: 0.85em; line-height: 1.6; margin-top: 1.2em; }
+  .foot { text-align: center; color: ${C.sub}; font-size: calc(0.85em * var(--sz-footer, 1)); line-height: 1.6; margin-top: 1.2em; }
   .foot .strong { font-weight: 700; color: ${C.ink}; }
   .foot .extra { margin-top: 0.5em; }
   `;
 }
 
+// Per-part size keys (must match src/composables/useReceiptSizes.ts RECEIPT_PARTS).
+export const RECEIPT_SIZE_KEYS = [
+  'meta',
+  'items',
+  'total',
+  'grand',
+  'status',
+  'orderno',
+  'footer',
+] as const;
+
 export function generateReceiptHtml(
   data: ReceiptData,
   logoBase64: string,
   settings: ReceiptSettings,
-  opts: { print?: boolean } = {},
+  opts: { print?: boolean; sizes?: Record<string, number> } = {},
 ): string {
   const print = !!opts.print;
-  const styleCss = receiptStyle(print, settings.fontScale ?? 1);
+  const styleCss = receiptStyle(print, settings.fontScale ?? 1, opts.sizes ?? {});
   const orderTypeLabel = orderTypeLabels()[data.orderType] || data.orderType;
   const isDelivery = data.orderType === 'DELIVERY';
 

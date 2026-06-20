@@ -292,7 +292,52 @@
           class="receipt-preview"
           :style="previewStyle"
           v-html="previewHtml"
+          @click="onPreviewClick"
         ></div>
+      </div>
+
+      <!-- per-part size editor (tap a part above to select it) -->
+      <div class="size-panel">
+        <template v-if="selectedPart">
+          <div class="size-panel__head">
+            <span>{{ partLabel(selectedPart) }} — o'lcham</span>
+            <button type="button" class="size-panel__x" @click="selectedPart = null">
+              <q-icon name="close" size="18px" />
+            </button>
+          </div>
+          <div class="size-row">
+            <q-icon name="text_decrease" size="20px" />
+            <q-slider
+              v-model="selectedSize"
+              :min="SIZE_MIN"
+              :max="SIZE_MAX"
+              :step="0.05"
+              color="primary"
+              class="size-slider"
+            />
+            <q-icon name="text_increase" size="24px" />
+            <span class="size-val">{{ Math.round(selectedSize * 100) }}%</span>
+          </div>
+          <div class="size-scope">
+            <button
+              type="button"
+              :class="{ active: selectedScope === 'this-pc' }"
+              @click="setSelectedScope('this-pc')"
+            >
+              Shu PC
+            </button>
+            <button
+              type="button"
+              :class="{ active: selectedScope === 'global' }"
+              @click="setSelectedScope('global')"
+            >
+              Hammasi
+            </button>
+          </div>
+        </template>
+        <div v-else class="size-hint">
+          Matn o'lchamini o'zgartirish uchun chekdagi qismni bosing.
+        </div>
       </div>
     </div>
   </div>
@@ -303,6 +348,13 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 import type { ReceiptSettings } from 'src/types/settings';
 import { DEFAULT_RECEIPT_SETTINGS } from 'src/types/settings';
 import { generateQrDataUrl } from 'src/utils/qr';
+import {
+  RECEIPT_PARTS,
+  RECEIPT_SIZE_MIN,
+  RECEIPT_SIZE_MAX,
+  useReceiptSize,
+} from 'src/composables/useReceiptSizes';
+import type { TweakScope } from 'src/composables/useTweaks';
 
 // Types for Electron IPC
 interface IpcResult {
@@ -325,9 +377,43 @@ const previewHtml = ref<string>('');
 const qrGenerating = ref(false);
 const qrError = ref<string>('');
 
-const previewStyle = computed(() => ({
-  fontSize: `${Math.round(13 * (settings.fontScale || 1))}px`,
-}));
+/* ---- per-part receipt sizes (tap a part in the preview → slider) ---- */
+const sizeTweaks = Object.fromEntries(
+  RECEIPT_PARTS.map((p) => [p.key, useReceiptSize(p.key)]),
+) as Record<string, ReturnType<typeof useReceiptSize>>;
+
+const SIZE_MIN = RECEIPT_SIZE_MIN;
+const SIZE_MAX = RECEIPT_SIZE_MAX;
+
+// font-size + the --sz-* CSS vars so the preview reflects each part's size live.
+const previewStyle = computed<Record<string, string>>(() => {
+  const vars: Record<string, string> = {
+    fontSize: `${Math.round(13 * (settings.fontScale || 1))}px`,
+  };
+  for (const p of RECEIPT_PARTS) vars[`--sz-${p.key}`] = String(sizeTweaks[p.key]!.value.value);
+  return vars;
+});
+
+const selectedPart = ref<string | null>(null);
+function partLabel(key: string | null): string {
+  return RECEIPT_PARTS.find((p) => p.key === key)?.label ?? '';
+}
+const selectedSize = computed<number>({
+  get: () => (selectedPart.value ? sizeTweaks[selectedPart.value]!.value.value : 1),
+  set: (v) => {
+    if (selectedPart.value) sizeTweaks[selectedPart.value]!.value.value = v;
+  },
+});
+const selectedScope = computed<TweakScope>(() =>
+  selectedPart.value ? sizeTweaks[selectedPart.value]!.scope.value : 'global',
+);
+function setSelectedScope(s: TweakScope): void {
+  if (selectedPart.value) sizeTweaks[selectedPart.value]!.setScope(s);
+}
+function onPreviewClick(e: MouseEvent): void {
+  const el = (e.target as HTMLElement | null)?.closest?.('[data-part]') as HTMLElement | null;
+  if (el?.dataset.part) selectedPart.value = el.dataset.part;
+}
 
 // Load settings on mount
 onMounted(async () => {
@@ -443,7 +529,10 @@ function generateLocalPreview(): string {
     s.showAdditionalFooter && s.additionalFooterText
       ? `<div class="extra">${s.additionalFooterText.split('\n').map((l) => esc(l)).join('<br>')}</div>`
       : '';
-  const foot = thank || footPhone || extra ? `<div class="r-foot">${thank}${footPhone}${extra}</div>` : '';
+  const foot =
+    thank || footPhone || extra
+      ? `<div class="r-foot" data-part="footer">${thank}${footPhone}${extra}</div>`
+      : '';
 
   const qr =
     s.showQr && s.qrImageBase64
@@ -460,7 +549,7 @@ function generateLocalPreview(): string {
     <div class="r-receipt">
       ${logo}
 
-      <div class="r-meta">
+      <div class="r-meta" data-part="meta">
         <div>15.01.2025 · 14:30</div>
         <div>Chek №123 · Yetkazib berish · Kassir Ismi</div>
       </div>
@@ -472,22 +561,22 @@ function generateLocalPreview(): string {
 
       <div class="r-rule"></div>
 
-      <div class="r-item"><span class="name">Lavash Klassik</span><span class="qty">2×</span><span class="sum">50 000</span></div>
-      <div class="r-item"><span class="name">Cola 0.5L</span><span class="qty">1×</span><span class="sum">8 000</span></div>
-      <div class="r-item"><span class="name">Kartoshka Fri</span><span class="qty">1×</span><span class="sum">12 000</span></div>
-      <div class="r-free"><span class="name">Souz BBQ <span class="promo">· SMART10</span></span><span class="badge">Bepul</span></div>
+      <div class="r-item" data-part="items"><span class="name">Lavash Klassik</span><span class="qty">2×</span><span class="sum">50 000</span></div>
+      <div class="r-item" data-part="items"><span class="name">Cola 0.5L</span><span class="qty">1×</span><span class="sum">8 000</span></div>
+      <div class="r-item" data-part="items"><span class="name">Kartoshka Fri</span><span class="qty">1×</span><span class="sum">12 000</span></div>
+      <div class="r-free" data-part="items"><span class="name">Souz BBQ <span class="promo">· SMART10</span></span><span class="badge">Bepul</span></div>
 
       <div class="r-rule"></div>
 
-      <div class="r-tot"><span>Oraliq summa</span><span class="val">70 000</span></div>
-      <div class="r-tot"><span>Chegirma 10%</span><span class="off">−7 000</span></div>
-      <div class="r-grand"><span class="lbl">Jami</span><span class="amt">63 000<span class="cur"> so'm</span></span></div>
+      <div class="r-tot" data-part="total"><span>Oraliq summa</span><span class="val">70 000</span></div>
+      <div class="r-tot" data-part="total"><span>Chegirma 10%</span><span class="off">−7 000</span></div>
+      <div class="r-grand" data-part="grand"><span class="lbl">Jami</span><span class="amt">63 000<span class="cur"> so'm</span></span></div>
 
-      <div class="r-status"><span class="r-pill paid"><span class="dot"></span>To'landi · Karta</span></div>
+      <div class="r-status" data-part="status"><span class="r-pill paid"><span class="dot"></span>To'landi · Karta</span></div>
 
       ${qr}
 
-      <div class="r-orderno"><div class="lbl">BUYURTMA RAQAMI</div><div class="num">123</div></div>
+      <div class="r-orderno" data-part="orderno"><div class="lbl">BUYURTMA RAQAMI</div><div class="num">123</div></div>
 
       ${foot}
     </div>
@@ -1168,5 +1257,106 @@ function resetToDefaults(): void {
   :deep(.r-foot .extra) {
     margin-top: 0.5em;
   }
+
+  /* per-part size multipliers (from --sz-* vars on the container) + the
+     click-to-resize affordance. Placed last so they win the font-size. */
+  :deep([data-part='meta']) {
+    font-size: calc(0.92em * var(--sz-meta, 1));
+  }
+  :deep([data-part='items']) {
+    font-size: calc(1em * var(--sz-items, 1));
+  }
+  :deep([data-part='total']) {
+    font-size: calc(1em * var(--sz-total, 1));
+  }
+  :deep([data-part='grand']) {
+    font-size: calc(1em * var(--sz-grand, 1));
+  }
+  :deep([data-part='status']) {
+    font-size: calc(1em * var(--sz-status, 1));
+  }
+  :deep([data-part='orderno']) {
+    font-size: calc(1em * var(--sz-orderno, 1));
+  }
+  :deep([data-part='footer']) {
+    font-size: calc(0.85em * var(--sz-footer, 1));
+  }
+  :deep([data-part]) {
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s ease, outline-color 0.12s ease;
+  }
+  :deep([data-part]:hover) {
+    background: var(--primary-weak);
+    outline: 1px dashed var(--primary-border);
+    outline-offset: 2px;
+  }
+}
+
+/* per-part size editor below the preview */
+.size-panel {
+  margin-top: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+}
+.size-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.size-panel__x {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+.size-slider {
+  flex: 1;
+}
+.size-val {
+  min-width: 48px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.size-scope {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 2px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.size-scope button {
+  padding: 5px 14px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.size-scope button.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.size-hint {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 </style>

@@ -71,6 +71,14 @@ function isMainPc(): boolean {
   return LOOPBACK.has(mainIp());
 }
 
+// Main-process resolved read — used by the print path to apply per-part sizes.
+export function getTweakValue<T>(key: string, def: T, defaultScope: TweakScope = 'this-pc'): T {
+  const scope = global.scopes[key] ?? defaultScope;
+  const store = scope === 'global' ? global.values : local.values;
+  const v = store[key];
+  return v === undefined ? def : (v as T);
+}
+
 function broadcast(): void {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('tweaks:changed', { local, global });
