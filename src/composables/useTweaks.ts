@@ -82,6 +82,15 @@ export function useTweak<T>(
   return { value, scope, setScope };
 }
 
+// Non-reactive one-shot read — for imperative checks (e.g. the print path).
+export function readTweak<T>(key: string, defaultValue: T, defaultScope: TweakScope = 'this-pc'): T {
+  init();
+  const scope = state.global.scopes[key] ?? defaultScope;
+  const store = scope === 'global' ? state.global.values : state.local.values;
+  const v = store[key];
+  return v === undefined ? defaultValue : (v as T);
+}
+
 export function useTweaksMeta() {
   init();
   return {

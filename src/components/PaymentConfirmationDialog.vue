@@ -391,6 +391,7 @@ import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 import { usePaymentPrefs } from 'src/composables/usePaymentPrefs';
 import { useInstantProducts } from 'src/composables/useInstantProducts';
+import { shouldPrintAfter } from 'src/composables/usePrintPolicy';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -811,6 +812,8 @@ async function printPaidFromBackend(): Promise<void> {
     // All-instant orders (drinks/packaged only) are NEVER auto-printed — the
     // cashier can still print manually via the button.
     if (isAllInstant((d.items || []).map((it) => it.product?.id))) return;
+    // Respect the order type's print-after-payment policy (Settings).
+    if (!shouldPrintAfter(d.order_type)) return;
     void window.electron?.printer.printReceipt({
       displayId: d.display_id,
       orderType: d.order_type,

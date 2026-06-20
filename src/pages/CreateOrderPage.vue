@@ -221,6 +221,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { api } from 'boot/axios';
 import { useOperatorStore } from 'src/stores/operator';
 import { useInstantProducts } from 'src/composables/useInstantProducts';
+import { shouldPrintBefore } from 'src/composables/usePrintPolicy';
 import OrderDetailsDialog from 'src/components/OrderDetailsDialog.vue';
 import PaymentConfirmationDialog from 'src/components/PaymentConfirmationDialog.vue';
 import { formatPrice } from 'src/utils/formatPrice';
@@ -650,12 +651,11 @@ async function createOrderAndOpenPayment(): Promise<void> {
     createdOrderId.value = response.data.data.order_id;
     createdDisplayId.value = response.data.data.display_id;
 
-    // Print at creation ONLY for delivery/pickup (their ticket must print
-    // regardless of payment). Hall prints after payment is confirmed. An
-    // all-instant order (drinks/packaged only) is NEVER auto-printed — the
-    // cashier can still print it manually.
+    // Print-before-payment per the order type's policy (Settings → Buyurtma
+    // turlari). All-instant orders (drinks/packaged only) are NEVER auto-printed
+    // — the cashier can still print manually.
     const allInstant = isAllInstant(receiptItems.value.map((i) => i.productId));
-    if (!allInstant && (orderType.value === 'DELIVERY' || orderType.value === 'PICKUP')) {
+    if (!allInstant && shouldPrintBefore(orderType.value)) {
       void printReceipt(response.data.data.display_id, false);
     }
 
