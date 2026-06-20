@@ -41,6 +41,13 @@ interface UpdateState {
   error: string | null;
 }
 
+type TweakScope = 'this-pc' | 'global';
+interface TweaksState {
+  local: { values: Record<string, unknown> };
+  global: { version: number; scopes: Record<string, TweakScope>; values: Record<string, unknown> };
+  isMainPc?: boolean;
+}
+
 declare global {
   interface Window {
     electron: {
@@ -100,6 +107,14 @@ declare global {
       stop(): Promise<void>;
       // Subscribe to caller events from the phone; returns an unsubscribe fn.
       onCallEvent(callback: (data: unknown) => void): () => void;
+    };
+    tweaks: {
+      get(): Promise<TweaksState>;
+      setLocal(key: string, value: unknown): Promise<unknown>;
+      setGlobal(key: string, value: unknown, scope?: TweakScope): Promise<unknown>;
+      export(): Promise<{ ok: boolean; path?: string }>;
+      import(): Promise<{ ok: boolean }>;
+      onChanged(callback: (state: TweaksState) => void): () => void;
     };
   }
 }

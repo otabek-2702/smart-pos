@@ -12,6 +12,7 @@ import { registerKvHandlers } from './kv-store';
 import { registerSystemHandler } from './system-handler';
 import { registerUpdateHandler } from './update-handler';
 import { registerOperatorHandler } from './operator-handler';
+import { registerTweaksHandler } from './tweaks-handler';
 
 const platform = process.platform || os.platform();
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
@@ -290,6 +291,7 @@ registerKvHandlers();
 registerSystemHandler();
 registerUpdateHandler();
 registerOperatorHandler(() => mainWindow);
+registerTweaksHandler();
 
 // Register IPC handlers for client display control
 function registerClientDisplayHandlers(): void {

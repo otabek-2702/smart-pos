@@ -119,6 +119,22 @@ contextBridge.exposeInMainWorld('electron', {
   },
 });
 
+// Scope-aware app tweaks (granular settings; this-pc vs global synced via the
+// main PC). See src-electron/tweaks-handler.ts.
+contextBridge.exposeInMainWorld('tweaks', {
+  get: () => invoke('tweaks:get'),
+  setLocal: (key: string, value: unknown) => invoke('tweaks:setLocal', key, value),
+  setGlobal: (key: string, value: unknown, scope?: string) =>
+    invoke('tweaks:setGlobal', key, value, scope),
+  export: () => invoke('tweaks:export'),
+  import: () => invoke('tweaks:import'),
+  onChanged: (callback: (state: unknown) => void): (() => void) => {
+    const handler = (_event: unknown, state: unknown): void => callback(state);
+    ipcRenderer.on('tweaks:changed', handler);
+    return () => ipcRenderer.removeListener('tweaks:changed', handler);
+  },
+});
+
 // CTI operator mode — start/stop the LAN WebSocket server (main process) and
 // subscribe to caller events streamed from the operator's phone.
 contextBridge.exposeInMainWorld('operator', {
