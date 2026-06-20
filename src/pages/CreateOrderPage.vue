@@ -348,7 +348,7 @@ const receiptItems = ref<ReceiptItem[]>([]);
 const orderType = ref<OrderType>('HALL');
 const search = ref<string>('');
 
-const products = ref<ApiProduct[]>([]);
+const allProducts = ref<ApiProduct[]>([]); // full catalog, fetched once on open
 const categories = ref<Category[]>([]);
 const selectedCategory = ref<number | null>(null);
 // On-screen keyboard visibility (only the keys; the action row stays put).
@@ -357,6 +357,20 @@ const keyboardOpen = ref<boolean>(true);
 const loadingProducts = ref<boolean>(false);
 const loadingCategories = ref<boolean>(false);
 const submitting = ref<boolean>(false);
+
+// Client-side filtered view — instant, no per-keystroke server call. While
+// searching, match the name across ALL products (category ignored); otherwise
+// show the selected category (or everything).
+const products = computed<ApiProduct[]>(() => {
+  const q = search.value.trim().toLowerCase();
+  if (q) return allProducts.value.filter((p) => p.name.toLowerCase().includes(q));
+  if (selectedCategory.value != null) {
+    return allProducts.value.filter(
+      (p) => String(p.category?.id) === String(selectedCategory.value),
+    );
+  }
+  return allProducts.value;
+});
 
 const description = ref('');
 const phone_number = ref('');
@@ -447,7 +461,6 @@ async function fetchCategories(): Promise<void> {
 function selectCategory(categoryId: number | null): void {
   selectedCategory.value = categoryId;
   keyboardOpen.value = false;
-  void fetchProducts('');
 }
 
 // Add this function to your script setup
@@ -502,28 +515,31 @@ function setOrderType(value: OrderType): void {
   orderType.value = value;
 }
 
-/* API search */
-async function fetchProducts(query: string): Promise<void> {
+/* Load the WHOLE catalog once (paginated; /products caps at 100/page) so search
+   + category filtering happen instantly on the client — no slow per-keystroke
+   round-trip. */
+async function loadAllProducts(): Promise<void> {
   loadingProducts.value = true;
-
   try {
-    const response = await api.get<ProductsResponse>('/products', {
-      params: { search: query, per_page: 100, category_ids: selectedCategory.value },
-    });
-
-    products.value = response.data.data.products;
+    const perPage = 100;
+    const all: ApiProduct[] = [];
+    for (let page = 1; page <= 50; page++) {
+      const response = await api.get<ProductsResponse>('/products', {
+        params: { per_page: perPage, page },
+      });
+      const batch = response.data.data.products ?? [];
+      all.push(...batch);
+      if (batch.length < perPage) break; // last page
+    }
+    allProducts.value = all;
   } finally {
     loadingProducts.value = false;
   }
 }
 
-/* Watch search (MAIN LOGIC) */
+/* Searching across all products shows the "Barchasi" (no category) view. */
 watch(search, (value) => {
-  // Reset category filter when searching
-  if (value) {
-    selectedCategory.value = null;
-  }
-  void fetchProducts(value);
+  if (value) selectedCategory.value = null;
 });
 
 /* RECEIPT LOGIC */
@@ -562,7 +578,6 @@ function addProduct(product: ApiProduct): void {
   search.value = '';
   selectedCategory.value = null;
   keyboardOpen.value = true;
-  void fetchProducts('');
 }
 
 function increaseQty(item: ReceiptItem): void {
@@ -667,15 +682,14 @@ function onPaymentCancel(): void {
 function resetForm(): void {
   receiptItems.value = [];
   search.value = '';
-  products.value = [];
   description.value = '';
   phone_number.value = '';
   createdOrderId.value = null;
   createdDisplayId.value = null;
   selectedCategory.value = null;
   keyboardOpen.value = true;
-  // Reload products
-  void fetchProducts('');
+  // Catalog stays cached (allProducts); the computed list resets via the cleared
+  // search/category above.
 }
 
 function onCancel(): void {
@@ -687,9 +701,9 @@ onMounted(async () => {
   // else a live call already in progress.
   prefillPhone((route.query.phone as string | undefined) || operator.activeCall?.phone);
 
-  // First fetch categories, then products
+  // Categories for the filter chips + the whole catalog (filtered client-side).
   await fetchCategories();
-  await fetchProducts('');
+  await loadAllProducts();
 });
 </script>
 
