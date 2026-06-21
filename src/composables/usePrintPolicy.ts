@@ -16,10 +16,12 @@ export const PRINT_BEFORE_DEFAULTS: Record<OrderTypeKey, boolean> = {
   DELIVERY: true,
   PICKUP: true,
 };
+// All true by default = print the paid receipt on payment for every type
+// (matches the prior behavior; configurable per type in Settings).
 export const PRINT_AFTER_DEFAULTS: Record<OrderTypeKey, boolean> = {
   HALL: true,
-  DELIVERY: false,
-  PICKUP: false,
+  DELIVERY: true,
+  PICKUP: true,
 };
 
 export const beforeKey = (t: OrderTypeKey): string => `print.${t}.before`;

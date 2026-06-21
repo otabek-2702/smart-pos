@@ -22,7 +22,10 @@ import { getPersistDir } from './persist-path';
 import { kvGet } from './kv-store';
 
 const SETTINGS_PORT = 8770;
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1', '']);
+// Main PC = configured backend IP is a real loopback literal. NOT '' — an
+// unconfigured till must not self-identify as the main PC (it would serve empty
+// globals and never sync); it stays a plain secondary until an IP is set.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 export type TweakScope = 'this-pc' | 'global';
 
@@ -72,11 +75,27 @@ function isMainPc(): boolean {
 }
 
 // Main-process resolved read — used by the print path to apply per-part sizes.
+// Defensive against a malformed `global` (missing scopes/values) so printing
+// never throws.
 export function getTweakValue<T>(key: string, def: T, defaultScope: TweakScope = 'this-pc'): T {
-  const scope = global.scopes[key] ?? defaultScope;
-  const store = scope === 'global' ? global.values : local.values;
+  const scope = (global.scopes ?? {})[key] ?? defaultScope;
+  const store = scope === 'global' ? global.values ?? {} : local.values ?? {};
   const v = store[key];
   return v === undefined ? def : (v as T);
+}
+
+// Accept a payload only if it has the right shape — a foreign responder on the
+// configured IP:8770 or a version skew could otherwise poison `global` (and the
+// cache, surviving restart), breaking reads everywhere.
+function isValidGlobal(d: unknown): d is GlobalTweaks {
+  return (
+    !!d &&
+    typeof d === 'object' &&
+    typeof (d as GlobalTweaks).scopes === 'object' &&
+    (d as GlobalTweaks).scopes !== null &&
+    typeof (d as GlobalTweaks).values === 'object' &&
+    (d as GlobalTweaks).values !== null
+  );
 }
 
 function broadcast(): void {
@@ -185,8 +204,8 @@ async function fetchGlobalFromMain(): Promise<void> {
   if (!ip) return;
   try {
     const data = await httpJson('GET', `http://${ip}:${SETTINGS_PORT}/settings`);
-    if (data && typeof data === 'object') {
-      global = data as GlobalTweaks;
+    if (isValidGlobal(data)) {
+      global = data;
       writeJson(globalCachePath(), global);
       broadcast();
     }
@@ -207,8 +226,8 @@ async function pushGlobalToMain(
     value,
     scope,
   });
-  if (data && typeof data === 'object') {
-    global = data as GlobalTweaks;
+  if (isValidGlobal(data)) {
+    global = data;
     writeJson(globalCachePath(), global);
     broadcast();
   }
@@ -218,11 +237,15 @@ async function pushGlobalToMain(
 
 export function registerTweaksHandler(): void {
   local = readJson<LocalTweaks>(localPath(), { values: {} });
+  if (!local.values || typeof local.values !== 'object') local = { values: {} };
   global = readJson<GlobalTweaks>(isMainPc() ? globalPath() : globalCachePath(), {
     version: 0,
     scopes: {},
     values: {},
   });
+  // Guard against a malformed file on disk (e.g. an old poisoned cache).
+  if (!global.scopes || typeof global.scopes !== 'object') global.scopes = {};
+  if (!global.values || typeof global.values !== 'object') global.values = {};
 
   ipcMain.handle('tweaks:get', () => ({ local, global, isMainPc: isMainPc() }));
 

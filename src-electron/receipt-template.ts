@@ -183,7 +183,7 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
   .item .qty { color: ${C.sub}; font-size: 0.92em; white-space: nowrap; }
   .item .sum { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-  .free { display: flex; justify-content: space-between; align-items: center; gap: 0.7em; margin-bottom: 0.7em; }
+  .free { display: flex; justify-content: space-between; align-items: center; gap: 0.7em; margin-bottom: 0.7em; font-size: calc(1em * var(--sz-items, 1)); }
   .free .name { flex: 1; font-weight: 600; }
   .free .promo { color: ${C.faint}; font-size: 0.82em; font-weight: 600; }
   .badge { background: ${C.ink}; color: #fff; border-radius: 0.45em; padding: 0.1em 0.6em; font-size: 0.82em; font-weight: 700; white-space: nowrap; }
