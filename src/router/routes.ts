@@ -122,6 +122,12 @@ const routes: RouteRecordRaw[] = [
             // (i.e. only admins / users with all perms).
             meta: { permissions: ['*'] },
           },
+          {
+            path: 'backup',
+            name: 'settings-backup',
+            component: () => import('pages/settings/BackupSettings.vue'),
+            meta: { permissions: ['display.manage'] },
+          },
         ],
       },
     ],
