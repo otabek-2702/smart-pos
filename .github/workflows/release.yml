@@ -5,10 +5,17 @@ name: Release
 #   git push --follow-tags
 # This builds the Windows NSIS installer and publishes it (+ latest.yml) to the
 # PUBLIC smart-pos-releases repo, which the app reads for auto-update.
+#
+# A failure (missing token, build error, publish error) makes the run RED, emails
+# the actor (GitHub default), AND opens an Issue in this repo so it's not missed.
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: read
+  issues: write # so the on-failure step can open an Issue
 
 jobs:
   release:
@@ -16,14 +23,44 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Fail FAST with a clear message if the publish token isn't configured,
+      # instead of a confusing 401 deep inside electron-builder.
+      - name: Check RELEASES_TOKEN is set
+        shell: bash
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$RELEASES_TOKEN" ]; then
+            echo "::error::RELEASES_TOKEN secret is missing. Create the public 'smart-pos-releases' repo + a fine-grained token (Contents: Read and write) and add it as the RELEASES_TOKEN secret. See docs/RELEASING.md."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      # Build + publish. electron-builder reads GH_TOKEN; RELEASES_TOKEN must be
-      # a PAT (or fine-grained token) with contents:write on smart-pos-releases.
-      # publish target (owner/repo) comes from quasar.config.ts > builder.publish.
-      - run: npx quasar build -m electron --publish always
+
+      # Build + publish. electron-builder reads GH_TOKEN; the publish target
+      # (owner/repo) comes from quasar.config.ts > builder.publish.
+      - name: Build + publish installer
+        run: npx quasar build -m electron --publish always
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+
+      # Loud failure — open an Issue so a broken release is never silent.
+      - name: Report failure as an Issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `❌ Release ${tag} failed`,
+              body: `The release workflow for **${tag}** failed — no update was published.\n\nLogs: ${url}\n\nCommon causes: missing/expired \`RELEASES_TOKEN\`, the \`smart-pos-releases\` repo missing, or a build error. See docs/RELEASING.md.`,
+              labels: ['release-failure'],
+            });
