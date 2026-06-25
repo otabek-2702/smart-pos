@@ -97,6 +97,23 @@
         </button>
       </div>
 
+      <!-- Per-order-type auto-print policy. Each row saves on toggle (no Save
+           button needed); the Save below is only for the printer connection. -->
+      <div class="form-section">
+        <h3 class="form-section-title">
+          <q-icon name="receipt_long" size="20px" />
+          Chek chop etish
+        </h3>
+        <p class="section-description" style="margin: 0 0 8px">
+          Har bir buyurtma turi uchun chek qachon avtomatik chiqsin (avtomatik
+          saqlanadi). Faqat ichimlik/tayyor mahsulotlardan iborat buyurtmalar
+          avtomatik chiqmaydi — qo'lda chiqarish mumkin.
+        </p>
+        <PrintPolicyRow type="HALL" :label="orderTypeLabels.HALL" />
+        <PrintPolicyRow type="PICKUP" :label="orderTypeLabels.PICKUP" />
+        <PrintPolicyRow type="DELIVERY" :label="orderTypeLabels.DELIVERY" />
+      </div>
+
       <!-- Actions -->
       <div class="form-actions">
         <button
@@ -163,6 +180,11 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import type { PrinterSettings } from 'src/types/settings';
 import { DEFAULT_PRINTER_SETTINGS } from 'src/types/settings';
+import { useOrderTypes } from 'src/composables/useOrderTypes';
+import PrintPolicyRow from 'src/components/PrintPolicyRow.vue';
+
+// Order-type labels for the per-type auto-print policy rows below.
+const { labels: orderTypeLabels } = useOrderTypes();
 
 // Types
 interface IpcResult {

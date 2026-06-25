@@ -47,20 +47,6 @@
         </div>
       </div>
 
-      <div class="form-section">
-        <h3 class="form-section-title">
-          <q-icon name="print" size="20px" />
-          Chek chop etish
-        </h3>
-        <p class="section-description" style="margin: 0 0 8px">
-          Har bir tur uchun chek qachon avtomatik chiqsin. (Faqat ichimlik/tayyor
-          mahsulotlardan iborat buyurtmalar avtomatik chiqmaydi — qo'lda chiqarish mumkin.)
-        </p>
-        <PrintPolicyRow type="HALL" :label="labels.HALL" />
-        <PrintPolicyRow type="PICKUP" :label="labels.PICKUP" />
-        <PrintPolicyRow type="DELIVERY" :label="labels.DELIVERY" />
-      </div>
-
       <div class="form-actions">
         <button type="button" class="btn btn-secondary" @click="resetToDefaults" :disabled="saving">
           <q-icon name="restart_alt" size="20px" />
@@ -84,7 +70,6 @@ import {
   DEFAULT_ORDER_TYPE_LABELS,
   type OrderTypeLabels,
 } from 'src/composables/useOrderTypes';
-import PrintPolicyRow from 'src/components/PrintPolicyRow.vue';
 
 const { labels, save } = useOrderTypes();
 
