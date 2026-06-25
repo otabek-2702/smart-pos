@@ -234,6 +234,49 @@
         </div>
       </div>
     </q-dialog>
+
+    <!-- Login QR Dialog (waiter / cashier mobile app) -->
+    <q-dialog v-model="showQrDialog">
+      <div class="qr-dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>Kirish QR kodi</h3>
+          <button type="button" class="btn-close" @click="showQrDialog = false">
+            <q-icon name="close" size="24px" />
+          </button>
+        </div>
+
+        <div class="qr-body">
+          <div class="qr-frame">
+            <img v-if="qrImage" :src="qrImage" alt="QR" class="qr-img" />
+          </div>
+          <div class="qr-name">{{ qrUser?.name }}</div>
+          <div class="qr-hint">
+            <q-icon name="qr_code_scanner" size="18px" />
+            Alfa Waiter ilovasida ushbu kodni skaner qiling
+          </div>
+
+          <div class="qr-creds">
+            <div class="qr-cred-row">
+              <span>Email</span><code>{{ qrUser?.email }}</code>
+            </div>
+            <div class="qr-cred-row">
+              <span>PIN</span><code>{{ qrUser?.pin }}</code>
+            </div>
+          </div>
+
+          <div class="qr-warn">
+            <q-icon name="lock" size="16px" />
+            Bu kodda parol bor — faqat ofitsiantga ko'rsating, boshqaga bermang.
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <div class="footer-right">
+            <button type="button" class="btn-save" @click="showQrDialog = false">Tayyor</button>
+          </div>
+        </div>
+      </div>
+    </q-dialog>
   </div>
 </template>
 
@@ -241,6 +284,8 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { api } from 'boot/axios';
 import { toast } from 'vue3-toastify';
+import { generateQrDataUrl } from '../../utils/qr';
+import { read } from '../../utils/storage';
 
 // Types
 interface User {
@@ -274,6 +319,7 @@ interface UsersResponse {
 const roles: { value: UserRole; label: string; icon: string }[] = [
   { value: 'MANAGER', label: 'Menejer', icon: 'manage_accounts' },
   { value: 'CASHIER', label: 'Kassir', icon: 'point_of_sale' },
+  { value: 'WAITER', label: 'Ofitsiant', icon: 'room_service' },
 ];
 
 // Display labels for ALL roles (existing users may be admin/waiter even if not
@@ -315,6 +361,58 @@ const form = reactive({
 
 // Email is required ONLY for managers (backend fills it for other roles).
 const emailRequired = computed(() => form.role === 'MANAGER');
+
+// ── Waiter / Cashier login QR ──────────────────────────────────────────────
+// Roles that use the mobile app get a login QR on create (or PIN change). The
+// QR encodes the server + the just-typed credentials so the waiter scans once
+// and is logged in — no typing. The backend never returns the password, so we
+// reuse the PIN entered here.
+const showQrDialog = ref(false);
+const qrImage = ref('');
+const qrUser = ref<{ name: string; email: string; pin: string; mode: string } | null>(null);
+const QR_ROLES: UserRole[] = ['WAITER', 'CASHIER'];
+
+// Pick the LAN address the desktop actually serves on; fall back to the
+// configured server IP. This becomes the QR's `server` field.
+async function detectServer(): Promise<string> {
+  try {
+    const sys = (window as unknown as {
+      electron?: { system?: { getLocalIps?: () => Promise<{ address: string }[]> } };
+    }).electron?.system;
+    const ips = sys?.getLocalIps ? await sys.getLocalIps() : [];
+    if (ips.length > 0 && ips[0]?.address) return `http://${ips[0].address}:8000`;
+  } catch {
+    // ignore — fall back to the configured IP below
+  }
+  const ip = read<string>('pos:IpAdress');
+  return ip ? `http://${ip}:8000` : (api.defaults.baseURL || 'http://127.0.0.1:8000');
+}
+
+async function showLoginQr(info: {
+  name: string;
+  email: string | undefined;
+  pin: string;
+  role: UserRole;
+  branch: string | undefined;
+}): Promise<void> {
+  if (!info.email) {
+    toast.error("Email topilmadi — QR yaratib bo'lmadi");
+    return;
+  }
+  const server = await detectServer();
+  const mode = info.role === 'WAITER' ? 'waiter' : 'counter';
+  const data = JSON.stringify({
+    v: 1,
+    server,
+    email: info.email,
+    password: info.pin,
+    branch: info.branch || 'main',
+    mode,
+  });
+  qrImage.value = await generateQrDataUrl(data);
+  qrUser.value = { name: info.name, email: info.email, pin: info.pin, mode };
+  showQrDialog.value = true;
+}
 
 // Computed
 const isFormValid = computed(() => {
@@ -466,16 +564,36 @@ async function saveUser(): Promise<void> {
       payload.password = form.password;
     }
 
+    // Capture before closeDialog() resets state — needed to build the QR.
+    const role = form.role;
+    const pin = form.password;
+    const name = `${form.first_name.trim()} ${form.last_name.trim()}`.trim();
+    const wantsQr = QR_ROLES.includes(role) && pin.length === 4;
+
+    let qrEmail: string | undefined;
+    let qrBranch: string | undefined;
+
     if (isEditing.value && editingUser.value) {
       await api.patch(`/api/admins/users/${editingUser.value.id}`, payload);
       toast.success('Foydalanuvchi yangilandi');
+      qrEmail = editingUser.value.email;
     } else {
-      await api.post('/api/admins/users', payload);
+      const resp = await api.post<{
+        data?: { user?: { email?: string; branch_id?: string } };
+        user?: { email?: string; branch_id?: string };
+      }>('/api/admins/users', payload);
       toast.success('Foydalanuvchi qo\'shildi');
+      const created = resp.data?.data?.user ?? resp.data?.user;
+      qrEmail = created?.email;
+      qrBranch = created?.branch_id;
     }
 
     closeDialog();
     await fetchUsers();
+
+    if (wantsQr) {
+      await showLoginQr({ name, email: qrEmail, pin, role, branch: qrBranch });
+    }
   } catch (error: unknown) {
     console.error('Failed to save user:', error);
     const err = error as { response?: { data?: { message?: string } } };
@@ -733,6 +851,16 @@ onMounted(() => {
   &.role-cashier {
     background: var(--success-weak);
     color: var(--success);
+  }
+
+  &.role-waiter {
+    background: var(--accent-weak, rgba(58, 91, 219, 0.12));
+    color: var(--accent-primary);
+  }
+
+  &.role-manager {
+    background: var(--accent-weak, rgba(58, 91, 219, 0.12));
+    color: var(--accent-primary);
   }
 }
 
@@ -1114,5 +1242,101 @@ onMounted(() => {
     opacity: 0.6;
     cursor: not-allowed;
   }
+}
+
+// ========== LOGIN QR DIALOG ==========
+.qr-dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-surface);
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-body {
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-frame {
+  width: 232px;
+  height: 232px;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.qr-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qr-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.qr-creds {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.qr-cred-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--bg-surface-2);
+
+  span {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  code {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+}
+
+.qr-warn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--warning);
+  background: var(--warning-weak);
+  border: 1px solid var(--warning-border);
+  border-radius: 10px;
+  padding: 9px 12px;
 }
 </style>
