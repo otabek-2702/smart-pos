@@ -10,7 +10,12 @@
     <div v-if="license.isBlocked.value" class="lic" role="alertdialog" aria-modal="true">
       <div class="lic__card">
         <div class="lic__head">
-          <q-icon name="lock" size="36px" class="lic__head-icon" />
+          <q-icon
+            :name="headIcon"
+            size="36px"
+            class="lic__head-icon"
+            :class="{ 'lic__head-icon--warn': !!reasonOverride }"
+          />
           <div>
             <div class="lic__title">{{ title }}</div>
             <div class="lic__sub">{{ subtitle }}</div>
@@ -46,6 +51,15 @@
           <div v-if="snap.expires_at" class="lic__row">
             <span class="lic__k"><q-icon name="event_busy" size="16px" /> Muddati</span>
             <span class="lic__v">{{ formatDate(snap.expires_at) }}</span>
+          </div>
+          <!-- For the offline-grace case, the operative fact is "we haven't
+               checked in for a while" — show the last successful contact. -->
+          <div
+            v-if="snap.reason === 'license_offline_grace_exceeded' && snap.last_heartbeat_at"
+            class="lic__row"
+          >
+            <span class="lic__k"><q-icon name="sync_problem" size="16px" /> Oxirgi aloqa</span>
+            <span class="lic__v">{{ formatDate(snap.last_heartbeat_at) }}</span>
           </div>
           <div v-if="snap.days_remaining !== null" class="lic__row">
             <span class="lic__k"><q-icon name="schedule" size="16px" /> Qolgan kunlar</span>
@@ -154,13 +168,55 @@ const statusLabelByStatus: Record<LicenseStatusCode, string> = {
   UNKNOWN: 'Noma\'lum',
 };
 
-const title = computed(() => titleByStatus[snap.value.status] ?? 'Litsenziya');
-const subtitle = computed(() => subtitleByStatus[snap.value.status] ?? '');
+// When the license row itself is ACTIVE/healthy but the kill-switch fired for
+// an OPERATIONAL reason (the periodic online check lapsed, or the control
+// server isn't configured), the status word alone ("Faol") is misleading —
+// it reads like the license is fine, yet the screen is locked. Describe the
+// real reason so the operator knows it's a connectivity/setup issue, not an
+// expired or revoked license. (We still show the true status in the row below.)
+const reasonOverride = computed<{ title: string; subtitle: string; hint: string } | null>(() => {
+  if (!snap.value.is_blocked) return null;
+  switch (snap.value.reason) {
+    case 'license_offline_grace_exceeded':
+      return {
+        title: 'Litsenziya tekshiruvi muddati o\'tdi',
+        subtitle: 'POS litsenziya serveriga uzoq vaqtdan beri ulana olmadi.',
+        hint: 'Litsenziya vaqti-vaqti bilan internet orqali tekshirilishi kerak. ' +
+          'Server kompyuter internetga (litsenziya serveriga) ulanganini ' +
+          'tekshiring, so\'ng "Qayta tekshirish" tugmasini bosing. Muammo davom ' +
+          'etsa, qo\'llab-quvvatlash xizmatiga murojaat qiling.',
+      };
+    case 'control_center_url_missing':
+      return {
+        title: 'Litsenziya serveri sozlanmagan',
+        subtitle: 'Litsenziya server manzili ko\'rsatilmagan.',
+        hint: 'Server kompyuterdagi Alpha POS sozlash ilovasida litsenziya server ' +
+          'manzilini kiriting, so\'ng "Qayta tekshirish" tugmasini bosing.',
+      };
+    default:
+      return null;
+  }
+});
+
+const title = computed(
+  () => reasonOverride.value?.title ?? titleByStatus[snap.value.status] ?? 'Litsenziya',
+);
+const subtitle = computed(
+  () => reasonOverride.value?.subtitle ?? subtitleByStatus[snap.value.status] ?? '',
+);
 const statusLabel = computed(() => statusLabelByStatus[snap.value.status] ?? snap.value.status);
 
-// All blocked states are resolved the same way: activate / renew in the
-// backend's "Litsenziya va obuna" setup app, then press "Qayta tekshirish".
+// Connectivity/setup lapses get a "connection" glyph, not the red revoked-lock.
+const headIcon = computed(() => {
+  if (snap.value.reason === 'license_offline_grace_exceeded') return 'sync_problem';
+  if (snap.value.reason === 'control_center_url_missing') return 'settings_ethernet';
+  return 'lock';
+});
+
+// All blocked states are resolved the same way: activate / renew / reconnect in
+// the backend, then press "Qayta tekshirish".
 const actionHint = computed(() => {
+  if (reasonOverride.value) return reasonOverride.value.hint;
   if (snap.value.status === 'UNREGISTERED') {
     return 'Litsenziyani faollashtirish uchun server kompyuteridagi Alpha POS ' +
       'sozlash ilovasini oching → "Litsenziya va obuna" bo\'limidan ro\'yxatdan ' +
@@ -224,6 +280,11 @@ function formatDate(s: string): string {
   color: var(--error);
   flex-shrink: 0;
   margin-top: 2px;
+}
+/* Operational lapse (offline grace / unconfigured server) — not a revoked
+   license, so signal "attention" (amber), not "denied" (red). */
+.lic__head-icon--warn {
+  color: var(--warning);
 }
 .lic__title {
   font-size: 19px;
