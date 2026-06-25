@@ -63,6 +63,51 @@
             </div>
             <p class="description-text">{{ orderDescription }}</p>
           </div>
+
+          <!-- COURIER (delivery orders only) — assign / change the driver -->
+          <div v-if="orderTypeLocal === 'DELIVERY'" class="courier-row">
+            <div class="courier-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="5.5" cy="17.5" r="2.5" />
+                <circle cx="17.5" cy="17.5" r="2.5" />
+                <path d="M15 17.5h-7M14 6h3l3 6M5.5 15V9h7l2.5 6" />
+              </svg>
+              <span>Kuryer</span>
+            </div>
+            <div class="courier-pick">
+              <button
+                type="button"
+                class="courier-btn"
+                :disabled="courierSaving || !orderId"
+                @click="toggleCourierPicker"
+              >
+                {{ courierName || 'Tanlanmagan' }}
+                <span class="chev">▾</span>
+              </button>
+              <div v-if="showCourierPicker" class="courier-pop">
+                <button
+                  type="button"
+                  class="courier-opt"
+                  :class="{ active: courierLocal === null }"
+                  @click="selectCourier(null)"
+                >
+                  Tanlanmagan
+                </button>
+                <button
+                  v-for="c in couriers"
+                  :key="c.id"
+                  type="button"
+                  class="courier-opt"
+                  :class="{ active: c.id === courierLocal }"
+                  @click="selectCourier(c.id)"
+                >
+                  <span>{{ c.name }}</span>
+                  <span v-if="c.phone" class="cph">{{ c.phone }}</span>
+                </button>
+                <div v-if="!couriers.length" class="courier-empty">Kuryerlar yo'q</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ITEMS -->
@@ -135,7 +180,14 @@ import { computed, ref, watch } from 'vue';
 import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { useCouriers } from 'src/composables/useCouriers';
 import { read } from 'src/utils/storage';
+
+interface AssignedCourier {
+  id: number;
+  name: string;
+  phone?: string | null;
+}
 
 interface ReceiptItem {
   productId: number;
@@ -157,6 +209,8 @@ const props = withDefaults(
     phoneNumber?: string | null;
     // Name of who CREATED the order — printed as the receipt's cashier.
     cashierName?: string | null;
+    // Currently-assigned courier (from the order detail), or null.
+    deliveryPerson?: AssignedCourier | null;
   }>(),
   {
     modelValue: false,
@@ -167,6 +221,7 @@ const props = withDefaults(
     items: () => [],
     phoneNumber: null,
     cashierName: null,
+    deliveryPerson: null,
   },
 );
 
@@ -204,6 +259,7 @@ async function printCheck(): Promise<void> {
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'type-changed'): void;
+  (e: 'courier-changed'): void;
 }>();
 
 function close(): void {
@@ -243,10 +299,68 @@ async function changeOrderType(t: string): Promise<void> {
     await api.patch(`/orders/${props.orderId}/type`, { order_type: t });
     orderTypeLocal.value = t;
     emit('type-changed');
+    // Becoming a delivery order — make sure the courier list is ready to pick.
+    if (t === 'DELIVERY') void loadCouriers();
   } catch (e) {
     console.error('Order type change failed:', e);
   } finally {
     typeSaving.value = false;
+  }
+}
+
+// ── Courier assignment (delivery only) ──────────────────────────────────────
+const { couriers, loadCouriers, assignCourier } = useCouriers();
+const showCourierPicker = ref(false);
+const courierSaving = ref(false);
+const courierLocal = ref<number | null>(props.deliveryPerson?.id ?? null);
+
+// Re-sync when the dialog is reused for another order.
+watch(
+  () => props.deliveryPerson,
+  (dp) => {
+    courierLocal.value = dp?.id ?? null;
+  },
+);
+// Load the courier list when a delivery order opens; close the picker on close.
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!open) {
+      showCourierPicker.value = false;
+      return;
+    }
+    if (orderTypeLocal.value === 'DELIVERY') void loadCouriers();
+  },
+);
+
+const courierName = computed(() => {
+  if (courierLocal.value == null) return '';
+  const c = couriers.value.find((x) => x.id === courierLocal.value);
+  if (c) return c.name;
+  if (props.deliveryPerson?.id === courierLocal.value) return props.deliveryPerson.name;
+  return '';
+});
+
+function toggleCourierPicker(): void {
+  showCourierPicker.value = !showCourierPicker.value;
+  if (showCourierPicker.value) void loadCouriers();
+}
+
+async function selectCourier(id: number | null): Promise<void> {
+  showCourierPicker.value = false;
+  if (!props.orderId || courierSaving.value || id === courierLocal.value) return;
+  courierSaving.value = true;
+  const prev = courierLocal.value;
+  courierLocal.value = id; // optimistic
+  try {
+    const ok = await assignCourier(props.orderId, id);
+    if (ok) emit('courier-changed');
+    else courierLocal.value = prev; // revert on failure
+  } catch (e) {
+    console.error('Courier assign failed:', e);
+    courierLocal.value = prev;
+  } finally {
+    courierSaving.value = false;
   }
 }
 </script>
@@ -462,6 +576,110 @@ async function changeOrderType(t: string): Promise<void> {
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* COURIER */
+.courier-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.courier-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.courier-pick {
+  position: relative;
+}
+
+.courier-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+
+  .chev {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+.courier-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg, 0 20px 50px rgba(0, 0, 0, 0.3));
+}
+
+.courier-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+
+  .cph {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 13px;
+  }
+  &:active {
+    transform: scale(0.98);
+  }
+  &.active {
+    background: var(--accent-soft);
+    color: var(--accent-primary);
+  }
+}
+
+.courier-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* ITEMS */

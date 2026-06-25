@@ -58,20 +58,20 @@ export async function getCurrentShift(): Promise<ShiftCurrent | null> {
 }
 
 /**
- * Settle (end) a shift with the cashier's per-payment-type blind count.
- * Hits the management endpoint (pos_staff-allowed) which freezes the per-type
- * expected/counted/difference and sets status ENDED. The plain staff
- * `/shifts/end` ignores counts, so we must use this one with the shift id.
- *   POST /api/admins/shifts/<id>/end  { counted: {CASH,UZCARD,HUMO,PAYME}, notes }
+ * Settle (end) the caller's own active shift with the cashier's per-payment-type
+ * blind count. The local edition's `POST /shifts/end` (pos_staff) now accepts
+ * `counted` and freezes the per-type expected/counted/difference into
+ * ShiftPaymentTotal rows, setting status ENDED. (There is no `/api/admins/*` on
+ * the local edition — the staff endpoint closes the caller's own shift, so no id.)
+ *   POST /shifts/end  { counted: {CASH,UZCARD,HUMO,PAYME}, notes }
  */
 export async function closeShift(
-  shiftId: number,
   counted: Record<string, number>,
   notes: string,
 ): Promise<boolean> {
   try {
     const r = await api.post(
-      `/api/admins/shifts/${shiftId}/end`,
+      `/shifts/end`,
       { counted, notes },
       { validateStatus: () => true },
     );

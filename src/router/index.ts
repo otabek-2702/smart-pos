@@ -41,6 +41,15 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   //      that hasn't been migrated to meta.permissions yet.
   // A route may carry both; the user must satisfy whichever apply.
   Router.beforeEach((to) => {
+    const user = getAuthUser();
+
+    // Kitchen staff (CHEF) operate the KDS only — bounce them off cashier
+    // pages onto the KDS. (Once logged out, user is null and this is skipped,
+    // so logging back in via the picker still works.)
+    if (user?.role === 'CHEF' && to.name !== 'kds') {
+      return { name: 'kds' };
+    }
+
     const required: string[] = to.matched.flatMap(
       (r) => (r.meta as { permissions?: string[] }).permissions ?? [],
     );
@@ -48,7 +57,6 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
     if (!requiresAdmin && required.length === 0) return true;
 
-    const user = getAuthUser();
     if (!user) return { name: 'users' };
 
     if (requiresAdmin) {

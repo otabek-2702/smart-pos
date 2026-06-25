@@ -13,7 +13,9 @@
 
 import { read } from 'src/utils/storage';
 
-export type UserRole = 'ADMIN' | 'CASHIER' | 'MANAGER';
+// CHEF = kitchen staff (KDS only). WAITER exists on the backend (mobile app)
+// though it isn't in the desktop login picker — keep it for type-safety.
+export type UserRole = 'ADMIN' | 'CASHIER' | 'MANAGER' | 'CHEF' | 'WAITER';
 
 export interface AuthUser {
   id?: number;

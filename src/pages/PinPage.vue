@@ -79,7 +79,8 @@ import type { AxiosError } from 'axios';
  * Types
  * ============ */
 
-type UserRole = 'ADMIN' | 'CASHIER' | 'MANAGER';
+// CHEF = kitchen staff: they appear in the login picker and land on the KDS.
+type UserRole = 'ADMIN' | 'CASHIER' | 'MANAGER' | 'CHEF';
 
 interface LoginResponse {
   success: boolean;
@@ -250,7 +251,8 @@ async function submitPin(): Promise<void> {
     // Resumes if one's already open. Fire-and-forget.
     void ensureShiftStarted();
 
-    void router.replace({ name: 'orders' });
+    // Kitchen staff go straight to the KDS; everyone else to the order list.
+    void router.replace({ name: user.role === 'CHEF' ? 'kds' : 'orders' });
     return;
   } catch (error) {
     const axiosErr = error as AxiosError;

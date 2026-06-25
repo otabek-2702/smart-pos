@@ -1,81 +1,16 @@
-# Backend tasks for `alpha_pos` (smart-pos POS frontend)
+# Backend tasks for `alpha_pos_local` (smart-pos POS frontend)
 
-What the **smart-pos** Electron POS still needs from the `alpha_pos` Django backend.
-The frontend side of each task is already done and degrades gracefully until the
-backend lands. Each task below is self-contained: endpoint, today's behavior, the
-exact change, the request/response shape, and the file to edit.
+What the **smart-pos** Electron POS still needs from the `alpha_pos_local` Django
+backend (the in-store local edition — the backend of record). The frontend side
+of each task degrades gracefully until the backend lands.
 
-Verified against the live backend on 2026-06-13. Paths are relative to the
-`alpha_pos` repo root unless noted.
-
----
-
-## 🔴 1. `GET /orders/client-display` — exclude all-instant orders
-
-**Why:** A product can be `is_instant` (drink / packaged good, no kitchen prep).
-An order whose items are **all** instant is created with status `READY` instantly.
-It then appears on the customer lobby screen **and rings the ready-chime** for an
-order that was handed over on the spot — noise the cashier never wanted on screen.
-
-**Today:** `get_client_display_orders` builds the `processing` and `finished`
-querysets with **no** instant filter, so all-instant orders show + chime.
-
-**Change:** On **both** the `processing` and `finished` querysets, annotate the
-count of **non-instant** items and keep only orders with `> 0`. Mirror the rule
-already used by `get_chef_display_orders` (which excludes instant items / hides
-all-instant orders).
-
-- Endpoint: `GET /orders/client-display` (request + response shapes unchanged).
-- Edit: `customers/services/order_service.py` → `get_client_display_orders` (~L1029–1040). Pattern to copy: `get_chef_display_orders` (~L1078–1131).
-- FE consumer: `smart-pos-main/src/pages/ClientDisplayPage.vue` (~L412–421). No FE change — it only renders what the endpoint returns, so it can't filter this itself (the endpoint sends order numbers, no items).
+Verified against the live backend on 2026-06-25. Paths are relative to the
+`alpha_pos_local` repo root (models/services live in the `alpha_pos_core`
+submodule) unless noted.
 
 ---
 
-## 🟠 2. KITCHEN role — so chefs show in the picker and route to `/kds`
-
-**Why:** Kitchen staff should log in from the lock-screen picker and land on the
-KDS. There is **no** kitchen/chef role today, so they can't appear in the picker.
-
-**Today:** `User.RoleChoices` = USER, ADMIN, CASHIER, MANAGER, WAITER (no chef).
-`get_pos_staff()` returns only `role__in=(CASHIER, MANAGER)`, so a kitchen user is
-never in `GET /cashiers`.
-
-**Change (minimal):**
-1. Add a kitchen role to `User.RoleChoices` (e.g. `KITCHEN = "KITCHEN", "Kitchen"`) + a migration.
-2. Add `KITCHEN` to the `role__in` tuple in `get_pos_staff()` so chefs appear in the picker.
-3. *(optional)* add an `is_kitchen` flag to the staff serializer (mirrors `is_manager`) so the FE can branch explicitly instead of on the role string.
-4. *(only if chefs call it)* add `KITCHEN` to `STAFF_ROLES` so `GET /orders/chef-display` admits them.
-
-- Endpoint affected: `GET /cashiers` (adds kitchen users to the list).
-- Response: each staff entry already has `role`; add `"is_kitchen": true` if doing step 3.
-- Edit: `base/models.py` (~L467–475 RoleChoices) + migration; `base/repositories/user.py` (~L38–42 `get_pos_staff`); `customers/services/staff_service.py` (~L5–22 serializer, optional flag); `customers/views/order_views.py` (~L17 `STAFF_ROLES`, only for chef-display).
-- FE follow-up (separate, no backend dep): route `/kds` when `role === 'KITCHEN'` in `PinPage.vue`, widen the role union, add a kitchen route guard.
-
----
-
-## 🔴 3. `POST /shifts/end` — thread `counted` through the cashier path (local edition)
-
-**Why:** Cashier shift-close sends a per-payment-type **blind count** for reconcile.
-On the **local edition** that count is silently dropped — never persisted.
-
-**Today:** Core `end_shift(shift_id, user_id, notes, actor=None, counted=None)`
-**already supports `counted`**, but the reachable cashier path never passes it:
-- FE posts to `POST /api/admins/shifts/{id}/end {counted, notes}` — local has **no `/api/admins/*`**.
-- The reachable `POST /shifts/end` (pos_staff) view reads only `notes`;
-  `end_active_for_user(user_id, notes)` → `end_shift(shift.id, user_id, notes)` **without `counted`**.
-
-**Change (small — thread-through only):**
-1. `/shifts/end` view: also read `counted` from body (optional), pass `actor=request.user`.
-2. `end_active_for_user(user_id, notes, counted=None)` → `end_shift(shift.id, user_id, notes, actor=..., counted=counted)`.
-
-- Endpoint: `POST /shifts/end`. Body: `{ notes?, counted?: {CASH,UZCARD,HUMO,PAYME} }`.
-- Result: per-method reconciliation (`ShiftPaymentTotal`) created on close.
-- FE follow-up (after backend): repoint `closeShift` from `/api/admins/shifts/{id}/end` to `/shifts/end` in `src/composables/useShift.ts` (~L67–83).
-- Sent to dev 2026-06-25 (msg_id 15).
-
----
-
-## 🟢 4. SSE order stream — `GET /orders/stream` (optional; polling works today)
+## 🟢 1. SSE order stream — `GET /orders/stream` (optional; polling works today)
 
 **Why:** Push order changes so the cashier/KDS update instantly instead of on the
 3s poll. **Not urgent** — the FE already runs fine on polling; the EventSource
@@ -88,17 +23,20 @@ events the FE listens for: `order.created`, `order.updated`,
 `order.status_changed`, `order.paid`, `order.cancelled`. Send a periodic
 heartbeat comment to keep the connection open; support many concurrent clients.
 
-- Endpoint: `GET /api/customers/orders/stream?token=<bearer>` (no body).
+- Endpoint: `GET /orders/stream?token=<bearer>` (no body).
 - Response frame: `event: order.status_changed\ndata: {"order_id": 42, "status": "ready"}\n\n`. `data` must be valid JSON; payload is only a refresh trigger (the FE re-fetches the list as source of truth), so `{order_id, status}` is enough.
-- Edit: add route in `customers/urls.py` (~L36–51); new view in `customers/views/order_views.py` (alongside `client_display`/`chef_display`, ~L274–285) using `StreamingHttpResponse` + token-from-query auth.
-- FE consumer (already complete): `smart-pos-main/src/composables/useOrderStream.ts` (URL build ~L51–57, listeners ~L33–39, JSON.parse ~L114–121, error backoff ~L125–135).
+- FE consumer (already complete): `smart-pos-main/src/composables/useOrderStream.ts` (URL build, listeners, JSON.parse, error backoff).
 
 ---
 
 ## Verified shipped — do **not** re-add
-- **Expenses**: hr + cashbox expense endpoints are `@pos_staff_required` — cashier/manager get no 403. (POS page uses the cashbox API `POST /api/admins/cashbox/shifts/{id}/expenses/ {amount, comment}`.)
+- **Shift close per-tender count**: `POST /shifts/end` (pos_staff) accepts `{counted:{CASH,UZCARD,HUMO,PAYME}, notes}`; core `end_active_for_user` threads `counted` → `end_shift` → `ShiftPaymentTotal` reconciliation. FE: `closeShift` posts to `/shifts/end` (no `/api/admins`). *(shipped 2026-06-25, core 7fc0853 / local 1.0.14)*
+- **CHEF (kitchen) role**: `User.RoleChoices.CHEF` exists; `get_pos_staff` returns CASHIER+MANAGER+CHEF so chefs appear in `GET /cashiers`. FE: PinPage routes CHEF→`/kds`; router guard bounces CHEF off cashier pages. *(shipped 2026-06-25, core b627af4)*
+- **Client-display excludes all-instant orders**: `get_client_display_orders` annotates non-instant item count on both processing + finished, keeps only `>0` (same rule as chef-display). No FE change. *(shipped 2026-06-25)*
+- **Courier list + assign**: `GET /couriers` → `{data:{items:[{id,name,phone}]}}`; `POST /orders/{id}/courier {delivery_person_id}` assign/replace/clear; order serializers include `delivery_person {id,name,phone}|null`. *(shipped — see BACKEND_TODO_DELIVERY.md)*
+- **Staff order edits**: `POST|PATCH /orders/{id}/details {phone_number?, description?, delivery_person_id?}` (pos_staff). *(shipped — FE wiring pending, see BACKEND_TODO_DELIVERY.md)*
+- **Instant products**: `Product.is_instant` — instant items born ready, all-instant orders created `READY`, `GET /orders/chef-display` strips instant items / hides all-instant orders.
+- **Expenses**: hr + cashbox expense endpoints are `@pos_staff_required` (cashier/manager get no 403).
 - **Shared-till ownership**: `_check_cashier_ownership` returns early for ADMIN/MANAGER/CASHIER — any staff can ready/pay/status/add-item on any order.
-- **create-user**: `email` required only when `role==MANAGER` (auto-derived otherwise); PIN enforced to exactly 4 digits.
-- **CORS**: `CORS_ALLOW_ALL_ORIGINS=True` unconditionally; CORS middleware before the license kill-switch, so even 503s carry the header.
-- **Instant products**: `Product.is_instant` shipped — instant items born ready, all-instant orders created `READY`, `GET /orders/chef-display` strips instant items / hides all-instant orders.
-- Payment-methods catalog, split/multi-payment + percent discount, roles/permissions CRUD, manual shifts, MANAGER role/access.
+- **create-user**: `email` required only when `role==MANAGER`; PIN enforced to exactly 4 digits.
+- Payment-methods catalog, split/multi-payment + percent discount, roles/permissions CRUD, manual shifts, MANAGER role/access, PATCH `/orders/{id}/type`.

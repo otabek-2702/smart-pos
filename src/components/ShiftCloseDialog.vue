@@ -137,7 +137,7 @@ async function confirm(): Promise<void> {
     if (!id) {
       toast.warning("Ochiq smena topilmadi");
     } else {
-      const ok = await closeShift(id, countedByMethod, '');
+      const ok = await closeShift(countedByMethod, '');
       if (ok) toast.success('Smena yakunlandi');
       else toast.warning('Smena yopilmadi — server javob bermadi');
     }

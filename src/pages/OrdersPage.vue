@@ -156,7 +156,9 @@
       :total-amount="selectedOrder?.totalAmount ?? 0"
       :phone-number="selectedOrder?.phone_number ?? null"
       :cashier-name="selectedCreator?.name ?? null"
+      :delivery-person="selectedDelivery"
       @type-changed="onOrderTypeChanged"
+      @courier-changed="onOrderTypeChanged"
     />
 
     <!-- Footer -->
@@ -263,6 +265,8 @@ interface ApiOrder {
   // made the order (for the receipt name + the cross-cashier payment warning).
   cashier?: { id: number; name: string } | null;
   user?: { id: number; name: string } | null;
+  // Assigned courier (delivery orders), or null. Detail-only.
+  delivery_person?: { id: number; name: string; phone?: string | null } | null;
 }
 
 interface OrdersResponse {
@@ -330,6 +334,7 @@ async function onOrderClick(order: Order): Promise<void> {
   // Detail carries `user` (the creator account); fall back to `cashier`.
   const creator = orderDetails.user ?? orderDetails.cashier ?? null;
   selectedCreator.value = creator ? { id: creator.id, name: creator.name } : null;
+  selectedDelivery.value = orderDetails.delivery_person ?? null;
   if (status.value === 'UNPAID') {
     showPaymentDialog.value = true;
   } else {
@@ -343,6 +348,8 @@ const selectedOrder = ref<Order | null>(null);
 const selectedOrderItems = ref<ReceiptItem[]>([]);
 // Who created the selected order (for receipt name + cross-cashier warning).
 const selectedCreator = ref<{ id: number; name: string } | null>(null);
+// Courier currently assigned to the selected order (delivery), or null.
+const selectedDelivery = ref<{ id: number; name: string; phone?: string | null } | null>(null);
 
 function getStatusLabel(orderStatus: string): string {
   return STATUS_LABELS[orderStatus] || orderStatus;
@@ -486,6 +493,7 @@ function onOrderTypeChanged(): void {
 function resetSelection(): void {
   selectedOrder.value = null;
   selectedOrderItems.value = [];
+  selectedDelivery.value = null;
 }
 
 /* ============
