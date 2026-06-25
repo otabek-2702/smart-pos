@@ -8,28 +8,15 @@ Verified against the live backend on 2026-06-25. Paths are relative to the
 `alpha_pos_local` repo root (models/services live in the `alpha_pos_core`
 submodule) unless noted.
 
----
-
-## 🟢 1. SSE order stream — `GET /orders/stream` (optional; polling works today)
-
-**Why:** Push order changes so the cashier/KDS update instantly instead of on the
-3s poll. **Not urgent** — the FE already runs fine on polling; the EventSource
-just 404s and backs off.
-
-**Change:** Add an SSE endpoint authenticated by a `?token=<bearer>` query param
-(EventSource can't set the `Authorization` header). Return a
-`StreamingHttpResponse` with `Content-Type: text/event-stream` emitting **named**
-events the FE listens for: `order.created`, `order.updated`,
-`order.status_changed`, `order.paid`, `order.cancelled`. Send a periodic
-heartbeat comment to keep the connection open; support many concurrent clients.
-
-- Endpoint: `GET /orders/stream?token=<bearer>` (no body).
-- Response frame: `event: order.status_changed\ndata: {"order_id": 42, "status": "ready"}\n\n`. `data` must be valid JSON; payload is only a refresh trigger (the FE re-fetches the list as source of truth), so `{order_id, status}` is enough.
-- FE consumer (already complete): `smart-pos-main/src/composables/useOrderStream.ts` (URL build, listeners, JSON.parse, error backoff).
+**No open backend tasks.** Everything the POS needs from `alpha_pos_local` is shipped
+(verified 2026-06-25). The optional SSE order stream was dropped — polling is fine on
+the till (decision 2026-06-25; FE `useOrderStream.ts` stays dormant, can be revived if
+real-time push is ever wanted).
 
 ---
 
 ## Verified shipped — do **not** re-add
+- **SSE order stream**: *dropped by choice* — polling (3s) is sufficient; no backend endpoint built.
 - **Shift close per-tender count**: `POST /shifts/end` (pos_staff) accepts `{counted:{CASH,UZCARD,HUMO,PAYME}, notes}`; core `end_active_for_user` threads `counted` → `end_shift` → `ShiftPaymentTotal` reconciliation. FE: `closeShift` posts to `/shifts/end` (no `/api/admins`). *(shipped 2026-06-25, core 7fc0853 / local 1.0.14)*
 - **CHEF (kitchen) role**: `User.RoleChoices.CHEF` exists; `get_pos_staff` returns CASHIER+MANAGER+CHEF so chefs appear in `GET /cashiers`. FE: PinPage routes CHEF→`/kds`; router guard bounces CHEF off cashier pages. *(shipped 2026-06-25, core b627af4)*
 - **Client-display excludes all-instant orders**: `get_client_display_orders` annotates non-instant item count on both processing + finished, keeps only `>0` (same rule as chef-display). No FE change. *(shipped 2026-06-25)*
