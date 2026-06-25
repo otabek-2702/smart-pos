@@ -53,7 +53,29 @@ never in `GET /cashiers`.
 
 ---
 
-## 🟢 3. SSE order stream — `GET /orders/stream` (optional; polling works today)
+## 🔴 3. `POST /shifts/end` — thread `counted` through the cashier path (local edition)
+
+**Why:** Cashier shift-close sends a per-payment-type **blind count** for reconcile.
+On the **local edition** that count is silently dropped — never persisted.
+
+**Today:** Core `end_shift(shift_id, user_id, notes, actor=None, counted=None)`
+**already supports `counted`**, but the reachable cashier path never passes it:
+- FE posts to `POST /api/admins/shifts/{id}/end {counted, notes}` — local has **no `/api/admins/*`**.
+- The reachable `POST /shifts/end` (pos_staff) view reads only `notes`;
+  `end_active_for_user(user_id, notes)` → `end_shift(shift.id, user_id, notes)` **without `counted`**.
+
+**Change (small — thread-through only):**
+1. `/shifts/end` view: also read `counted` from body (optional), pass `actor=request.user`.
+2. `end_active_for_user(user_id, notes, counted=None)` → `end_shift(shift.id, user_id, notes, actor=..., counted=counted)`.
+
+- Endpoint: `POST /shifts/end`. Body: `{ notes?, counted?: {CASH,UZCARD,HUMO,PAYME} }`.
+- Result: per-method reconciliation (`ShiftPaymentTotal`) created on close.
+- FE follow-up (after backend): repoint `closeShift` from `/api/admins/shifts/{id}/end` to `/shifts/end` in `src/composables/useShift.ts` (~L67–83).
+- Sent to dev 2026-06-25 (msg_id 15).
+
+---
+
+## 🟢 4. SSE order stream — `GET /orders/stream` (optional; polling works today)
 
 **Why:** Push order changes so the cashier/KDS update instantly instead of on the
 3s poll. **Not urgent** — the FE already runs fine on polling; the EventSource
@@ -74,7 +96,6 @@ heartbeat comment to keep the connection open; support many concurrent clients.
 ---
 
 ## Verified shipped — do **not** re-add
-- Per-payment-type **shift close**: `POST /shifts/end` accepts `{counted:{CASH,UZCARD,HUMO,PAYME}, notes}`, writes `ShiftPaymentTotal` per method, surfaced on shift detail. `@pos_staff_required` (cashier can close). Fully working.
 - **Expenses**: hr + cashbox expense endpoints are `@pos_staff_required` — cashier/manager get no 403. (POS page uses the cashbox API `POST /api/admins/cashbox/shifts/{id}/expenses/ {amount, comment}`.)
 - **Shared-till ownership**: `_check_cashier_ownership` returns early for ADMIN/MANAGER/CASHIER — any staff can ready/pay/status/add-item on any order.
 - **create-user**: `email` required only when `role==MANAGER` (auto-derived otherwise); PIN enforced to exactly 4 digits.
