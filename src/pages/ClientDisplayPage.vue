@@ -1,5 +1,8 @@
 <template>
   <div class="client-display" :style="displayStyles">
+    <!-- Offline badge (only appears when internet is down) -->
+    <InternetStatusIcon :network="network" show-label class="cd-net" />
+
     <!-- FULLSCREEN READY NOTIFICATION -->
     <Transition name="fullscreen">
       <div
@@ -146,6 +149,12 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { api } from 'boot/axios';
 import { useOrderStream } from 'src/composables/useOrderStream';
+import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
+import { useNetworkStatus } from 'src/composables/useNetworkStatus';
+
+// Internet status — the lobby/KDS screens run on secondary terminals that get
+// no warning dialog, so show the non-blocking offline badge here too.
+const network = useNetworkStatus();
 
 // Types
 interface DisplayOrder {
@@ -506,6 +515,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Offline badge — fixed top-right overlay; the component hides itself when
+   internet is up, so this never clutters the customer-facing display. */
+.cd-net {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 50;
+}
+
 /* ===== BASE LAYOUT ===== */
 .client-display {
   height: 100vh;
