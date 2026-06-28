@@ -90,7 +90,12 @@
               />
             </div>
 
-            <OrderDetailsDialog v-model:description="description" v-model:phone="phone_number" />
+            <OrderDetailsDialog
+              ref="detailsDialogRef"
+              v-model:description="description"
+              v-model:phone="phone_number"
+              v-model:customer-name="customerName"
+            />
           </div>
 
           <!-- Category Filter -->
@@ -293,6 +298,9 @@ interface CreateOrderPayload {
   order_type: OrderType;
   phone_number?: string;
   description?: string;
+  // {name, phone} so the backend resolves/creates the unified Customer (saves a
+  // new customer's name; converges a returning one by phone).
+  customer?: { name?: string; phone?: string };
   items: Array<{
     product_id: number;
     quantity: number;
@@ -375,6 +383,8 @@ const products = computed<ApiProduct[]>(() => {
 
 const description = ref('');
 const phone_number = ref('');
+const customerName = ref('');
+const detailsDialogRef = ref<{ reset: () => void } | null>(null);
 
 /* ---- operator-mode phone prefill ----
    Fill the phone field from (priority) the route ?phone query, else the live
@@ -641,6 +651,16 @@ async function createOrderAndOpenPayment(): Promise<void> {
   if (description.value.trim()) {
     payload.description = description.value.trim();
   }
+  // Attach the customer so the backend saves a new name / converges a returning
+  // one by phone (Customer.resolve). Only when we have a phone and/or a name.
+  const custName = customerName.value.trim();
+  const custPhone = phone_number.value.trim();
+  if (custName || custPhone) {
+    const customer: { name?: string; phone?: string } = {};
+    if (custName) customer.name = custName;
+    if (custPhone) customer.phone = custPhone;
+    payload.customer = customer;
+  }
 
   submitting.value = true;
 
@@ -684,6 +704,8 @@ function resetForm(): void {
   search.value = '';
   description.value = '';
   phone_number.value = '';
+  customerName.value = '';
+  detailsDialogRef.value?.reset();
   createdOrderId.value = null;
   createdDisplayId.value = null;
   selectedCategory.value = null;
