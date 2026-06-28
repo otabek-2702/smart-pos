@@ -53,6 +53,57 @@
               <span class="add__label">Izoh</span>
               <span class="add__value add__value--text">{{ comment || '—' }}</span>
             </div>
+
+            <!-- Recipient — who this cash is paid to (staff or supplier). -->
+            <div class="add__field" :class="{ active: field === 'recipient' }" @click="openRecipient">
+              <span class="add__label">Kimga (qabul qiluvchi)</span>
+              <span class="add__value add__value--text">
+                {{ field === 'recipient'
+                  ? (recipientQuery || '— ism yozing —')
+                  : (recipientSel?.name || '—') }}
+              </span>
+            </div>
+
+            <!-- Recipient search results (only while picking). -->
+            <div v-if="field === 'recipient'" class="rcp">
+              <button v-if="recipientSel" type="button" class="rcp__clear" @click="clearRecipient">
+                <q-icon name="close" size="16px" /> Tanlovni tozalash
+              </button>
+              <template v-if="recipientResults.users.length">
+                <div class="rcp__group">Xodimlar</div>
+                <button
+                  v-for="u in recipientResults.users"
+                  :key="'u' + u.id"
+                  type="button"
+                  class="rcp__item"
+                  :class="{ sel: recipientSel?.type === 'user' && recipientSel?.id === u.id }"
+                  @click="selectRecipient('user', u.id, u.name)"
+                >
+                  <span>{{ u.name }}</span><span class="rcp__meta">{{ roleLabel(u.role) }}</span>
+                </button>
+              </template>
+              <template v-if="recipientResults.suppliers.length">
+                <div class="rcp__group">Yetkazib beruvchilar</div>
+                <button
+                  v-for="s in recipientResults.suppliers"
+                  :key="'s' + s.id"
+                  type="button"
+                  class="rcp__item"
+                  :class="{ sel: recipientSel?.type === 'supplier' && recipientSel?.id === s.id }"
+                  @click="selectRecipient('supplier', s.id, s.name)"
+                >
+                  <span>{{ s.name }}</span>
+                  <span class="rcp__meta">{{ formatPrice(Number(s.balance) || 0) }} so'm</span>
+                </button>
+              </template>
+              <div
+                v-if="!recipientResults.users.length && !recipientResults.suppliers.length"
+                class="rcp__empty"
+              >
+                {{ recipientQuery ? 'Topilmadi' : 'Ism yozing…' }}
+              </div>
+            </div>
+
             <div v-if="addError" class="add__err">{{ addError }}</div>
           </div>
 
@@ -96,7 +147,9 @@ import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue
 import { getCurrentShift } from 'src/composables/useShift';
 
 const router = useRouter();
-const CASHBOX = '/api/admins/cashbox';
+// Local edition mounts the cashbox (drawer) under /api/cashbox (pos-staff auth),
+// NOT the server edition's /api/admins/cashbox.
+const CASHBOX = '/api/cashbox';
 
 interface CashboxExpense {
   id: number;
@@ -154,11 +207,64 @@ async function loadList(): Promise<void> {
 const showAdd = ref(false);
 const saving = ref(false);
 const addError = ref<string | null>(null);
-const field = ref<'amount' | 'comment'>('amount');
+const field = ref<'amount' | 'comment' | 'recipient'>('amount');
 const amountInput = ref('');
 const comment = ref('');
 const amountValue = computed(() => parseInt(amountInput.value, 10) || 0);
 const canAdd = computed(() => amountValue.value > 0);
+
+/* recipient (who the cash is paid to) — staff user or supplier */
+interface RecipientUser { id: number; name: string; role: string }
+interface RecipientSupplier { id: number; name: string; balance: string }
+const recipientQuery = ref('');
+const recipientResults = ref<{ users: RecipientUser[]; suppliers: RecipientSupplier[] }>({
+  users: [],
+  suppliers: [],
+});
+const recipientSel = ref<{ type: 'user' | 'supplier'; id: number; name: string } | null>(null);
+let recipientTimer: ReturnType<typeof setTimeout> | null = null;
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin', MANAGER: 'Menejer', CASHIER: 'Kassir', CHEF: 'Oshpaz', WAITER: 'Ofitsiant',
+};
+function roleLabel(r: string): string { return ROLE_LABELS[r] || r; }
+
+function openRecipient(): void {
+  field.value = 'recipient';
+  // Seed the list (top staff + suppliers) the first time it's opened.
+  if (!recipientResults.value.users.length && !recipientResults.value.suppliers.length) {
+    void searchRecipients();
+  }
+}
+async function searchRecipients(): Promise<void> {
+  try {
+    const res = await api.get(`${CASHBOX}/recipients/search`, {
+      params: { q: recipientQuery.value.trim() },
+      validateStatus: () => true,
+    });
+    if (res.status === 200) {
+      recipientResults.value = {
+        users: res.data?.data?.users ?? [],
+        suppliers: res.data?.data?.suppliers ?? [],
+      };
+    }
+  } catch (e) {
+    console.error('recipient search failed:', e);
+  }
+}
+function queueRecipientSearch(): void {
+  if (recipientTimer) clearTimeout(recipientTimer);
+  recipientTimer = setTimeout(() => void searchRecipients(), 250);
+}
+function selectRecipient(type: 'user' | 'supplier', id: number, name: string): void {
+  recipientSel.value = { type, id, name };
+  field.value = 'comment';
+}
+function clearRecipient(): void {
+  recipientSel.value = null;
+  recipientQuery.value = '';
+  void searchRecipients();
+}
 
 function onNumInput(v: string): void {
   if (amountInput.value.length >= 12) return;
@@ -166,12 +272,23 @@ function onNumInput(v: string): void {
 }
 function onNumBackspace(): void { amountInput.value = amountInput.value.slice(0, -1); }
 function onNumClear(): void { amountInput.value = ''; }
-function onKeyInput(c: string): void { comment.value += c; }
-function onKeyBackspace(): void { comment.value = comment.value.slice(0, -1); }
+function onKeyInput(c: string): void {
+  if (field.value === 'recipient') { recipientQuery.value += c; queueRecipientSearch(); }
+  else { comment.value += c; }
+}
+function onKeyBackspace(): void {
+  if (field.value === 'recipient') {
+    recipientQuery.value = recipientQuery.value.slice(0, -1);
+    queueRecipientSearch();
+  } else { comment.value = comment.value.slice(0, -1); }
+}
 
 function openAdd(): void {
   amountInput.value = '';
   comment.value = '';
+  recipientQuery.value = '';
+  recipientSel.value = null;
+  recipientResults.value = { users: [], suppliers: [] };
   field.value = 'amount';
   addError.value = null;
   showAdd.value = true;
@@ -181,9 +298,15 @@ async function saveExpense(): Promise<void> {
   saving.value = true;
   addError.value = null;
   try {
+    const body: Record<string, unknown> = {
+      amount: amountValue.value,
+      comment: comment.value.trim(),
+    };
+    if (recipientSel.value?.type === 'user') body.recipient_user_id = recipientSel.value.id;
+    else if (recipientSel.value?.type === 'supplier') body.recipient_supplier_id = recipientSel.value.id;
     const res = await api.post(
       `${CASHBOX}/shifts/${shiftId.value}/expenses/`,
-      { amount: amountValue.value, comment: comment.value.trim() },
+      body,
       { validateStatus: () => true },
     );
     if (res.status === 200 || res.status === 201) {
@@ -276,6 +399,36 @@ onMounted(() => void init());
 .add__value { font-size: 26px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .add__value--text { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .add__err { font-size: 13px; color: var(--error); }
+
+/* recipient search results */
+.rcp {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 32vh; overflow-y: auto;
+  padding: 8px; border-radius: 12px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+}
+.rcp__clear {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-bottom: 4px;
+  border-radius: 8px; border: 1px solid var(--border-color);
+  background: var(--bg-surface-2); color: var(--text-muted);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.rcp__group {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--text-muted); padding: 6px 8px 2px;
+}
+.rcp__item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-radius: 10px; border: none;
+  background: var(--bg-surface-2); color: var(--text-primary);
+  font-size: 15px; font-weight: 600; cursor: pointer; text-align: left;
+  &:active { transform: scale(0.99); }
+  &.sel { background: var(--accent-soft, color-mix(in srgb, var(--accent-primary) 16%, transparent)); color: var(--accent-primary); }
+}
+.rcp__meta { font-size: 13px; font-weight: 500; color: var(--text-muted); flex-shrink: 0; }
+.rcp__empty { padding: 16px; text-align: center; font-size: 13px; color: var(--text-muted); }
 .add__kb { margin-top: auto; }
 .add__foot { display: flex; gap: 12px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--border-color); background: var(--bg-surface); }
 
