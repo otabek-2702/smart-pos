@@ -141,10 +141,12 @@
       @cancel="onPaymentCancel"
       @cancelled="onOrderCancelled"
       @type-changed="onOrderTypeChanged"
+      @courier-changed="onOrderTypeChanged"
       :order-description="selectedOrder?.description ?? ''"
       :creator-id="selectedCreator?.id ?? null"
       :creator-name="selectedCreator?.name ?? null"
       :phone-number="selectedOrder?.phone_number ?? null"
+      :delivery-person="selectedDelivery"
     />
     <OrderInfoDialog
       v-model="showInfoDialog"

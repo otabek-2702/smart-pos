@@ -33,6 +33,40 @@
                 {{ t.label }}
               </button>
             </div>
+
+            <!-- courier (delivery only) — assign / change the driver -->
+            <button
+              v-if="orderTypeLocal === 'DELIVERY'"
+              type="button"
+              class="pay__type pay__type--btn"
+              :disabled="courierSaving || !orderId"
+              @click="toggleCourierPicker"
+            >
+              <q-icon name="two_wheeler" size="16px" />
+              {{ courierName || 'Kuryer' }}
+              <q-icon :name="showCourierPicker ? 'expand_less' : 'expand_more'" size="16px" />
+            </button>
+            <div v-if="showCourierPicker" class="type-pop courier-pop" @click.self="showCourierPicker = false">
+              <button
+                type="button"
+                class="type-opt"
+                :class="{ active: courierLocal === null }"
+                @click="selectCourier(null)"
+              >
+                Tanlanmagan
+              </button>
+              <button
+                v-for="c in couriers"
+                :key="c.id"
+                type="button"
+                class="type-opt"
+                :class="{ active: c.id === courierLocal }"
+                @click="selectCourier(c.id)"
+              >
+                {{ c.name }}<span v-if="c.phone" class="courier-pop__ph">{{ c.phone }}</span>
+              </button>
+              <div v-if="!couriers.length" class="courier-pop__empty">Kuryerlar yo'q</div>
+            </div>
           </div>
           <button type="button" class="pay__close" aria-label="Yopish" @click="onCancel">
             <q-icon name="close" size="22px" />
@@ -384,6 +418,7 @@ import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
 import { suppressInternetWarningWhile } from 'src/composables/useInternetWarningSuppress';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { useCouriers } from 'src/composables/useCouriers';
 import { usePaymentMethods } from 'src/composables/usePaymentMethods';
 import { useDiscountPolicy } from 'src/composables/useDiscountPolicy';
 import { getAuthUser } from 'src/composables/usePermissions';
@@ -416,6 +451,8 @@ interface Props {
   creatorId?: number | null;
   creatorName?: string | null;
   phoneNumber?: string | null;
+  // Courier currently assigned (delivery orders), or null.
+  deliveryPerson?: { id: number; name: string; phone?: string | null } | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -423,6 +460,7 @@ const props = withDefaults(defineProps<Props>(), {
   creatorId: null,
   creatorName: null,
   phoneNumber: null,
+  deliveryPerson: null,
 });
 
 const emit = defineEmits<{
@@ -431,6 +469,7 @@ const emit = defineEmits<{
   cancel: [];
   cancelled: [];
   'type-changed': [];
+  'courier-changed': [];
 }>();
 
 const router = useRouter();
@@ -457,11 +496,54 @@ async function changeOrderType(t: OrderType): Promise<void> {
     await api.patch(`/orders/${props.orderId}/type`, { order_type: t });
     orderTypeLocal.value = t;
     emit('type-changed');
+    if (t === 'DELIVERY') void loadCouriers();
   } catch (e) {
     console.error('Order type change failed:', e);
     alert("Buyurtma turini o'zgartirib bo'lmadi");
   } finally {
     typeSaving.value = false;
+  }
+}
+
+// ── Courier assignment (delivery orders) ────────────────────────────────────
+const { couriers, loadCouriers, assignCourier } = useCouriers();
+const showCourierPicker = ref(false);
+const courierSaving = ref(false);
+const courierLocal = ref<number | null>(props.deliveryPerson?.id ?? null);
+
+watch(
+  () => props.deliveryPerson,
+  (dp) => { courierLocal.value = dp?.id ?? null; },
+);
+
+const courierName = computed(() => {
+  if (courierLocal.value == null) return '';
+  const c = couriers.value.find((x) => x.id === courierLocal.value);
+  if (c) return c.name;
+  if (props.deliveryPerson?.id === courierLocal.value) return props.deliveryPerson.name;
+  return '';
+});
+
+function toggleCourierPicker(): void {
+  showCourierPicker.value = !showCourierPicker.value;
+  if (showCourierPicker.value) void loadCouriers();
+}
+
+async function selectCourier(id: number | null): Promise<void> {
+  showCourierPicker.value = false;
+  if (!props.orderId || courierSaving.value || id === courierLocal.value) return;
+  courierSaving.value = true;
+  const prev = courierLocal.value;
+  courierLocal.value = id; // optimistic
+  try {
+    const ok = await assignCourier(props.orderId, id);
+    if (ok) emit('courier-changed');
+    else courierLocal.value = prev;
+  } catch (e) {
+    console.error('Courier assign failed:', e);
+    courierLocal.value = prev;
+  } finally {
+    courierSaving.value = false;
   }
 }
 
@@ -744,6 +826,9 @@ watch(isOpen, (open) => {
     activeDiscField.value = null;
     orderTypeLocal.value = props.orderType;
     showTypePicker.value = false;
+    courierLocal.value = props.deliveryPerson?.id ?? null;
+    showCourierPicker.value = false;
+    if (orderTypeLocal.value === 'DELIVERY') void loadCouriers();
   }
 });
 
@@ -989,6 +1074,23 @@ async function onCancelOrder(): Promise<void> {
     background: var(--primary-weak);
     color: var(--primary);
   }
+}
+.courier-pop {
+  max-height: 260px;
+  overflow-y: auto;
+  min-width: 200px;
+}
+.courier-pop__ph {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.courier-pop__empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
 }
 .pay__close {
   width: 40px;
