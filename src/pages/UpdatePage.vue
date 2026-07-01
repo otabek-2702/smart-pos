@@ -11,6 +11,12 @@
 
     <!-- ============ LOCKED: manager / tech-support gate ============ -->
     <section v-if="!unlocked" class="card gate">
+      <div class="gate-hero">
+        <div class="gate-hero__icon"><q-icon name="system_update" size="30px" /></div>
+        <div class="gate-hero__t">Yangilashni tasdiqlang</div>
+        <div class="gate-hero__s">Menejer paroli yoki texnik kod bilan davom eting</div>
+      </div>
+
       <div class="warn">
         <q-icon name="warning" size="28px" />
         <div>
@@ -82,16 +88,28 @@
         </div>
       </div>
 
-      <!-- TECH SUPPORT: master code -->
+      <!-- TECH SUPPORT: master code (on-screen keyboard for touch tills) -->
       <div v-else class="method-body">
         <p class="tech-hint">Texnik yordam bergan maxfiy kodni kiriting.</p>
-        <q-input
-          v-model="techCode"
-          outlined
-          dense
-          type="password"
-          label="Texnik yordam kodi"
-          @keyup.enter="verify"
+        <div class="code-field" :class="{ empty: !techCode }">
+          <span v-if="techCode" class="code-val">{{ techCode }}</span>
+          <span v-else class="code-ph">RF-XXXXXX-XXXX</span>
+          <button
+            v-if="techCode"
+            type="button"
+            class="code-clear"
+            aria-label="Tozalash"
+            @click="techCode = ''"
+          >
+            <q-icon name="close" size="18px" />
+          </button>
+        </div>
+        <VirtualKeyboard
+          position="inline"
+          numbers
+          @input="onCodeInput"
+          @backspace="techCode = techCode.slice(0, -1)"
+          @enter="verify"
         />
       </div>
 
@@ -167,6 +185,7 @@ import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { read } from 'src/utils/storage';
 import { useAppUpdate } from 'src/composables/useAppUpdate';
+import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue';
 
 const router = useRouter();
 const { state, check, download, install } = useAppUpdate();
@@ -222,6 +241,12 @@ async function loadManagers(): Promise<void> {
 const DEFAULT_TECH_CODE = 'RF-UPDATE-2026';
 const techCode = ref('');
 
+// Codes are uppercase (e.g. RF-UPDATE-2026); normalize as the cashier types on
+// the on-screen keyboard so case never blocks a correct code.
+function onCodeInput(c: string): void {
+  techCode.value += c.toUpperCase();
+}
+
 const canVerify = computed(() => {
   if (method.value === 'manager') return selectedManagerId.value != null && pin.value.length === 4;
   return techCode.value.trim().length > 0;
@@ -238,7 +263,7 @@ async function verify(): Promise<void> {
   try {
     if (method.value === 'tech') {
       const expected = (read<string>('pos:techSupportCode') || DEFAULT_TECH_CODE).trim();
-      if (techCode.value.trim() === expected) {
+      if (techCode.value.trim().toUpperCase() === expected.toUpperCase()) {
         unlocked.value = true;
       } else {
         gateError.value = 'Kod noto‘g‘ri';
@@ -403,6 +428,83 @@ onMounted(() => {
   margin: 0;
   font-size: 13px;
   color: var(--ink-2);
+}
+
+/* gate hero */
+.gate-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.gate-hero__icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  margin-bottom: 4px;
+}
+.gate-hero__t {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.gate-hero__s {
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: 360px;
+  line-height: 1.45;
+}
+
+/* tech-code display (filled by the on-screen keyboard) */
+.code-field {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 62px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--line-strong);
+  background: var(--surface-2);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+.code-field.empty {
+  border-style: dashed;
+}
+.code-val {
+  word-break: break-all;
+}
+.code-ph {
+  color: var(--ink-3);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+.code-clear {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: none;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:active {
+    transform: scale(0.94);
+  }
 }
 
 .pin-dots {
