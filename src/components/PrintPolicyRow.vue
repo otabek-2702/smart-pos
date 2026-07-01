@@ -1,17 +1,31 @@
 <template>
-  <div class="pp-row">
-    <div class="pp-name">{{ label }}</div>
-    <div class="pp-toggles">
-      <q-toggle v-model="before" label="To'lovdan oldin" dense color="primary" />
-      <q-toggle v-model="after" label="To'lovdan keyin" dense color="primary" />
+  <div class="pp-card">
+    <div class="pp-card__head">
+      <span class="pp-card__name">{{ label }}</span>
+      <div class="pp-scope" title="Faqat shu kompyuter uchunmi yoki barchasi uchunmi">
+        <button type="button" :class="{ active: scope === 'this-pc' }" @click="setScope('this-pc')">
+          Shu PC
+        </button>
+        <button type="button" :class="{ active: scope === 'global' }" @click="setScope('global')">
+          Hammasi
+        </button>
+      </div>
     </div>
-    <div class="pp-scope" title="Faqat shu kompyuter uchunmi yoki barchasi uchunmi">
-      <button type="button" :class="{ active: scope === 'this-pc' }" @click="setScope('this-pc')">
-        Shu PC
-      </button>
-      <button type="button" :class="{ active: scope === 'global' }" @click="setScope('global')">
-        Hammasi
-      </button>
+
+    <div class="pp-opt" @click="before = !before">
+      <span class="pp-opt__txt">
+        <q-icon name="receipt_long" size="18px" />
+        To'lovdan oldin
+      </span>
+      <q-toggle v-model="before" dense color="primary" @click.stop />
+    </div>
+
+    <div class="pp-opt" @click="after = !after">
+      <span class="pp-opt__txt">
+        <q-icon name="task_alt" size="18px" />
+        To'lovdan keyin
+      </span>
+      <q-toggle v-model="after" dense color="primary" @click.stop />
     </div>
   </div>
 </template>
@@ -37,50 +51,75 @@ function setScope(s: TweakScope): void {
 </script>
 
 <style scoped>
-.pp-row {
+.pp-card {
+  background: var(--surface-2, var(--bg-surface));
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.pp-card:last-child {
+  margin-bottom: 0;
+}
+
+.pp-card__head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-color);
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
 }
-.pp-row:last-child {
-  border-bottom: none;
-}
-.pp-name {
-  flex: 0 0 120px;
-  font-size: 14px;
+.pp-card__name {
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
 }
-.pp-toggles {
-  flex: 1;
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: var(--text-primary);
-}
+
+/* scope pill */
 .pp-scope {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  border-radius: var(--r-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  border-radius: var(--r-pill, 999px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .pp-scope button {
-  padding: 4px 10px;
+  padding: 5px 12px;
   border: none;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-pill, 999px);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
 }
 .pp-scope button.active {
   background: var(--primary);
   color: var(--on-primary);
+}
+
+/* toggle rows */
+.pp-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 2px;
+  cursor: pointer;
+  border-top: 1px solid var(--border-color);
+}
+.pp-opt__txt {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.pp-opt__txt .q-icon {
+  color: var(--text-muted);
 }
 </style>
