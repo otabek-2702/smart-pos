@@ -93,6 +93,19 @@
                 <span class="dd__label">Izoh (qo‘shimcha)</span>
                 <span class="dd__value dd__value--text">{{ izohLocal || '—' }}</span>
               </button>
+
+              <!-- quick note templates (tap to add to the note) -->
+              <div class="dd__templates">
+                <button
+                  v-for="t in descriptionTemplates"
+                  :key="t"
+                  type="button"
+                  class="dd__tpl"
+                  @click="applyTemplate(t)"
+                >
+                  <q-icon name="add" size="14px" /> {{ t }}
+                </button>
+              </div>
             </div>
 
             <!-- RIGHT: keyboard for the active field -->
@@ -227,6 +240,15 @@ async function lookupClient(): Promise<void> {
 function useAddress(p: string): void {
   addressLocal.value = p;
   activeField.value = 'address';
+}
+
+/* Quick note templates (shablon) — tap to append to the note. "O'zi olib ketish"
+   (self-pickup) is the first; extend this list as more are needed. */
+const descriptionTemplates = ["O'zi olib ketish"];
+function applyTemplate(t: string): void {
+  const cur = izohLocal.value.trim();
+  izohLocal.value = cur ? `${cur} — ${t}` : t;
+  activeField.value = 'izoh';
 }
 
 /* OPEN / CLOSE / RESET */
@@ -421,6 +443,26 @@ defineExpose({ reset });
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  &:active { transform: scale(0.97); }
+}
+
+.dd__templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dd__tpl {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px dashed var(--accent-primary);
+  background: transparent;
+  color: var(--accent-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   &:active { transform: scale(0.97); }
 }
 
