@@ -20,18 +20,34 @@ export class ThermalPrinter {
     const width = image.getWidth();
     const height = image.getHeight();
 
-    // HARD THRESHOLD → 1-bit. The receipt is pure black-on-white, so dithering
-    // only adds speckle and renders the logo's baked-grey wordmark as a muddy
-    // dot pattern. A threshold instead snaps anything that isn't near-white to
-    // solid black (crisp text, solid logo) and keeps the background clean white.
-    // Tune MONO_THRESHOLD (0–255): higher = more pixels forced black.
-    const MONO_THRESHOLD = 200;
+    // HYBRID 1-bit conversion. Text is pure black-on-white, so we snap it hard
+    // for crisp glyphs; only genuine MID-greys (the section divider `hair`, and a
+    // photo logo's tones) get an ordered (Bayer) dither so they render as a light
+    // halftone instead of vanishing or going solid black:
+    //   luma <  DARK  → solid black   (text, QR, dark logo)
+    //   luma >= LIGHT → white         (clean background)
+    //   in between    → 4×4 Bayer dither (proportional grey → dot density)
+    const DARK = 80;
+    const LIGHT = 225;
+    const BAYER4 = [
+      [0, 8, 2, 10],
+      [12, 4, 14, 6],
+      [3, 11, 1, 9],
+      [15, 7, 13, 5],
+    ];
     const monoPixels = new Uint8Array(width * height);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // grayscale() made r=g=b, so r is the luma.
         const luma = Jimp.intToRGBA(image.getPixelColor(x, y)).r;
-        monoPixels[y * width + x] = luma < MONO_THRESHOLD ? 1 : 0; // 1 = black dot
+        let black: number;
+        if (luma < DARK) black = 1;
+        else if (luma >= LIGHT) black = 0;
+        else {
+          const t = ((BAYER4[y & 3]![x & 3]! + 0.5) / 16) * 255;
+          black = luma < t ? 1 : 0;
+        }
+        monoPixels[y * width + x] = black; // 1 = black dot
       }
     }
 

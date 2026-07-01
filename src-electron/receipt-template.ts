@@ -104,13 +104,16 @@ function esc(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
-// Palette — ALL BLACK. Thermal heads dither grey to a faint, smeary result, so
-// every text tone (and the hairline) prints as solid #000 for crisp output.
+// Palette — all TEXT is black (#000); a 1-bit thermal head would smear grey text
+// to a faint mess. The only grey is the section divider (`hair`): the raster path
+// ordered-dithers mid-greys (see thermal-printer.ts), so it prints as a light
+// halftone line, and the USB/driver path halftones it natively — a subtler rule
+// than a heavy solid-black line, matching the design.
 const C = {
   ink: '#000',
   sub: '#000',
   faint: '#000',
-  hair: '#000',
+  hair: '#b0b5bb',
 };
 
 // One stylesheet, parameterised by output medium. Text sizes are in `em` so the
