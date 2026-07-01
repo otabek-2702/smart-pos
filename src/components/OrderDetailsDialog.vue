@@ -1,11 +1,12 @@
 <template>
-  <!-- trigger -->
-  <button type="button" class="btn primary trigger" @click="open">
-    <q-icon name="local_shipping" size="20px" />
-    Yetkazib berish ma'lumotlari
+  <!-- compact trigger (icon only, matches the search box height; a dot shows
+       when delivery/customer data has been entered) -->
+  <button type="button" class="dd-trigger" :class="{ has: hasData }" title="Mijoz / yetkazib berish" @click="open">
+    <q-icon name="person_pin_circle" size="24px" />
+    <span v-if="hasData" class="dd-trigger__dot" />
   </button>
 
-  <!-- full-screen delivery data panel -->
+  <!-- full-screen customer / delivery panel -->
   <Teleport to="body">
     <Transition name="dd-fade">
       <div v-if="showDetails" class="dd" role="dialog" aria-modal="true">
@@ -13,121 +14,130 @@
           <!-- header -->
           <div class="dd__head">
             <div class="dd__title">
-              <q-icon name="local_shipping" size="24px" />
-              Yetkazib berish ma'lumotlari
+              <q-icon name="person_pin_circle" size="24px" />
+              Mijoz va yetkazib berish
             </div>
-            <button type="button" class="dd__close" @click="save" aria-label="Yopish">
+            <button type="button" class="dd__close" aria-label="Yopish" @click="save">
               <q-icon name="close" size="24px" />
             </button>
           </div>
 
+          <!-- scrollable fields -->
           <div class="dd__body">
-            <!-- LEFT: fields -->
-            <div class="dd__fields">
-              <!-- phone -->
-              <button
-                type="button"
-                class="dd__field"
-                :class="{ active: activeField === 'phone' }"
-                @click="activeField = 'phone'"
-              >
-                <span class="dd__label">Telefon raqam</span>
-                <span class="dd__value">
-                  <span class="dd__pfx">+998</span>{{ formattedPhone || ' —' }}
-                  <q-spinner v-if="lookupLoading" size="16px" class="dd__spin" />
-                </span>
-              </button>
+            <!-- phone -->
+            <button
+              type="button"
+              class="fld"
+              :class="{ active: activeField === 'phone' }"
+              @click="activeField = 'phone'"
+            >
+              <span class="fld__label"><q-icon name="call" size="15px" /> Telefon raqam</span>
+              <span class="fld__val">
+                <span class="fld__pfx">+998</span>{{ formattedPhone || ' —' }}
+                <q-spinner v-if="lookupLoading" size="16px" class="fld__spin" />
+              </span>
+            </button>
 
-              <!-- client status: returning (name shown) or new (name input) -->
-              <div v-if="phoneComplete" class="dd__client">
-                <template v-if="clientFound">
-                  <div class="dd__client-found">
-                    <q-icon name="how_to_reg" size="18px" />
-                    Doimiy mijoz: <strong>{{ customerName || 'Ism yo‘q' }}</strong>
+            <!-- client status (only once the number is complete) -->
+            <Transition name="dd-slide">
+              <div v-if="phoneComplete" class="client">
+                <!-- returning customer -->
+                <div v-if="clientFound" class="client-card">
+                  <div class="client-card__icon"><q-icon name="how_to_reg" size="22px" /></div>
+                  <div class="client-card__body">
+                    <div class="client-card__name">{{ customerName || 'Ism yo‘q' }}</div>
+                    <div v-if="clientMeta" class="client-card__meta">{{ clientMeta }}</div>
                   </div>
-                </template>
-                <button
-                  v-else
-                  type="button"
-                  class="dd__field dd__field--name"
-                  :class="{ active: activeField === 'name' }"
-                  @click="activeField = 'name'"
-                >
-                  <span class="dd__label">Mijoz ismi (yangi — saqlanadi)</span>
-                  <span class="dd__value dd__value--text">{{ customerName || '—' }}</span>
-                </button>
+                  <div class="client-card__tag">Doimiy</div>
+                </div>
 
-                <!-- previous places (from this client's past orders) -->
-                <div v-if="previousPlaces.length" class="dd__places">
-                  <span class="dd__places-label">Oldingi manzillar:</span>
+                <!-- new customer: name to save -->
+                <template v-else>
                   <button
-                    v-for="(p, i) in previousPlaces"
-                    :key="i"
                     type="button"
-                    class="dd__place"
-                    @click="useAddress(p)"
+                    class="fld"
+                    :class="{ active: activeField === 'name' }"
+                    @click="activeField = 'name'"
                   >
-                    <q-icon name="history" size="14px" /> {{ p }}
+                    <span class="fld__label"><q-icon name="person_add" size="15px" /> Mijoz ismi (yangi — saqlanadi)</span>
+                    <span class="fld__val fld__val--text">{{ customerName || '—' }}</span>
                   </button>
+                  <div class="new-hint"><q-icon name="info" size="14px" /> Yangi raqam. Ism kiritsangiz, keyingi safar avtomatik chiqadi.</div>
+                </template>
+
+                <!-- previous delivery places -->
+                <div v-if="previousPlaces.length" class="places">
+                  <span class="places__label">Oldingi manzillar</span>
+                  <div class="places__list">
+                    <button
+                      v-for="(p, i) in previousPlaces"
+                      :key="i"
+                      type="button"
+                      class="chip"
+                      @click="useAddress(p)"
+                    >
+                      <q-icon name="history" size="14px" /> {{ p }}
+                    </button>
+                  </div>
                 </div>
               </div>
+            </Transition>
 
-              <!-- address (Manzil) -->
+            <!-- address -->
+            <button
+              type="button"
+              class="fld fld--area"
+              :class="{ active: activeField === 'address' }"
+              @click="activeField = 'address'"
+            >
+              <span class="fld__label"><q-icon name="location_on" size="15px" /> Manzil (yetkazish)</span>
+              <span class="fld__val fld__val--text">{{ addressLocal || '—' }}</span>
+            </button>
+
+            <!-- note -->
+            <button
+              type="button"
+              class="fld fld--area"
+              :class="{ active: activeField === 'izoh' }"
+              @click="activeField = 'izoh'"
+            >
+              <span class="fld__label"><q-icon name="sticky_note_2" size="15px" /> Izoh (qo‘shimcha)</span>
+              <span class="fld__val fld__val--text">{{ izohLocal || '—' }}</span>
+            </button>
+
+            <!-- quick note templates -->
+            <div class="tpls">
               <button
+                v-for="t in descriptionTemplates"
+                :key="t"
                 type="button"
-                class="dd__field dd__field--area"
-                :class="{ active: activeField === 'address' }"
-                @click="activeField = 'address'"
+                class="chip chip--tpl"
+                @click="applyTemplate(t)"
               >
-                <span class="dd__label">Manzil (yetkazish)</span>
-                <span class="dd__value dd__value--text">{{ addressLocal || '—' }}</span>
+                <q-icon name="add" size="14px" /> {{ t }}
               </button>
-
-              <!-- description (Izoh) -->
-              <button
-                type="button"
-                class="dd__field dd__field--area"
-                :class="{ active: activeField === 'izoh' }"
-                @click="activeField = 'izoh'"
-              >
-                <span class="dd__label">Izoh (qo‘shimcha)</span>
-                <span class="dd__value dd__value--text">{{ izohLocal || '—' }}</span>
-              </button>
-
-              <!-- quick note templates (tap to add to the note) -->
-              <div class="dd__templates">
-                <button
-                  v-for="t in descriptionTemplates"
-                  :key="t"
-                  type="button"
-                  class="dd__tpl"
-                  @click="applyTemplate(t)"
-                >
-                  <q-icon name="add" size="14px" /> {{ t }}
-                </button>
-              </div>
-            </div>
-
-            <!-- RIGHT: keyboard for the active field -->
-            <div class="dd__kb">
-              <NumericKeyboard
-                v-if="activeField === 'phone'"
-                @input="onNumberInput"
-                @backspace="onNumberBackspace"
-                @clear="onNumberClear"
-              />
-              <VirtualKeyboard
-                v-else
-                position="inline"
-                numbers
-                @input="onTextInput"
-                @backspace="onTextBackspace"
-              />
             </div>
           </div>
 
+          <!-- full-width keyboard for the active field -->
+          <div class="dd__kb">
+            <NumericKeyboard
+              v-if="activeField === 'phone'"
+              @input="onNumberInput"
+              @backspace="onNumberBackspace"
+              @clear="onNumberClear"
+            />
+            <VirtualKeyboard
+              v-else
+              position="inline"
+              numbers
+              @input="onTextInput"
+              @backspace="onTextBackspace"
+            />
+          </div>
+
           <div class="dd__foot">
-            <button type="button" class="btn secondary" @click="close">Bekor</button>
+            <button type="button" class="btn ghost" @click="clearAll">Tozalash</button>
             <button type="button" class="btn primary" @click="save">Saqlash</button>
           </div>
         </div>
@@ -142,8 +152,6 @@ import { api } from 'boot/axios';
 import VirtualKeyboard from 'components/virtual-keyboard/VirtualKeyboard.vue';
 import NumericKeyboard from 'components/numeric-keyboard/NumericKeyboard.vue';
 
-/* PROPS — phone/description/customerName are v-model bound. The parent reads
-   them back to build the order create payload (customer {name, phone}). */
 const props = withDefaults(
   defineProps<{ phone?: string; description?: string; address?: string; customerName?: string }>(),
   { phone: '', description: '', address: '', customerName: '' },
@@ -167,10 +175,18 @@ const customerName = ref(props.customerName);
 /* client lookup */
 const lookupLoading = ref(false);
 const clientFound = ref(false);
+// True while `customerName` holds a name that came from a lookup (not typed by
+// the cashier) — so we clear it the moment the phone no longer matches, instead
+// of leaving a previous customer's name stuck on screen.
+const nameFromLookup = ref(false);
+const clientStats = ref<{ count: number; last: string | null } | null>(null);
 const previousPlaces = ref<string[]>([]);
 let lookupTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Seed editable digits from a prefilled phone (operator-mode caller prefill).
+const hasData = computed(
+  () => !!(phoneDigitsLocal.value || addressLocal.value || izohLocal.value || customerName.value),
+);
+
 watch(
   () => props.phone,
   (p) => {
@@ -195,7 +211,24 @@ const formattedPhone = computed(() => {
 const fullPhone = computed(() => `+998${phoneDigitsLocal.value}`);
 const phoneComplete = computed(() => phoneDigitsLocal.value.length === 9);
 
-/* CLIENT LOOKUP — GET /clients?phone= → returning customer name + past places */
+function fmtDate(s: string | null): string {
+  if (!s) return '';
+  try {
+    return new Date(s).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+const clientMeta = computed(() => {
+  const st = clientStats.value;
+  if (!st) return '';
+  const parts: string[] = [];
+  if (st.count) parts.push(`${st.count} ta buyurtma`);
+  if (st.last) parts.push(`oxirgi: ${fmtDate(st.last)}`);
+  return parts.join(' · ');
+});
+
+/* CLIENT LOOKUP — GET /clients?phone= */
 function queueLookup(): void {
   if (lookupTimer) clearTimeout(lookupTimer);
   lookupTimer = setTimeout(() => void lookupClient(), 200);
@@ -204,16 +237,17 @@ async function lookupClient(): Promise<void> {
   if (!phoneComplete.value) return;
   lookupLoading.value = true;
   try {
-    const res = await api.get('/clients', {
-      params: { phone: fullPhone.value },
-      validateStatus: () => true,
-    });
+    const res = await api.get('/clients', { params: { phone: fullPhone.value }, validateStatus: () => true });
     const data = res.status === 200 ? res.data?.data : null;
     const client = data?.client ?? null;
     if (client?.id) {
       clientFound.value = true;
-      if (client.name) customerName.value = client.name;
-      // Interim "previous places": distinct non-empty past order descriptions.
+      if (client.name) {
+        customerName.value = client.name;
+        nameFromLookup.value = true;
+      }
+      const st = data?.stats ?? null;
+      clientStats.value = st ? { count: st.order_count ?? 0, last: st.last_order_at ?? null } : null;
       const orders: Array<{ description?: string | null }> = data?.orders ?? [];
       const seen = new Set<string>();
       previousPlaces.value = orders
@@ -221,8 +255,8 @@ async function lookupClient(): Promise<void> {
         .filter((d) => d && !seen.has(d) && (seen.add(d), true))
         .slice(0, 5);
     } else {
-      clientFound.value = false;
-      previousPlaces.value = [];
+      // No match for this number → drop any previously-shown returning customer.
+      clearFoundClient();
     }
   } catch (e) {
     console.warn('[delivery] client lookup failed:', e);
@@ -231,13 +265,23 @@ async function lookupClient(): Promise<void> {
   }
 }
 
+// Clear ONLY lookup-sourced client info (never a name the cashier typed).
+function clearFoundClient(): void {
+  clientFound.value = false;
+  clientStats.value = null;
+  previousPlaces.value = [];
+  if (nameFromLookup.value) {
+    customerName.value = '';
+    nameFromLookup.value = false;
+  }
+}
+
 function useAddress(p: string): void {
   addressLocal.value = p;
   activeField.value = 'address';
 }
 
-/* Quick note templates (shablon) — tap to append to the note. "O'zi olib ketish"
-   (self-pickup) is the first; extend this list as more are needed. */
+/* Quick note templates (shablon) — tap to append to the note. */
 const descriptionTemplates = ["O'zi olib ketish"];
 function applyTemplate(t: string): void {
   const cur = izohLocal.value.trim();
@@ -253,47 +297,51 @@ function open(): void {
 function close(): void {
   showDetails.value = false;
 }
-function reset(): void {
+function clearAll(): void {
   phoneDigitsLocal.value = '';
   addressLocal.value = '';
   izohLocal.value = '';
   customerName.value = '';
-  clientFound.value = false;
-  previousPlaces.value = [];
+  nameFromLookup.value = false;
+  clearFoundClient();
+  activeField.value = 'phone';
+}
+function reset(): void {
+  clearAll();
 }
 
 /* INPUTS — routed to the active field */
 function onTextInput(value: string): void {
-  if (activeField.value === 'name') customerName.value += value;
-  else if (activeField.value === 'address') addressLocal.value += value;
+  if (activeField.value === 'name') {
+    customerName.value += value;
+    nameFromLookup.value = false; // cashier is typing a real name now
+  } else if (activeField.value === 'address') addressLocal.value += value;
   else if (activeField.value === 'izoh') izohLocal.value += value;
 }
 function onTextBackspace(): void {
-  if (activeField.value === 'name') customerName.value = customerName.value.slice(0, -1);
-  else if (activeField.value === 'address') addressLocal.value = addressLocal.value.slice(0, -1);
+  if (activeField.value === 'name') {
+    customerName.value = customerName.value.slice(0, -1);
+    nameFromLookup.value = false;
+  } else if (activeField.value === 'address') addressLocal.value = addressLocal.value.slice(0, -1);
   else if (activeField.value === 'izoh') izohLocal.value = izohLocal.value.slice(0, -1);
 }
 function onNumberInput(value: string): void {
   if (phoneDigitsLocal.value.length >= 9) return;
   phoneDigitsLocal.value += value;
   if (phoneDigitsLocal.value.length === 9) queueLookup();
+  else clearFoundClient();
 }
 function onNumberBackspace(): void {
   phoneDigitsLocal.value = phoneDigitsLocal.value.slice(0, -1);
-  clientFound.value = false;
-  previousPlaces.value = [];
+  clearFoundClient();
 }
 function onNumberClear(): void {
   phoneDigitsLocal.value = '';
-  clientFound.value = false;
-  previousPlaces.value = [];
+  clearFoundClient();
 }
 
-/* SAVE */
+/* SAVE — address + note emitted separately (receipt prints Manzil / Izoh). */
 function save(): void {
-  // Address (Manzil) and note (Izoh) are emitted SEPARATELY so the receipt can
-  // print them as distinct "Manzil" / "Izoh" lines. The parent folds them into
-  // the backend's single `description` (no structured address field yet).
   emit('update:address', addressLocal.value.trim());
   emit('update:description', izohLocal.value.trim());
   emit('update:phone', phoneDigitsLocal.value ? fullPhone.value : '');
@@ -305,10 +353,32 @@ defineExpose({ reset });
 </script>
 
 <style scoped lang="scss">
-.trigger {
+/* compact icon trigger */
+.dd-trigger {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  &:active { transform: scale(0.95); }
+  &.has { color: var(--brand); border-color: var(--brand); background: var(--brand-soft); }
+}
+.dd-trigger__dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
 }
 
 /* full-screen panel */
@@ -323,12 +393,12 @@ defineExpose({ reset });
 }
 .dd__panel {
   width: 100%;
-  max-width: 1100px;
+  max-width: 720px;
   margin: auto;
   height: calc(100vh - 24px);
-  background: var(--bg-app);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
+  background: var(--surface-2, var(--bg-app));
+  border: 1px solid var(--line);
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -339,24 +409,24 @@ defineExpose({ reset });
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 .dd__title {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 800;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 .dd__close {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -366,74 +436,109 @@ defineExpose({ reset });
 
 .dd__body {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px 20px;
-  overflow: hidden;
-}
-.dd__fields {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
-.dd__field {
+/* field */
+.fld {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 12px;
+  gap: 5px;
+  padding: 12px 16px;
+  border-radius: 14px;
   cursor: pointer;
   text-align: left;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
+  border: 1px solid var(--line);
+  background: var(--surface);
   &.active {
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 22%, transparent);
   }
-  &--area .dd__value { min-height: 44px; white-space: pre-wrap; }
+  &--area .fld__val { min-height: 40px; white-space: pre-wrap; }
 }
-.dd__label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-.dd__value {
+.fld__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.fld__val {
   font-size: 22px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.dd__value--text { font-size: 17px; font-weight: 600; word-break: break-word; }
-.dd__pfx { color: var(--accent-primary); }
-.dd__spin { margin-left: auto; }
+.fld__val--text { font-size: 17px; font-weight: 600; word-break: break-word; }
+.fld__pfx { color: var(--brand); }
+.fld__spin { margin-left: auto; }
 
-.dd__client { display: flex; flex-direction: column; gap: 10px; }
-.dd__client-found {
+/* client card (returning) */
+.client { display: flex; flex-direction: column; gap: 10px; }
+.client-card {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--success-weak, color-mix(in srgb, var(--success) 14%, transparent));
-  color: var(--success);
-  font-size: 15px;
-  font-weight: 600;
-  strong { color: var(--text-primary); }
+  border-radius: 14px;
+  background: var(--ready-bg, color-mix(in srgb, var(--brand) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
 }
-.dd__places { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.dd__places-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-.dd__place {
+.client-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--brand);
+  flex-shrink: 0;
+}
+.client-card__body { flex: 1; min-width: 0; }
+.client-card__name { font-size: 17px; font-weight: 800; color: var(--ink); }
+.client-card__meta { font-size: 13px; color: var(--ink-2); margin-top: 1px; }
+.client-card__tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.new-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* previous places + templates */
+.places { display: flex; flex-direction: column; gap: 6px; }
+.places__label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.places__list, .tpls { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 8px 12px;
-  border-radius: var(--r-pill, 999px);
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -443,63 +548,45 @@ defineExpose({ reset });
   white-space: nowrap;
   &:active { transform: scale(0.97); }
 }
+.chip--tpl { border-style: dashed; border-color: var(--brand); color: var(--brand); }
 
-.dd__templates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.dd__tpl {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 12px;
-  border-radius: var(--r-pill, 999px);
-  border: 1px dashed var(--accent-primary);
-  background: transparent;
-  color: var(--accent-primary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  &:active { transform: scale(0.97); }
-}
-
+/* full-width keyboard */
 .dd__kb {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  min-height: 0;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
 }
 
 .dd__foot {
   display: flex;
   gap: 12px;
-  justify-content: flex-end;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-surface);
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
 }
-
 .btn {
-  height: 48px;
-  border-radius: 12px;
+  height: 50px;
+  border-radius: 14px;
   border: 1px solid transparent;
   font-size: 16px;
   font-weight: 700;
-  padding: 0 22px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   &:active { transform: scale(0.97); }
 }
-.btn.primary { background: var(--accent-primary); color: var(--on-primary); }
-.btn.secondary {
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-  border-color: var(--border-color);
+.btn.primary { flex: 1; background: var(--brand); color: #fff; }
+.btn.ghost {
+  padding: 0 20px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--line);
 }
 
 .dd-fade-enter-active, .dd-fade-leave-active { transition: opacity 200ms ease; }
 .dd-fade-enter-from, .dd-fade-leave-to { opacity: 0; }
+.dd-slide-enter-active, .dd-slide-leave-active { transition: all 180ms ease; }
+.dd-slide-enter-from, .dd-slide-leave-to { opacity: 0; transform: translateY(-6px); }
 </style>
