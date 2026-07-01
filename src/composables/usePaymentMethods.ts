@@ -36,12 +36,33 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
   { code: 'PAYME', label: 'Payme', icon: SVG_WALLET, color: '#33b6ff', sort_order: 4, is_active: true },
 ];
 
+// UZCARD + HUMO are both bank-card networks; cashiers don't care which, so show
+// ONE "Karta" button. All card payments record under UZCARD — the backend has no
+// generic CARD code (Order.PaymentMethod = CASH/UZCARD/HUMO/PAYME), so UZCARD is
+// the canonical card method. To split them again, remove mergeCards().
+const CARD_CODES = new Set(['UZCARD', 'HUMO']);
+const CARD_CANONICAL = 'UZCARD';
+const CARD_LABEL = 'Karta';
+
+function mergeCards(list: PaymentMethod[]): PaymentMethod[] {
+  const out: PaymentMethod[] = [];
+  let cardDone = false;
+  for (const m of list) {
+    if (CARD_CODES.has(m.code)) {
+      if (cardDone) continue; // fold the second card network into the first
+      out.push({ ...m, code: CARD_CANONICAL, label: CARD_LABEL, icon: SVG_CARD });
+      cardDone = true;
+    } else {
+      out.push(m);
+    }
+  }
+  return out;
+}
+
 function normalize(list: PaymentMethod[] | null): PaymentMethod[] {
   const arr = Array.isArray(list) && list.length > 0 ? list : DEFAULT_PAYMENT_METHODS;
-  return arr
-    .filter((m) => m.is_active !== false)
-    .slice()
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const active = arr.filter((m) => m.is_active !== false);
+  return mergeCards(active).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
 // Module-level singleton, seeded from the cache; live across windows.

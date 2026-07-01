@@ -73,19 +73,18 @@ import { ref, reactive, computed, watch } from 'vue';
 import { toast } from 'vue3-toastify';
 import { formatPrice } from 'src/utils/formatPrice';
 import { closeShift, getCurrentShift, type ShiftCurrent } from 'src/composables/useShift';
+import { usePaymentMethods } from 'src/composables/usePaymentMethods';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ 'update:modelValue': [v: boolean]; closed: [] }>();
 
-const methods = [
-  { value: 'CASH', label: 'Naqd' },
-  { value: 'UZCARD', label: 'Uzcard' },
-  { value: 'HUMO', label: 'Humo' },
-  { value: 'PAYME', label: 'Payme' },
-];
+// Count fields mirror the live payment methods (UZCARD + HUMO are already merged
+// to one "Karta" there) so the blind count matches how money was actually taken.
+const { methods: payMethods } = usePaymentMethods();
+const methods = computed(() => payMethods.value.map((m) => ({ value: m.code, label: m.label })));
 const numKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-const counted = reactive<Record<string, string>>({ CASH: '', UZCARD: '', HUMO: '', PAYME: '' });
+const counted = reactive<Record<string, string>>({});
 const activeMethod = ref<string>('CASH');
 const saving = ref(false);
 
@@ -93,14 +92,17 @@ const saving = ref(false);
 const shift = ref<ShiftCurrent | null>(null);
 const loadingShift = ref(false);
 
-const activeLabel = computed(() => methods.find((m) => m.value === activeMethod.value)?.label ?? '');
+const activeLabel = computed(
+  () => methods.value.find((m) => m.value === activeMethod.value)?.label ?? '',
+);
 
 watch(
   () => props.modelValue,
   async (open) => {
     if (!open) return;
-    for (const k of Object.keys(counted)) counted[k] = '';
-    activeMethod.value = 'CASH';
+    for (const k of Object.keys(counted)) delete counted[k];
+    for (const m of methods.value) counted[m.value] = '';
+    activeMethod.value = methods.value[0]?.value ?? 'CASH';
     shift.value = null;
     loadingShift.value = true;
     try {
@@ -150,7 +152,7 @@ async function confirm(): Promise<void> {
       return;
     }
     const countedByMethod: Record<string, number> = {};
-    for (const m of methods) countedByMethod[m.value] = parseInt(counted[m.value] || '0', 10) || 0;
+    for (const m of methods.value) countedByMethod[m.value] = parseInt(counted[m.value] || '0', 10) || 0;
     const res = await closeShift(countedByMethod, '');
     if (res.ok) {
       toast.success('Smena yakunlandi');
