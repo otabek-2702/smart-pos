@@ -145,12 +145,13 @@ import NumericKeyboard from 'components/numeric-keyboard/NumericKeyboard.vue';
 /* PROPS — phone/description/customerName are v-model bound. The parent reads
    them back to build the order create payload (customer {name, phone}). */
 const props = withDefaults(
-  defineProps<{ phone?: string; description?: string; customerName?: string }>(),
-  { phone: '', description: '', customerName: '' },
+  defineProps<{ phone?: string; description?: string; address?: string; customerName?: string }>(),
+  { phone: '', description: '', address: '', customerName: '' },
 );
 
 const emit = defineEmits<{
   (e: 'update:description', value: string): void;
+  (e: 'update:address', value: string): void;
   (e: 'update:phone', value: string): void;
   (e: 'update:customerName', value: string): void;
 }>();
@@ -159,8 +160,8 @@ const emit = defineEmits<{
 const showDetails = ref(false);
 const activeField = ref<'phone' | 'name' | 'address' | 'izoh'>('phone');
 const phoneDigitsLocal = ref('');
-const addressLocal = ref('');
-const izohLocal = ref('');
+const addressLocal = ref(props.address);
+const izohLocal = ref(props.description);
 const customerName = ref(props.customerName);
 
 /* client lookup */
@@ -193,13 +194,6 @@ const formattedPhone = computed(() => {
 });
 const fullPhone = computed(() => `+998${phoneDigitsLocal.value}`);
 const phoneComplete = computed(() => phoneDigitsLocal.value.length === 9);
-
-// The backend order still carries a single `description`; until it gains a
-// structured address field (BACKEND_TODO_DELIVERY §5), fold Manzil + Izoh into
-// description so it shows on the order/receipt today.
-const composedDescription = computed(() =>
-  [addressLocal.value.trim(), izohLocal.value.trim()].filter(Boolean).join(' — '),
-);
 
 /* CLIENT LOOKUP — GET /clients?phone= → returning customer name + past places */
 function queueLookup(): void {
@@ -297,7 +291,11 @@ function onNumberClear(): void {
 
 /* SAVE */
 function save(): void {
-  emit('update:description', composedDescription.value);
+  // Address (Manzil) and note (Izoh) are emitted SEPARATELY so the receipt can
+  // print them as distinct "Manzil" / "Izoh" lines. The parent folds them into
+  // the backend's single `description` (no structured address field yet).
+  emit('update:address', addressLocal.value.trim());
+  emit('update:description', izohLocal.value.trim());
   emit('update:phone', phoneDigitsLocal.value ? fullPhone.value : '');
   emit('update:customerName', customerName.value.trim());
   close();

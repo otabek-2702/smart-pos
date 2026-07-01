@@ -93,6 +93,7 @@
             <OrderDetailsDialog
               ref="detailsDialogRef"
               v-model:description="description"
+              v-model:address="address"
               v-model:phone="phone_number"
               v-model:customer-name="customerName"
             />
@@ -382,6 +383,7 @@ const products = computed<ApiProduct[]>(() => {
 });
 
 const description = ref('');
+const address = ref('');
 const phone_number = ref('');
 const customerName = ref('');
 const detailsDialogRef = ref<{ reset: () => void } | null>(null);
@@ -505,6 +507,7 @@ async function printReceipt(displayId: number, isPaid = false): Promise<void> {
     })),
     total: totalAmount.value,
     description: description.value || undefined,
+    address: address.value || undefined,
     phoneNumber: phone_number.value || undefined,
     isPaid,
     // logoBase64,
@@ -648,8 +651,14 @@ async function createOrderAndOpenPayment(): Promise<void> {
   if (phone_number.value.trim()) {
     payload.phone_number = phone_number.value.trim();
   }
-  if (description.value.trim()) {
-    payload.description = description.value.trim();
+  // Backend has a single `description` (no structured address field yet), so
+  // fold Manzil (address) + Izoh (note) into it — nothing entered is lost. When
+  // the backend gains an `address` key, send address.value there instead.
+  const composedDesc = [address.value.trim(), description.value.trim()]
+    .filter(Boolean)
+    .join(' — ');
+  if (composedDesc) {
+    payload.description = composedDesc;
   }
   // Attach the customer so the backend saves a new name / converges a returning
   // one by phone (Customer.resolve). Only when we have a phone and/or a name.
@@ -703,6 +712,7 @@ function resetForm(): void {
   receiptItems.value = [];
   search.value = '';
   description.value = '';
+  address.value = '';
   phone_number.value = '';
   customerName.value = '';
   detailsDialogRef.value?.reset();

@@ -5,9 +5,9 @@
 //   • SCREEN px  → captured by the network ESC/POS raster path (htmlToImage @576).
 //   • print mm   → the USB/Chromium @page print path (true 1:1, no zoom).
 // Logo and QR are plain <img> (data URLs) so both paths render them identically.
-// Colours are kept print-safe: secondary text is mid-grey (still inks via the
-// Floyd–Steinberg dither in thermal-printer.ts / the driver halftone), never the
-// >50%-luma greys of the on-screen mock which a 1-bit head would drop entirely.
+// Colours are ALL BLACK (#000) — the on-screen mock uses greys, but a 1-bit
+// thermal head dithers grey to a faint, smeary result, so every tone (labels,
+// dividers, "muted" text) is forced solid black for crisp output.
 
 import { formatPhoneNumber } from 'src/utils';
 import { kvGet } from './kv-store';
@@ -178,6 +178,13 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
   .kv .v { font-weight: 700; text-align: right; line-height: 1.35; word-break: break-word; }
   .v.nums { font-variant-numeric: tabular-nums; }
 
+  /* delivery block — stacked small label over a big value (design fidelity) */
+  .dblock { margin-bottom: 0.7em; }
+  .dblock:last-child { margin-bottom: 0; }
+  .dk { font-size: 0.82em; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; color: ${C.ink}; margin-bottom: 0.1em; }
+  .dv-phone { font-size: 1.4em; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .dv-addr { font-size: 1.25em; font-weight: 700; line-height: 1.3; word-break: break-word; }
+
   .item { display: flex; justify-content: space-between; align-items: baseline; gap: 0.7em; margin-bottom: 0.7em; font-size: calc(1em * var(--sz-items, 1)); }
   .item .name { flex: 1; font-weight: 600; }
   .item .qty { color: ${C.sub}; font-size: 0.92em; white-space: nowrap; }
@@ -254,12 +261,12 @@ export function generateReceiptHtml(
     const rows: string[] = [];
     if (data.phoneNumber) {
       rows.push(
-        `<div class="kv"><span class="k">Mijoz</span><span class="v nums">${esc(formatPhoneNumber(data.phoneNumber))}</span></div>`,
+        `<div class="dblock"><div class="dk">Mijoz</div><div class="dv-phone">${esc(formatPhoneNumber(data.phoneNumber))}</div></div>`,
       );
     }
     if (data.address) {
       rows.push(
-        `<div class="kv"><span class="k">Manzil</span><span class="v">${esc(data.address)}</span></div>`,
+        `<div class="dblock"><div class="dk">Manzil</div><div class="dv-addr">${esc(data.address)}</div></div>`,
       );
     }
     deliveryHtml = `
