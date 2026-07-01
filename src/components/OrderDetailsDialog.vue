@@ -22,6 +22,8 @@
             </button>
           </div>
 
+          <!-- fields (left) + keyboard (right) fill the full-width panel -->
+          <div class="dd__main">
           <!-- scrollable fields -->
           <div class="dd__body">
             <!-- phone -->
@@ -134,6 +136,7 @@
               @input="onTextInput"
               @backspace="onTextBackspace"
             />
+          </div>
           </div>
 
           <div class="dd__foot">
@@ -393,7 +396,7 @@ defineExpose({ reset });
 }
 .dd__panel {
   width: 100%;
-  max-width: 720px;
+  max-width: none; /* full screen width */
   margin: auto;
   height: calc(100vh - 24px);
   background: var(--surface-2, var(--bg-app));
@@ -403,6 +406,13 @@ defineExpose({ reset });
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+/* fields (left) + keyboard (right) share the full width */
+.dd__main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 .dd__head {
   display: flex;
@@ -435,7 +445,7 @@ defineExpose({ reset });
 }
 
 .dd__body {
-  flex: 1;
+  flex: 1 1 54%;
   min-height: 0;
   overflow-y: auto;
   padding: 16px 20px;
@@ -552,9 +562,26 @@ defineExpose({ reset });
 
 /* full-width keyboard */
 .dd__kb {
-  padding: 8px 12px;
+  flex: 0 0 46%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
   background: var(--surface);
-  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* Narrow (tablet portrait): stack — keyboard drops below the fields. */
+@media (max-width: 900px) {
+  .dd__main { flex-direction: column; }
+  .dd__body { flex: 1 1 auto; }
+  .dd__kb {
+    flex: 0 0 auto;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    justify-content: flex-end;
+  }
 }
 
 .dd__foot {
