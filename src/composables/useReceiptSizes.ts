@@ -17,6 +17,7 @@ export interface ReceiptPart {
 // Keys MUST match RECEIPT_SIZE_KEYS in src-electron/receipt-template.ts.
 export const RECEIPT_PARTS: ReceiptPart[] = [
   { key: 'meta', label: 'Sarlavha (sana / kassir)' },
+  { key: 'delivery', label: 'Yetkazib berish (mijoz / manzil)' },
   { key: 'items', label: 'Mahsulotlar' },
   { key: 'total', label: 'Oraliq summa / chegirma' },
   { key: 'grand', label: 'Jami summa' },

@@ -158,6 +158,7 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
     -webkit-font-smoothing: antialiased;
     /* per-part size multipliers (Settings → receipt preview) */
     --sz-meta: ${sz('meta')};
+    --sz-delivery: ${sz('delivery')};
     --sz-items: ${sz('items')};
     --sz-total: ${sz('total')};
     --sz-grand: ${sz('grand')};
@@ -181,7 +182,9 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
   .kv .v { font-weight: 700; text-align: right; line-height: 1.35; word-break: break-word; }
   .v.nums { font-variant-numeric: tabular-nums; }
 
-  /* delivery block — stacked small label over a big value (design fidelity) */
+  /* delivery block — stacked small label over a big value (design fidelity).
+     The wrapper carries the per-part size var so the whole block scales. */
+  .deliv { font-size: calc(1em * var(--sz-delivery, 1)); }
   .dblock { margin-bottom: 0.7em; }
   .dblock:last-child { margin-bottom: 0; }
   .dk { font-size: 0.82em; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; color: ${C.ink}; margin-bottom: 0.1em; }
@@ -235,6 +238,7 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
 // Per-part size keys (must match src/composables/useReceiptSizes.ts RECEIPT_PARTS).
 export const RECEIPT_SIZE_KEYS = [
   'meta',
+  'delivery',
   'items',
   'total',
   'grand',
@@ -274,8 +278,10 @@ export function generateReceiptHtml(
     }
     deliveryHtml = `
       <div class="rule"></div>
-      <div class="sec-label">Yetkazib berish</div>
-      ${rows.join('')}`;
+      <div class="deliv">
+        <div class="sec-label">Yetkazib berish</div>
+        ${rows.join('')}
+      </div>`;
   }
 
   const itemsHtml = data.items

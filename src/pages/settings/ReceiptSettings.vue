@@ -52,25 +52,8 @@
         </div>
       </div>
 
-      <!-- Text size -->
-      <div class="form-section">
-        <h3 class="form-section-title">
-          <q-icon name="format_size" size="20px" />
-          Matn o'lchami
-        </h3>
-        <div class="size-options">
-          <button
-            v-for="step in FONT_STEPS"
-            :key="step.value"
-            type="button"
-            class="size-btn"
-            :class="{ active: settings.fontScale === step.value }"
-            @click="settings.fontScale = step.value"
-          >
-            {{ step.label }}
-          </button>
-        </div>
-      </div>
+      <!-- (Old global "Matn o'lchami" removed — use the per-part size editor on
+           the preview: tap a receipt part → slider, each with this-PC/all scope.) -->
 
       <!-- Thank You Message -->
       <div class="form-section">
@@ -363,13 +346,6 @@ interface IpcResult {
   error?: string;
 }
 
-const FONT_STEPS = [
-  { label: 'Kichik', value: 0.85 },
-  { label: "O'rta", value: 1 },
-  { label: 'Katta', value: 1.15 },
-  { label: 'Juda katta', value: 1.3 },
-];
-
 // State
 const settings = reactive<ReceiptSettings>({ ...DEFAULT_RECEIPT_SETTINGS });
 const saving = ref(false);
@@ -556,9 +532,11 @@ function generateLocalPreview(): string {
       </div>
 
       <div class="r-rule"></div>
-      <div class="r-seclabel">Yetkazib berish</div>
-      <div class="r-kv"><span class="k">Mijoz</span><span class="v nums">+998 90 123 45 67</span></div>
-      <div class="r-kv"><span class="k">Manzil</span><span class="v">Chilonzor t., 12-kvartal, 5-uy</span></div>
+      <div class="r-deliv" data-part="delivery">
+        <div class="r-seclabel">Yetkazib berish</div>
+        <div class="r-dblock"><div class="r-dk">Mijoz</div><div class="r-dv-phone">+998 90 123 45 67</div></div>
+        <div class="r-dblock"><div class="r-dk">Manzil</div><div class="r-dv-addr">Chilonzor t., 12-kvartal, 5-uy</div></div>
+      </div>
 
       <div class="r-rule"></div>
 
@@ -1104,6 +1082,31 @@ function resetToDefaults(): void {
     font-variant-numeric: tabular-nums;
   }
 
+  /* delivery block — stacked small label over big value (matches print) */
+  :deep(.r-dblock) { margin-bottom: 0.7em; }
+  :deep(.r-dblock:last-child) { margin-bottom: 0; }
+  :deep(.r-dk) {
+    font-size: 0.82em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 0.1em;
+  }
+  :deep(.r-dv-phone) {
+    font-size: 1.4em;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  :deep(.r-dv-addr) {
+    font-size: 1.25em;
+    font-weight: 700;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
   :deep(.r-item) {
     display: flex;
     justify-content: space-between;
@@ -1263,6 +1266,9 @@ function resetToDefaults(): void {
      click-to-resize affordance. Placed last so they win the font-size. */
   :deep([data-part='meta']) {
     font-size: calc(0.92em * var(--sz-meta, 1));
+  }
+  :deep([data-part='delivery']) {
+    font-size: calc(1em * var(--sz-delivery, 1));
   }
   :deep([data-part='items']) {
     font-size: calc(1em * var(--sz-items, 1));
