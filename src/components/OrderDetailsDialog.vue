@@ -408,11 +408,12 @@ defineExpose({ reset });
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
 }
 
-/* fields (left) + keyboard (right) share the full width */
+/* fields on top, keyboard pinned at the bottom (full width) */
 .dd__main {
   flex: 1;
   min-height: 0;
   display: flex;
+  flex-direction: column;
 }
 .dd__head {
   display: flex;
@@ -445,7 +446,7 @@ defineExpose({ reset });
 }
 
 .dd__body {
-  flex: 1 1 54%;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 16px 20px;
@@ -562,26 +563,10 @@ defineExpose({ reset });
 
 /* full-width keyboard */
 .dd__kb {
-  flex: 0 0 46%;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 0 0 auto;
   padding: 12px 16px;
   background: var(--surface);
-  border-left: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-/* Narrow (tablet portrait): stack — keyboard drops below the fields. */
-@media (max-width: 900px) {
-  .dd__main { flex-direction: column; }
-  .dd__body { flex: 1 1 auto; }
-  .dd__kb {
-    flex: 0 0 auto;
-    border-left: none;
-    border-top: 1px solid var(--line);
-    justify-content: flex-end;
-  }
+  border-top: 1px solid var(--line);
 }
 
 .dd__foot {
