@@ -127,22 +127,41 @@ function close(): void {
   emit('update:modelValue', false);
 }
 
+// Turn a backend close error into a clear Uzbek message for the common cases.
+function localizeCloseError(msg?: string): string {
+  if (!msg) return "Smenani yopib bo'lmadi";
+  if (/unpaid|open order/i.test(msg)) {
+    return "Smenani yopib bo'lmaydi: to'lanmagan (ochiq) buyurtmalar bor. Avval to'lang yoki bekor qiling.";
+  }
+  if (/not active/i.test(msg)) return 'Smena faol emas.';
+  return msg;
+}
+
 async function confirm(): Promise<void> {
   if (saving.value) return;
   saving.value = true;
   try {
-    const countedByMethod: Record<string, number> = {};
-    for (const m of methods) countedByMethod[m.value] = parseInt(counted[m.value] || '0', 10) || 0;
     const id = shift.value?.id;
     if (!id) {
-      toast.warning("Ochiq smena topilmadi");
-    } else {
-      const ok = await closeShift(countedByMethod, '');
-      if (ok) toast.success('Smena yakunlandi');
-      else toast.warning('Smena yopilmadi — server javob bermadi');
+      // No open shift to close — just proceed to logout.
+      toast.info("Ochiq smena topilmadi");
+      emit('update:modelValue', false);
+      emit('closed');
+      return;
     }
-    emit('update:modelValue', false);
-    emit('closed');
+    const countedByMethod: Record<string, number> = {};
+    for (const m of methods) countedByMethod[m.value] = parseInt(counted[m.value] || '0', 10) || 0;
+    const res = await closeShift(countedByMethod, '');
+    if (res.ok) {
+      toast.success('Smena yakunlandi');
+      emit('update:modelValue', false);
+      emit('closed');
+    } else {
+      // Close was refused (e.g. unpaid orders). Show WHY and keep the dialog
+      // open so the cashier can resolve it and retry — don't log out with the
+      // shift still open. (They can still exit via "Chiqish (smena ochiq)".)
+      toast.error(localizeCloseError(res.message));
+    }
   } finally {
     saving.value = false;
   }

@@ -65,19 +65,29 @@ export async function getCurrentShift(): Promise<ShiftCurrent | null> {
  * the local edition — the staff endpoint closes the caller's own shift, so no id.)
  *   POST /shifts/end  { counted: {CASH,UZCARD,HUMO,PAYME}, notes }
  */
+export interface CloseShiftResult {
+  ok: boolean;
+  /** Backend reason on failure (e.g. "unpaid orders still open"). */
+  message?: string;
+}
+
 export async function closeShift(
   counted: Record<string, number>,
   notes: string,
-): Promise<boolean> {
+): Promise<CloseShiftResult> {
   try {
     const r = await api.post(
       `/shifts/end`,
       { counted, notes },
       { validateStatus: () => true },
     );
-    return r.status === 200 || r.status === 201;
+    if (r.status === 200 || r.status === 201) return { ok: true };
+    // Surface the backend's reason (400 = e.g. unpaid orders block the close).
+    const message =
+      r.data?.message || r.data?.error || `Smenani yopib bo'lmadi (HTTP ${r.status})`;
+    return { ok: false, message };
   } catch (e) {
     console.warn('[shift] closeShift failed:', e);
-    return false;
+    return { ok: false, message: "Server bilan aloqa yo'q" };
   }
 }
