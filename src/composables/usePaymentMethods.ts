@@ -37,11 +37,12 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 // UZCARD + HUMO are both bank-card networks; cashiers don't care which, so show
-// ONE "Karta" button. All card payments record under UZCARD — the backend has no
-// generic CARD code (Order.PaymentMethod = CASH/UZCARD/HUMO/PAYME), so UZCARD is
-// the canonical card method. To split them again, remove mergeCards().
+// ONE "Karta" button. The backend has no generic CARD code yet
+// (Order.PaymentMethod = CASH/UZCARD/HUMO/PAYME), so all card payments record
+// under HUMO for now (per Jason — a real CARD/Karta code is a later backend ask).
+// To split them again, remove mergeCards(); to switch the bucket, change CARD_CANONICAL.
 const CARD_CODES = new Set(['UZCARD', 'HUMO']);
-const CARD_CANONICAL = 'UZCARD';
+const CARD_CANONICAL = 'HUMO';
 const CARD_LABEL = 'Karta';
 
 function mergeCards(list: PaymentMethod[]): PaymentMethod[] {

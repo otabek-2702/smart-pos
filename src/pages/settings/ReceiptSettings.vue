@@ -287,16 +287,8 @@
         </button>
       </div>
 
-      <div class="preview-container">
-        <div
-          class="receipt-preview"
-          :style="previewStyle"
-          v-html="previewHtml"
-          @click="onPreviewClick"
-        ></div>
-      </div>
-
-      <!-- per-part size editor (tap a part above to select it) -->
+      <!-- per-part size editor — sits ABOVE the preview so the control is
+           right where you're looking; tap a part in the receipt below to select. -->
       <div class="size-panel">
         <template v-if="selectedPart">
           <div class="size-panel__head">
@@ -338,6 +330,15 @@
         <div v-else class="size-hint">
           Matn o'lchamini o'zgartirish uchun chekdagi qismni bosing.
         </div>
+      </div>
+
+      <div class="preview-container">
+        <div
+          class="receipt-preview"
+          :style="previewStyle"
+          v-html="previewHtml"
+          @click="onPreviewClick"
+        ></div>
       </div>
     </div>
   </div>
@@ -1295,7 +1296,7 @@ function resetToDefaults(): void {
 
 /* per-part size editor below the preview */
 .size-panel {
-  margin-top: 12px;
+  margin: 12px 16px 4px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: 12px;
