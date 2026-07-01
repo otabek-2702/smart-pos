@@ -222,7 +222,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from 'boot/axios';
 import { useOperatorStore } from 'src/stores/operator';
@@ -729,13 +729,25 @@ function onCancel(): void {
 }
 
 onMounted(async () => {
-  // Operator prefill: ?phone query (navigated in from the call dialog) wins,
-  // else a live call already in progress.
-  prefillPhone((route.query.phone as string | undefined) || operator.activeCall?.phone);
+  // Any lingering call popup shouldn't hang around behind the create-order page.
+  operator.dismissPopup();
+  // Operator prefill: ?phone query (from the call dialog button) wins, else the
+  // last caller's number (pendingPhone — survives call end, set even if the
+  // popup button wasn't clicked), else a live call in progress.
+  prefillPhone(
+    (route.query.phone as string | undefined) || operator.pendingPhone || operator.activeCall?.phone,
+  );
 
   // Categories for the filter chips + the whole catalog (filtered client-side).
   await fetchCategories();
   await loadAllProducts();
+});
+
+onUnmounted(() => {
+  // Create-order closed → reset the caller-phone prefill + any popup so the next
+  // order starts clean (a stale caller number must not carry over).
+  operator.clearPending();
+  operator.dismissPopup();
 });
 </script>
 

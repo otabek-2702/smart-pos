@@ -26,19 +26,41 @@
           <div class="dd__main">
           <!-- scrollable fields -->
           <div class="dd__body">
-            <!-- phone -->
-            <button
-              type="button"
-              class="fld"
-              :class="{ active: activeField === 'phone' }"
-              @click="activeField = 'phone'"
-            >
-              <span class="fld__label"><q-icon name="call" size="15px" /> Telefon raqam</span>
-              <span class="fld__val">
-                <span class="fld__pfx">+998</span>{{ formattedPhone || ' —' }}
-                <q-spinner v-if="lookupLoading" size="16px" class="fld__spin" />
-              </span>
-            </button>
+            <!-- phone + address + note in one row -->
+            <div class="dd__row">
+              <button
+                type="button"
+                class="fld"
+                :class="{ active: activeField === 'phone' }"
+                @click="activeField = 'phone'"
+              >
+                <span class="fld__label"><q-icon name="call" size="15px" /> Telefon</span>
+                <span class="fld__val">
+                  <span class="fld__pfx">+998</span>{{ formattedPhone || ' —' }}
+                  <q-spinner v-if="lookupLoading" size="16px" class="fld__spin" />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="fld fld--area"
+                :class="{ active: activeField === 'address' }"
+                @click="activeField = 'address'"
+              >
+                <span class="fld__label"><q-icon name="location_on" size="15px" /> Manzil</span>
+                <span class="fld__val fld__val--text">{{ addressLocal || '—' }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="fld fld--area"
+                :class="{ active: activeField === 'izoh' }"
+                @click="activeField = 'izoh'"
+              >
+                <span class="fld__label"><q-icon name="sticky_note_2" size="15px" /> Izoh</span>
+                <span class="fld__val fld__val--text">{{ izohLocal || '—' }}</span>
+              </button>
+            </div>
 
             <!-- client status (only once the number is complete) -->
             <Transition name="dd-slide">
@@ -84,28 +106,6 @@
                 </div>
               </div>
             </Transition>
-
-            <!-- address -->
-            <button
-              type="button"
-              class="fld fld--area"
-              :class="{ active: activeField === 'address' }"
-              @click="activeField = 'address'"
-            >
-              <span class="fld__label"><q-icon name="location_on" size="15px" /> Manzil (yetkazish)</span>
-              <span class="fld__val fld__val--text">{{ addressLocal || '—' }}</span>
-            </button>
-
-            <!-- note -->
-            <button
-              type="button"
-              class="fld fld--area"
-              :class="{ active: activeField === 'izoh' }"
-              @click="activeField = 'izoh'"
-            >
-              <span class="fld__label"><q-icon name="sticky_note_2" size="15px" /> Izoh (qo‘shimcha)</span>
-              <span class="fld__val fld__val--text">{{ izohLocal || '—' }}</span>
-            </button>
 
             <!-- quick note templates -->
             <div class="tpls">
@@ -453,6 +453,20 @@ defineExpose({ reset });
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* phone + address + note share one row (equal columns; wrap on narrow) */
+.dd__row {
+  display: flex;
+  gap: 10px;
+}
+.dd__row > .fld {
+  flex: 1 1 0;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .dd__row { flex-wrap: wrap; }
+  .dd__row > .fld { flex: 1 1 100%; }
 }
 
 /* field */
