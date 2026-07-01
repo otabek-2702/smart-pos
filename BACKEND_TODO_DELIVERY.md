@@ -1,5 +1,34 @@
 # Courier / delivery ecosystem — backend asks (alpha_pos_local)
 
+**Status 2026-07-01:** Abrorbek confirmed the courier app is feasible but net-new
+(DeliveryPerson has no credentials; no payment endpoints on local — mirror the
+server couriers app's record-only payments). The **exact per-endpoint contract**
+(request/response shapes the app parses, from its zod schemas) was **sent to him**
+(dev-bot msgs 60/61) — see §"Exact contract" below. He'll scope + build; then FE
+flips `USE_MOCK` off + wires the QR pairing. Telegram-order auto-print: **awaiting
+his exact source/channel field on the local Order + the print trigger** before FE
+wiring. Shift-close bug: **resolved** (was the unpaid-open-orders 400 guard the FE
+was hiding; FE now surfaces it — confirmed working on the latest release).
+
+---
+
+## Exact contract (sent to dev, msgs 60/61) — money = integer so'm; timestamps ISO; `Authorization: Token <token>`
+
+- **Auth**: `POST /auth/courier/login {phone?,password? | qr?}` → `{token, expires_at}` (+ refresh). `qr` = one-time claim from the login QR.
+- **Self**: `GET /courier/me` → `{first,last,phone,vehicle,plate,id,branch,rating,online}`
+- `GET /courier/orders/active` → `[{id,step,payment,total,fee,placedAt,etaReady,customer:{name,phone},address:{text,landmark?,coords:{lat,lng}|null,distanceKm?},lines:[{name,qty,price}]}]` — step=ASSIGNED|READY|PICKED_UP|ON_WAY|DELIVERED; payment=PAID|UNPAID
+- `GET /courier/orders/completed` → `[{id,total,fee,payment,deliveredAt,minutes,customer:{name},area}]`
+- `GET /courier/stats/today` → `{deliveries,earnings,cashCollected,avgMinutes,activeHours,distanceKm,byHour:[{h,n}]}`
+- `GET /courier/balance` → `{balance,held,ledger:[{at,kind:hold|settle|cancel,order,amount,label}]}`
+- `GET /courier/notifications` → `[{id,icon,tone,title,body,at,unread,order}]`
+- `GET /courier/shift/reconciliation` → `{collected_cash,qr_collected,delivery_fees,bonuses,tips,cash_orders,qr_orders,shift_start,handover_code,net_payout,cash_in_hand}` (snake_case)
+- **Actions**: `POST /orders/{id}/accept` · `/decline {reason?}` · `/status {step:PICKED_UP|ON_WAY|DELIVERED}` · `POST /courier/shift/online {online:bool}` · `/courier/shift/settle` · `/courier/push-token {token,platform}`
+- **Payments** (record-only): `POST /payments/create {order,provider,amount}` → `{payment_id,status(PAID|PENDING|REFUNDED|FAILED),link?,qr_png?}` · `POST /payments/{id}/refund`
+- **Realtime** `WS /ws/courier/?token=` → events `order.assigned` (data + `expires_in`), `order.ready`, `order.status`, `order.cancelled`, `payment.paid`, `payment.refunded`; frame `{event, data:{order_id,...}}`
+- **Create courier + QR** (till, manager): `POST /couriers {first_name,last_name,phone}` → creates DeliveryPerson + credential; returns QR payload `{server, token}` + a regenerate endpoint; token expiry/refresh.
+
+---
+
 Goal: a working courier flow. Cashier creates a courier in the POS → gets a login
 QR → courier scans it on the phone (smart-pos-deliver app) → app saves the server
 base URL + logs in (token WITH expiry) → courier sees assigned deliveries, updates
