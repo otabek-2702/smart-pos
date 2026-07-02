@@ -53,17 +53,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
 import { useOperatorStore } from 'src/stores/operator';
 import { formatPrice } from 'src/utils/formatPrice';
 import { formatPhoneNumber } from 'src/utils';
 
 const store = useOperatorStore();
-const route = useRoute();
 
-// Visible only when there's a popup AND we're not on the create-order page
-// (there the number is filled silently into the phone field instead).
-const visible = computed(() => !!store.popup && route.name !== 'create-order');
+// Visible whenever there's a popup — including on the create-order page. The
+// caller's number is NEVER auto-filled; it reaches the order only via the
+// "+ Yangi buyurtma" button below.
+const visible = computed(() => !!store.popup);
 
 const orders = computed(() => store.popup?.openOrders ?? []);
 const displayPhone = computed(() =>

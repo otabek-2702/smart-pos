@@ -66,10 +66,6 @@ export const useOperatorStore = defineStore('operator', () => {
   const operatorMode = ref<boolean>(false);
   const qrDataUrl = ref<string | null>(null);
   const activeCall = ref<{ phone: string; direction: 'in' | 'out' } | null>(null);
-  // The last caller's number, kept AFTER the call ends so a new order started
-  // any way (the popup button OR the normal "new order" flow) still prefills it.
-  // Cleared when the create-order page closes (so the next order starts clean).
-  const pendingPhone = ref<string | null>(null);
   const popup = ref<{
     phone: string;
     customer: OperatorCustomer | null;
@@ -110,20 +106,15 @@ export const useOperatorStore = defineStore('operator', () => {
     }
   }
 
-  function onCreateOrderPage(): boolean {
-    return router?.currentRoute.value.name === CREATE_ORDER_ROUTE;
-  }
-
   async function onCallEvent(ev: CallEvent): Promise<void> {
     if (!ev || typeof ev !== 'object') return;
 
     if (ev.type === 'call_start') {
       const phone = ev.phone || '';
       activeCall.value = { phone, direction: ev.direction === 'out' ? 'out' : 'in' };
-      pendingPhone.value = phone; // survives call_end; cleared on create-order close
-      // On the create-order page: DON'T pop the dialog — the page fills the
-      // phone field itself (it watches activeCall).
-      if (onCreateOrderPage()) return;
+      // Always show the popup (even on the create-order page). The caller's number
+      // reaches an order ONLY when the operator presses "+ Yangi buyurtma" — it is
+      // never auto-filled, so a walk-in order can't inherit a caller's number.
       const { customer, openOrders } = await lookup(phone);
       popup.value = { phone, customer, openOrders };
     } else if (ev.type === 'call_end') {
@@ -166,12 +157,6 @@ export const useOperatorStore = defineStore('operator', () => {
     popup.value = null;
   }
 
-  // Clear the caller number prefill — called when the create-order page closes so
-  // the next order doesn't inherit a stale caller's phone.
-  function clearPending(): void {
-    pendingPhone.value = null;
-  }
-
   // No per-order detail route exists in this app — go to the orders list.
   function goToOrder(): void {
     void router?.push({ name: ORDERS_ROUTE });
@@ -187,13 +172,11 @@ export const useOperatorStore = defineStore('operator', () => {
     operatorMode,
     qrDataUrl,
     activeCall,
-    pendingPhone,
     popup,
     init,
     toggle,
     onCallEvent,
     dismissPopup,
-    clearPending,
     goToOrder,
     createOrder,
   };

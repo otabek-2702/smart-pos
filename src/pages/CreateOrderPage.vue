@@ -222,10 +222,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from 'boot/axios';
-import { useOperatorStore } from 'src/stores/operator';
 import { useInstantProducts } from 'src/composables/useInstantProducts';
 import { shouldPrintBefore } from 'src/composables/usePrintPolicy';
 import OrderDetailsDialog from 'src/components/OrderDetailsDialog.vue';
@@ -389,11 +388,12 @@ const customerName = ref('');
 const detailsDialogRef = ref<{ reset: () => void } | null>(null);
 
 /* ---- operator-mode phone prefill ----
-   Fill the phone field from (priority) the route ?phone query, else the live
-   operator call. Works both when navigating in from the incoming-call dialog
-   AND when a call lands while the operator is already on this page (watch). */
+   The caller's number ONLY reaches this page via the incoming-call dialog's
+   "+ Yangi buyurtma" button, which navigates here with ?phone=. It is NEVER
+   auto-filled from a live call — a walk-in order must not inherit a caller's
+   number. The watch handles the button being pressed while already on this page
+   (route stays the same, only the query changes → no remount). */
 const route = useRoute();
-const operator = useOperatorStore();
 const { isAllInstant } = useInstantProducts();
 
 function toFullPhone(raw: string): string {
@@ -405,11 +405,10 @@ function prefillPhone(raw: string | undefined | null): void {
   if (raw) phone_number.value = toFullPhone(String(raw));
 }
 watch(
-  () => operator.activeCall,
-  (c) => {
-    if (c?.phone) prefillPhone(c.phone);
+  () => route.query.phone,
+  (p) => {
+    if (p) prefillPhone(String(p));
   },
-  { deep: true },
 );
 
 // Payment dialog state
@@ -729,25 +728,14 @@ function onCancel(): void {
 }
 
 onMounted(async () => {
-  // Any lingering call popup shouldn't hang around behind the create-order page.
-  operator.dismissPopup();
-  // Operator prefill: ?phone query (from the call dialog button) wins, else the
-  // last caller's number (pendingPhone — survives call end, set even if the
-  // popup button wasn't clicked), else a live call in progress.
-  prefillPhone(
-    (route.query.phone as string | undefined) || operator.pendingPhone || operator.activeCall?.phone,
-  );
+  // Prefill the phone ONLY from the ?phone query set by the call dialog's
+  // "+ Yangi buyurtma" button. Closing this page unmounts it → everything
+  // resets, so the next order starts clean (no caller number carried over).
+  prefillPhone(route.query.phone as string | undefined);
 
   // Categories for the filter chips + the whole catalog (filtered client-side).
   await fetchCategories();
   await loadAllProducts();
-});
-
-onUnmounted(() => {
-  // Create-order closed → reset the caller-phone prefill + any popup so the next
-  // order starts clean (a stale caller number must not carry over).
-  operator.clearPending();
-  operator.dismissPopup();
 });
 </script>
 
