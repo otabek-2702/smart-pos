@@ -136,6 +136,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { route: 'settings-users', label: 'Foydalanuvchilar', icon: 'people', permission: 'users.manage' },
   { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2', permission: 'products.manage' },
   { route: 'settings-roles', label: 'Rollar va ruxsatlar', icon: 'admin_panel_settings', permission: '*' },
+  { route: 'settings-courier-qr', label: 'Kuryer QR', icon: 'qr_code_2', permission: 'users.manage' },
   { route: 'settings-backup', label: 'Zaxira / sinxron', icon: 'sync', permission: 'display.manage' },
 ];
 

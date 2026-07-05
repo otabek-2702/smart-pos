@@ -128,6 +128,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('pages/settings/BackupSettings.vue'),
             meta: { permissions: ['display.manage'] },
           },
+          {
+            path: 'courier-qr',
+            name: 'settings-courier-qr',
+            component: () => import('pages/settings/CourierQrSettings.vue'),
+            meta: { permissions: ['users.manage'] },
+          },
         ],
       },
     ],
