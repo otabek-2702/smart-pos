@@ -1,5 +1,15 @@
 # Courier / delivery ecosystem — backend asks (alpha_pos_local)
 
+**Status 2026-07-05:** ✅ **Courier backend BUILT + DEPLOYED** on the SERVER edition
+(`alpha_pos_server` `couriers` app, live at pos.78.111.90.65.nip.io): `/auth/courier/login`,
+`/courier/me|orders/active|completed|stats/today|balance|notifications|shift/*`,
+`/orders/{id}/accept|decline|status`, `/payments/*`, WS `/ws/courier/`. Its `presenters.py`
+matches the app's zod schemas exactly (camelCase). **App wired live** (`alpha-pos-deliver`
+commit 568eda2): client + WS use the QR-paired server (serverConfig, env fallback), start-up
+hydrates serverConfig + session, real expo-camera QR scanner → pair → login. Remaining: run
+`npx expo install expo-camera` + rebuild the dev client; create couriers + login QR from the
+admin panel. — historical planning below.
+
 **Status 2026-07-01:** Abrorbek confirmed the courier app is feasible but net-new
 (DeliveryPerson has no credentials; no payment endpoints on local — mirror the
 server couriers app's record-only payments). The **exact per-endpoint contract**
