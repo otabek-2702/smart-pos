@@ -323,7 +323,11 @@ async function fetchOrders(): Promise<void> {
       checkForNewOrders(newOrders);
     }
 
-    orders.value = newOrders.reverse();
+    // Newest orders first (top of the board). created_at is ISO, so a string
+    // compare is chronological.
+    orders.value = [...newOrders].sort((a, b) =>
+      (b.created_at || '').localeCompare(a.created_at || ''),
+    );
   } catch (e) {
     console.error('[KDS] fetchOrders failed:', e);
   }
