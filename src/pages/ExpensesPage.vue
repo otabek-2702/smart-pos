@@ -27,8 +27,14 @@
         <div v-if="loading" class="exp__empty">Yuklanmoqda…</div>
         <div v-else-if="rows.length === 0" class="exp__empty">Xarajatlar yo'q</div>
         <div v-for="e in rows" :key="e.id" class="exp-row">
-          <div class="exp-row__main">{{ e.comment || e.category || 'Xarajat' }}</div>
-          <span class="exp-row__who">{{ e.recipient_user || e.recipient_supplier || '' }}</span>
+          <div class="exp-row__main">
+            <span class="exp-row__category">{{ e.category || 'Kategoriyasiz' }}</span>
+            <span class="exp-row__comment">{{ e.comment || 'Izohsiz' }}</span>
+          </div>
+          <span class="exp-row__who">
+            <q-icon :name="e.recipient_supplier ? 'local_shipping' : 'person_outline'" size="17px" />
+            {{ e.recipient_user || e.recipient_supplier || 'Qabul qiluvchi ko‘rsatilmagan' }}
+          </span>
           <span class="exp-row__date">{{ formatDate(e.created_at) }}</span>
           <div class="exp-row__amount">−{{ formatPrice(e.amount) }} so'm</div>
         </div>
@@ -49,27 +55,58 @@
               <span class="add__label">Summa (so'm)</span>
               <span class="add__value">{{ formatPrice(amountValue) }}</span>
             </div>
-            <div class="add__field" :class="{ active: field === 'comment' }" @click="field = 'comment'">
-              <span class="add__label">Izoh</span>
-              <span class="add__value add__value--text">{{ comment || '—' }}</span>
+
+            <!-- Category is required so cashbox reports never receive a new
+                 anonymous expense. -->
+            <div class="add__field" :class="{ active: field === 'category' }" @click="openCategory">
+              <span class="add__label">Xarajat kategoriyasi</span>
+              <span class="add__value add__value--text">
+                {{ categorySel?.name || '— kategoriyani tanlang —' }}
+              </span>
+            </div>
+
+            <div v-if="field === 'category'" class="categories">
+              <div v-if="categoriesLoading" class="picker-state">
+                <q-spinner size="22px" /> Kategoriyalar yuklanmoqda…
+              </div>
+              <div v-else-if="categoryError" class="picker-state picker-state--error">
+                <q-icon name="error_outline" size="20px" /> {{ categoryError }}
+              </div>
+              <template v-else>
+                <button
+                  v-for="category in categories"
+                  :key="category.id"
+                  type="button"
+                  class="category-option"
+                  :class="{ sel: categorySel?.id === category.id }"
+                  @click="selectCategory(category)"
+                >
+                  <q-icon :name="categorySel?.id === category.id ? 'check_circle' : 'category'" size="19px" />
+                  {{ category.name }}
+                </button>
+              </template>
             </div>
 
             <!-- Recipient — who this cash is paid to (staff or supplier). -->
             <div class="add__field" :class="{ active: field === 'recipient' }" @click="openRecipient">
               <span class="add__label">Kimga (qabul qiluvchi)</span>
               <span class="add__value add__value--text">
-                {{ field === 'recipient'
-                  ? (recipientQuery || '— ism yozing —')
-                  : (recipientSel?.name || '—') }}
+                {{ recipientSel?.name || recipientQuery || '— qabul qiluvchini tanlang —' }}
               </span>
             </div>
 
             <!-- Recipient search results (only while picking). -->
             <div v-if="field === 'recipient'" class="rcp">
+              <div v-if="recipientsLoading" class="picker-state">
+                <q-spinner size="20px" /> Qidirilmoqda…
+              </div>
+              <div v-else-if="recipientError" class="picker-state picker-state--error">
+                <q-icon name="error_outline" size="20px" /> {{ recipientError }}
+              </div>
               <button v-if="recipientSel" type="button" class="rcp__clear" @click="clearRecipient">
                 <q-icon name="close" size="16px" /> Tanlovni tozalash
               </button>
-              <template v-if="recipientResults.users.length">
+              <template v-if="!recipientError && recipientResults.users.length">
                 <div class="rcp__group">Xodimlar</div>
                 <button
                   v-for="u in recipientResults.users"
@@ -82,7 +119,7 @@
                   <span>{{ u.name }}</span><span class="rcp__meta">{{ roleLabel(u.role) }}</span>
                 </button>
               </template>
-              <template v-if="recipientResults.suppliers.length">
+              <template v-if="!recipientError && recipientResults.suppliers.length">
                 <div class="rcp__group">Yetkazib beruvchilar</div>
                 <button
                   v-for="s in recipientResults.suppliers"
@@ -97,11 +134,22 @@
                 </button>
               </template>
               <div
-                v-if="!recipientResults.users.length && !recipientResults.suppliers.length"
+                v-if="!recipientsLoading && !recipientError && !recipientResults.users.length && !recipientResults.suppliers.length"
                 class="rcp__empty"
               >
                 {{ recipientQuery ? 'Topilmadi' : 'Ism yozing…' }}
               </div>
+            </div>
+
+            <div class="add__field" :class="{ active: field === 'comment' }" @click="field = 'comment'">
+              <span class="add__label">Izoh</span>
+              <span class="add__value add__value--text">{{ comment || '—' }}</span>
+            </div>
+
+            <div class="add__requirements">
+              <span :class="{ done: amountValue > 0 }"><q-icon name="payments" /> Summa</span>
+              <span :class="{ done: categorySel }"><q-icon name="category" /> Kategoriya</span>
+              <span :class="{ done: recipientSel }"><q-icon name="person" /> Qabul qiluvchi</span>
             </div>
 
             <div v-if="addError" class="add__err">{{ addError }}</div>
@@ -115,7 +163,7 @@
               @clear="onNumClear"
             />
             <VirtualKeyboard
-              v-else
+              v-else-if="field !== 'category'"
               position="inline"
               @input="onKeyInput"
               @backspace="onKeyBackspace"
@@ -207,11 +255,53 @@ async function loadList(): Promise<void> {
 const showAdd = ref(false);
 const saving = ref(false);
 const addError = ref<string | null>(null);
-const field = ref<'amount' | 'comment' | 'recipient'>('amount');
+const field = ref<'amount' | 'category' | 'comment' | 'recipient'>('amount');
 const amountInput = ref('');
 const comment = ref('');
 const amountValue = computed(() => parseInt(amountInput.value, 10) || 0);
-const canAdd = computed(() => amountValue.value > 0);
+
+interface ExpenseCategory { id: number; name: string; sort_order?: number }
+const categories = ref<ExpenseCategory[]>([]);
+const categorySel = ref<ExpenseCategory | null>(null);
+const categoriesLoading = ref(false);
+const categoryError = ref('');
+
+const canAdd = computed(() =>
+  amountValue.value > 0 && categorySel.value !== null && recipientSel.value !== null,
+);
+
+async function loadCategories(): Promise<void> {
+  categoriesLoading.value = true;
+  categoryError.value = '';
+  try {
+    const res = await api.get(`${CASHBOX}/categories/`, { validateStatus: () => true });
+    if (res.status === 200) {
+      categories.value = (res.data?.data ?? []).slice().sort(
+        (a: ExpenseCategory, b: ExpenseCategory) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      );
+      if (!categories.value.length) categoryError.value = 'Faol xarajat kategoriyalari topilmadi.';
+    } else if (res.status === 401 || res.status === 403) {
+      categoryError.value = 'Kategoriyalarni ko‘rish uchun server ruxsat bermadi.';
+    } else {
+      categoryError.value = `Kategoriyalar yuklanmadi (HTTP ${res.status}).`;
+    }
+  } catch (e) {
+    console.error('expense categories failed:', e);
+    categoryError.value = 'Kategoriyalarni serverdan olib bo‘lmadi.';
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+
+function openCategory(): void {
+  field.value = 'category';
+  if (!categories.value.length && !categoriesLoading.value) void loadCategories();
+}
+
+function selectCategory(category: ExpenseCategory): void {
+  categorySel.value = category;
+  openRecipient();
+}
 
 /* recipient (who the cash is paid to) — staff user or supplier */
 interface RecipientUser { id: number; name: string; role: string }
@@ -222,7 +312,10 @@ const recipientResults = ref<{ users: RecipientUser[]; suppliers: RecipientSuppl
   suppliers: [],
 });
 const recipientSel = ref<{ type: 'user' | 'supplier'; id: number; name: string } | null>(null);
+const recipientsLoading = ref(false);
+const recipientError = ref('');
 let recipientTimer: ReturnType<typeof setTimeout> | null = null;
+let recipientSearchVersion = 0;
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin', MANAGER: 'Menejer', CASHIER: 'Kassir', CHEF: 'Oshpaz', WAITER: 'Ofitsiant',
@@ -237,19 +330,31 @@ function openRecipient(): void {
   }
 }
 async function searchRecipients(): Promise<void> {
+  const requestVersion = ++recipientSearchVersion;
+  const query = recipientQuery.value.trim();
+  recipientsLoading.value = true;
+  recipientError.value = '';
   try {
-    const res = await api.get(`${CASHBOX}/recipients/search`, {
-      params: { q: recipientQuery.value.trim() },
+    const res = await api.get(`${CASHBOX}/recipients/search/`, {
+      params: { q: query },
       validateStatus: () => true,
     });
+    if (requestVersion !== recipientSearchVersion || query !== recipientQuery.value.trim()) return;
     if (res.status === 200) {
       recipientResults.value = {
         users: res.data?.data?.users ?? [],
         suppliers: res.data?.data?.suppliers ?? [],
       };
+    } else {
+      recipientError.value = `Qabul qiluvchilar yuklanmadi (HTTP ${res.status}).`;
     }
   } catch (e) {
-    console.error('recipient search failed:', e);
+    if (requestVersion === recipientSearchVersion) {
+      console.error('recipient search failed:', e);
+      recipientError.value = 'Qabul qiluvchilarni serverdan olib bo‘lmadi.';
+    }
+  } finally {
+    if (requestVersion === recipientSearchVersion) recipientsLoading.value = false;
   }
 }
 function queueRecipientSearch(): void {
@@ -257,6 +362,8 @@ function queueRecipientSearch(): void {
   recipientTimer = setTimeout(() => void searchRecipients(), 250);
 }
 function selectRecipient(type: 'user' | 'supplier', id: number, name: string): void {
+  recipientSearchVersion += 1;
+  recipientsLoading.value = false;
   recipientSel.value = { type, id, name };
   field.value = 'comment';
 }
@@ -289,9 +396,14 @@ function openAdd(): void {
   recipientQuery.value = '';
   recipientSel.value = null;
   recipientResults.value = { users: [], suppliers: [] };
+  recipientError.value = '';
+  recipientSearchVersion += 1;
+  recipientsLoading.value = false;
+  categorySel.value = null;
   field.value = 'amount';
   addError.value = null;
   showAdd.value = true;
+  if (!categories.value.length) void loadCategories();
 }
 async function saveExpense(): Promise<void> {
   if (!canAdd.value || saving.value || !shiftId.value) return;
@@ -301,6 +413,7 @@ async function saveExpense(): Promise<void> {
     const body: Record<string, unknown> = {
       amount: amountValue.value,
       comment: comment.value.trim(),
+      category_id: categorySel.value?.id,
     };
     if (recipientSel.value?.type === 'user') body.recipient_user_id = recipientSel.value.id;
     else if (recipientSel.value?.type === 'supplier') body.recipient_supplier_id = recipientSel.value.id;
@@ -364,8 +477,22 @@ onMounted(() => void init());
   padding: 14px 16px; border-radius: 12px;
   background: var(--bg-surface); border: 1px solid var(--border-color);
 }
-.exp-row__main { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.exp-row__who { font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-row__main {
+  display: flex; min-width: 0; align-items: center; gap: 10px;
+  font-weight: 600; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.exp-row__category {
+  flex-shrink: 0; padding: 4px 9px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--brand);
+  font-size: 12px; font-weight: 700;
+}
+.exp-row__comment { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-row__who {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .exp-row__date { font-size: 13px; color: var(--text-muted); }
 .exp-row__amount { font-weight: 800; text-align: right; color: var(--error); font-variant-numeric: tabular-nums; }
 
@@ -376,29 +503,65 @@ onMounted(() => void init());
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &:active:not(:disabled) { transform: scale(0.97); }
 }
-.btn.primary { background: var(--accent-primary, #ff7a00); color: var(--on-primary); }
+.btn.primary { background: var(--brand); color: var(--on-primary); }
 .btn.secondary { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--border-color); }
 
 /* full-screen add */
 .add { position: fixed; inset: 0; z-index: 3000; background: rgba(10,12,16,0.6); backdrop-filter: blur(6px); display: flex; padding: 12px; }
 .add__panel {
-  width: 100%; max-width: 720px; margin: auto; height: calc(100vh - 24px);
+  width: 100%; max-width: none; margin: auto; height: calc(100vh - 24px);
   background: var(--bg-app); border: 1px solid var(--border-color); border-radius: 16px;
   display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5);
 }
 .add__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-color); background: var(--bg-surface); }
 .add__title { font-size: 19px; font-weight: 800; color: var(--text-primary); }
-.add__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.add__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 .add__field {
   display: flex; flex-direction: column; gap: 4px;
   padding: 12px 16px; border-radius: 12px; cursor: pointer;
   border: 1px solid var(--border-color); background: var(--bg-surface);
-  &.active { border-color: var(--accent-primary, #ff7a00); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary, #ff7a00) 22%, transparent); }
+  &.active { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 22%, transparent); }
 }
 .add__label { font-size: 12px; color: var(--text-muted); }
 .add__value { font-size: 26px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .add__value--text { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .add__err { font-size: 13px; color: var(--error); }
+.add__requirements {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  span {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 9px; border-radius: 999px;
+    background: var(--bg-surface-2); color: var(--text-muted);
+    font-size: 12px; font-weight: 700;
+  }
+  span.done { background: var(--brand-soft); color: var(--brand); }
+}
+
+.categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.category-option {
+  min-height: 48px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 13px; border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--bg-surface-2); color: var(--text-primary);
+  font-size: 14px; font-weight: 700; cursor: pointer; text-align: left;
+  &.sel { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+  &:active { transform: scale(0.98); }
+}
+.picker-state {
+  grid-column: 1 / -1;
+  min-height: 48px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  color: var(--text-muted); font-size: 13px;
+}
+.picker-state--error { color: var(--error); }
 
 /* recipient search results */
 .rcp {

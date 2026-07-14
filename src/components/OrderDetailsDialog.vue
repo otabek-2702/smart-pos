@@ -62,6 +62,10 @@
               </button>
             </div>
 
+            <div v-if="phoneError" class="field-error">
+              <q-icon name="error_outline" size="16px" /> {{ phoneError }}
+            </div>
+
             <!-- client status (only once the number is complete) -->
             <Transition name="dd-slide">
               <div v-if="phoneComplete" class="client">
@@ -75,17 +79,22 @@
                   <div class="client-card__tag">Doimiy</div>
                 </div>
 
-                <!-- new customer: name to save -->
-                <template v-else>
-                  <button
-                    type="button"
-                    class="fld"
-                    :class="{ active: activeField === 'name' }"
-                    @click="activeField = 'name'"
-                  >
-                    <span class="fld__label"><q-icon name="person_add" size="15px" /> Mijoz ismi (yangi — saqlanadi)</span>
-                    <span class="fld__val fld__val--text">{{ customerName || '—' }}</span>
-                  </button>
+                <!-- A returning client may still have no saved name. Keep the
+                     same name-entry path available so this order backfills it. -->
+                <button
+                  v-if="!lookupLoading && (!clientFound || !customerName)"
+                  type="button"
+                  class="fld"
+                  :class="{ active: activeField === 'name' }"
+                  @click="activeField = 'name'"
+                >
+                  <span class="fld__label">
+                    <q-icon name="person_add" size="15px" />
+                    Mijoz ismi (saqlanadi)
+                  </span>
+                  <span class="fld__val fld__val--text">{{ customerName || '—' }}</span>
+                </button>
+                <template v-if="!clientFound">
                   <div class="new-hint"><q-icon name="info" size="14px" /> Yangi raqam. Ism kiritsangiz, keyingi safar avtomatik chiqadi.</div>
                 </template>
 
@@ -141,7 +150,7 @@
 
           <div class="dd__foot">
             <button type="button" class="btn ghost" @click="clearAll">Tozalash</button>
-            <button type="button" class="btn primary" @click="save">Saqlash</button>
+            <button type="button" class="btn primary" :disabled="!canSave" @click="save">Saqlash</button>
           </div>
         </div>
       </div>
@@ -154,6 +163,8 @@ import { ref, computed, watch } from 'vue';
 import { api } from 'boot/axios';
 import VirtualKeyboard from 'components/virtual-keyboard/VirtualKeyboard.vue';
 import NumericKeyboard from 'components/numeric-keyboard/NumericKeyboard.vue';
+import { distinctDeliveryAddresses, type CustomerHistoryOrder } from 'src/utils/customerHistory';
+import { getUzNationalDigits, normalizeUzPhone } from 'src/utils/phone';
 
 const props = withDefaults(
   defineProps<{ phone?: string; description?: string; address?: string; customerName?: string }>(),
@@ -185,6 +196,7 @@ const nameFromLookup = ref(false);
 const clientStats = ref<{ count: number; last: string | null } | null>(null);
 const previousPlaces = ref<string[]>([]);
 let lookupTimer: ReturnType<typeof setTimeout> | null = null;
+let lookupVersion = 0;
 
 const hasData = computed(
   () => !!(phoneDigitsLocal.value || addressLocal.value || izohLocal.value || customerName.value),
@@ -193,11 +205,12 @@ const hasData = computed(
 watch(
   () => props.phone,
   (p) => {
-    const d = (p || '').replace(/\D/g, '').slice(-9);
-    if (d) {
-      phoneDigitsLocal.value = d;
-      if (d.length === 9) queueLookup();
-    }
+    const national = getUzNationalDigits(p);
+    if (national === phoneDigitsLocal.value) return;
+
+    phoneDigitsLocal.value = national;
+    clearFoundClient(true);
+    if (national.length === 9) queueLookup();
   },
   { immediate: true },
 );
@@ -211,8 +224,14 @@ const formattedPhone = computed(() => {
   if (d.length > 7) r += `-${d.slice(7, 9)}`;
   return r;
 });
-const fullPhone = computed(() => `+998${phoneDigitsLocal.value}`);
+const fullPhone = computed(() => normalizeUzPhone(phoneDigitsLocal.value));
 const phoneComplete = computed(() => phoneDigitsLocal.value.length === 9);
+const phoneError = computed(() =>
+  phoneDigitsLocal.value.length > 0 && !phoneComplete.value
+    ? 'Telefon raqamini 9 ta raqam bilan to‘liq kiriting'
+    : '',
+);
+const canSave = computed(() => !phoneDigitsLocal.value.length || phoneComplete.value);
 
 function fmtDate(s: string | null): string {
   if (!s) return '';
@@ -238,9 +257,16 @@ function queueLookup(): void {
 }
 async function lookupClient(): Promise<void> {
   if (!phoneComplete.value) return;
+  const requestedPhone = fullPhone.value;
+  const requestVersion = ++lookupVersion;
   lookupLoading.value = true;
   try {
-    const res = await api.get('/clients', { params: { phone: fullPhone.value }, validateStatus: () => true });
+    const res = await api.get('/clients/lookup', {
+      params: { phone: requestedPhone },
+      validateStatus: () => true,
+    });
+    if (requestVersion !== lookupVersion || requestedPhone !== fullPhone.value) return;
+
     const data = res.status === 200 ? res.data?.data : null;
     const client = data?.client ?? null;
     if (client?.id) {
@@ -251,29 +277,28 @@ async function lookupClient(): Promise<void> {
       }
       const st = data?.stats ?? null;
       clientStats.value = st ? { count: st.order_count ?? 0, last: st.last_order_at ?? null } : null;
-      const orders: Array<{ description?: string | null }> = data?.orders ?? [];
-      const seen = new Set<string>();
-      previousPlaces.value = orders
-        .map((o) => (o.description || '').trim())
-        .filter((d) => d && !seen.has(d) && (seen.add(d), true))
-        .slice(0, 5);
+      previousPlaces.value = distinctDeliveryAddresses(
+        (data?.orders ?? []) as CustomerHistoryOrder[],
+      );
     } else {
       // No match for this number → drop any previously-shown returning customer.
       clearFoundClient();
     }
   } catch (e) {
-    console.warn('[delivery] client lookup failed:', e);
+    if (requestVersion === lookupVersion) console.warn('[delivery] client lookup failed:', e);
   } finally {
-    lookupLoading.value = false;
+    if (requestVersion === lookupVersion) lookupLoading.value = false;
   }
 }
 
 // Clear ONLY lookup-sourced client info (never a name the cashier typed).
-function clearFoundClient(): void {
+function clearFoundClient(clearName = false): void {
+  lookupVersion += 1;
   clientFound.value = false;
   clientStats.value = null;
   previousPlaces.value = [];
-  if (nameFromLookup.value) {
+  lookupLoading.value = false;
+  if (clearName || nameFromLookup.value) {
     customerName.value = '';
     nameFromLookup.value = false;
   }
@@ -296,6 +321,7 @@ function applyTemplate(t: string): void {
 function open(): void {
   showDetails.value = true;
   activeField.value = 'phone';
+  if (phoneComplete.value) queueLookup();
 }
 function close(): void {
   showDetails.value = false;
@@ -330,24 +356,28 @@ function onTextBackspace(): void {
 }
 function onNumberInput(value: string): void {
   if (phoneDigitsLocal.value.length >= 9) return;
+  clearFoundClient(true);
   phoneDigitsLocal.value += value;
   if (phoneDigitsLocal.value.length === 9) queueLookup();
-  else clearFoundClient();
 }
 function onNumberBackspace(): void {
+  clearFoundClient(true);
   phoneDigitsLocal.value = phoneDigitsLocal.value.slice(0, -1);
-  clearFoundClient();
 }
 function onNumberClear(): void {
   phoneDigitsLocal.value = '';
-  clearFoundClient();
+  clearFoundClient(true);
 }
 
 /* SAVE — address + note emitted separately (receipt prints Manzil / Izoh). */
 function save(): void {
+  if (!canSave.value) {
+    activeField.value = 'phone';
+    return;
+  }
   emit('update:address', addressLocal.value.trim());
   emit('update:description', izohLocal.value.trim());
-  emit('update:phone', phoneDigitsLocal.value ? fullPhone.value : '');
+  emit('update:phone', fullPhone.value);
   emit('update:customerName', customerName.value.trim());
   close();
 }
@@ -550,6 +580,14 @@ defineExpose({ reset });
   font-size: 12px;
   color: var(--ink-2);
 }
+.field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cancel, var(--negative));
+  font-size: 13px;
+  font-weight: 600;
+}
 
 /* previous places + templates */
 .places { display: flex; flex-direction: column; gap: 6px; }
@@ -604,6 +642,7 @@ defineExpose({ reset });
   &:active { transform: scale(0.97); }
 }
 .btn.primary { flex: 1; background: var(--brand); color: #fff; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.ghost {
   padding: 0 20px;
   background: var(--surface-2);

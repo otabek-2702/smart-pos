@@ -1,5 +1,7 @@
 // src/utils/index.ts
 
+import { formatUzPhone } from './phone';
+
 type ReceiptItem = {
   name: string;
   quantity: number;
@@ -48,15 +50,7 @@ function padLeft(text: string, length: number): string {
 }
 
 export function formatPhoneNumber(phone: string): string {
-  // keep only digits
-  const digits = phone.replace(/\D/g, '');
-
-  // must start with 998 and be 12 digits total
-  if (!digits.startsWith('998') || digits.length !== 12) {
-    return phone; // fallback: return as-is
-  }
-
-  return `+998 ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 10)} ${digits.slice(10, 12)}`;
+  return formatUzPhone(phone) || phone;
 }
 
 export function buildReceipt(params: BuildReceiptParams): string {

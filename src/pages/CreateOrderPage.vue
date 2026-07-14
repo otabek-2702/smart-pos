@@ -236,6 +236,8 @@ import { read } from 'src/utils/storage';
 import { useCategoryLayout } from 'src/composables/useCategoryLayout';
 import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { composeLegacyDeliveryDescription } from 'src/utils/customerHistory';
+import { normalizeUzPhone } from 'src/utils/phone';
 
 // While the cashier is mid-order, an internet-down modal would steal
 // focus and risk losing the receipt being built. Suppress for the whole
@@ -298,6 +300,8 @@ interface CreateOrderPayload {
   order_type: OrderType;
   phone_number?: string;
   description?: string;
+  delivery_address?: string;
+  order_note?: string;
   // {name, phone} so the backend resolves/creates the unified Customer (saves a
   // new customer's name; converges a returning one by phone).
   customer?: { name?: string; phone?: string };
@@ -396,13 +400,9 @@ const detailsDialogRef = ref<{ reset: () => void } | null>(null);
 const route = useRoute();
 const { isAllInstant } = useInstantProducts();
 
-function toFullPhone(raw: string): string {
-  const digits = (raw || '').replace(/\D/g, '');
-  const last9 = digits.slice(-9);
-  return last9.length === 9 ? `+998${last9}` : raw;
-}
 function prefillPhone(raw: string | undefined | null): void {
-  if (raw) phone_number.value = toFullPhone(String(raw));
+  const canonical = normalizeUzPhone(raw);
+  if (canonical) phone_number.value = canonical;
 }
 watch(
   () => route.query.phone,
@@ -637,8 +637,6 @@ async function createOrderAndOpenPayment(): Promise<void> {
 
   const payload: CreateOrderPayload = {
     order_type: orderType.value,
-    phone_number: phone_number.value,
-    description: description.value,
     items: receiptItems.value.map((item) => ({
       product_id: item.productId,
       quantity: item.quantity,
@@ -646,27 +644,31 @@ async function createOrderAndOpenPayment(): Promise<void> {
     })),
   };
 
-  // Add optional fields if provided
-  if (phone_number.value.trim()) {
-    payload.phone_number = phone_number.value.trim();
+  // The loyalty identity has one canonical representation. Never attach a
+  // partial number (or a name without a valid number) to a Customer record.
+  const canonicalPhone = normalizeUzPhone(phone_number.value);
+  if (canonicalPhone) {
+    payload.phone_number = canonicalPhone;
   }
-  // Backend has a single `description` (no structured address field yet), so
-  // fold Manzil (address) + Izoh (note) into it — nothing entered is lost. When
-  // the backend gains an `address` key, send address.value there instead.
-  const composedDesc = [address.value.trim(), description.value.trim()]
-    .filter(Boolean)
-    .join(' — ');
+
+  // New backend versions persist this as a real field. The composed legacy
+  // description keeps the address intact on older local installations until
+  // every restaurant has received that backend update.
+  const deliveryAddress = address.value.trim();
+  if (deliveryAddress) payload.delivery_address = deliveryAddress;
+  const orderNote = description.value.trim();
+  if (orderNote) payload.order_note = orderNote;
+  const composedDesc = composeLegacyDeliveryDescription(deliveryAddress, orderNote);
   if (composedDesc) {
     payload.description = composedDesc;
   }
   // Attach the customer so the backend saves a new name / converges a returning
-  // one by phone (Customer.resolve). Only when we have a phone and/or a name.
+  // one by phone (Customer.resolve). A name alone must never create an identity.
   const custName = customerName.value.trim();
-  const custPhone = phone_number.value.trim();
-  if (custName || custPhone) {
+  if (canonicalPhone) {
     const customer: { name?: string; phone?: string } = {};
     if (custName) customer.name = custName;
-    if (custPhone) customer.phone = custPhone;
+    customer.phone = canonicalPhone;
     payload.customer = customer;
   }
 
