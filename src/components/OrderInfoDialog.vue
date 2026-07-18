@@ -207,6 +207,7 @@ const props = withDefaults(
     items: ReceiptItem[];
     totalAmount: number;
     phoneNumber?: string | null;
+    deliveryAddress?: string | null;
     // Name of who CREATED the order — printed as the receipt's cashier.
     cashierName?: string | null;
     // Currently-assigned courier (from the order detail), or null.
@@ -220,6 +221,7 @@ const props = withDefaults(
     orderDescription: null,
     items: () => [],
     phoneNumber: null,
+    deliveryAddress: null,
     cashierName: null,
     deliveryPerson: null,
   },
@@ -245,6 +247,7 @@ async function printCheck(): Promise<void> {
       items: props.items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price ?? 0 })),
       total: props.totalAmount,
       description: props.orderDescription || undefined,
+      address: props.deliveryAddress || undefined,
       phoneNumber: props.phoneNumber || undefined,
     };
     const result = await window.electron?.printer.printReceipt(printData);
@@ -353,7 +356,7 @@ async function selectCourier(id: number | null): Promise<void> {
   const prev = courierLocal.value;
   courierLocal.value = id; // optimistic
   try {
-    const ok = await assignCourier(props.orderId, id);
+    const ok = await assignCourier(props.orderId, id, props.deliveryAddress || '');
     if (ok) emit('courier-changed');
     else courierLocal.value = prev; // revert on failure
   } catch (e) {

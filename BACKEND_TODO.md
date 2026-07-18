@@ -4,26 +4,32 @@ What the **smart-pos** Electron POS still needs from the `alpha_pos_local` Djang
 backend (the in-store local edition — the backend of record). The frontend side
 of each task degrades gracefully until the backend lands.
 
-Verified against the local backend source on 2026-07-15. Paths are relative to the
+Verified against the local backend source on 2026-07-18 (`alpha_pos_local` `c82287b`). Paths are relative to the
 `alpha_pos_local` repo root (models/services live in the `alpha_pos_core`
 submodule) unless noted.
 
-## Open — structured delivery address + canonical customer phone
+## Open — courier dispatch must use the new courier account model end-to-end
 
-- Add a structured `delivery_address` field to `Order` (migration + sync config).
-- Accept it in `POST /orders/create` and `PATCH /orders/<id>/details`.
-- For zero-downtime compatibility, accept optional `order_note` as the clean note
-  value and prefer it over the legacy combined `description` when present.
-- Return it in order list/detail serializers and in the orders returned by
-  `GET /clients/lookup?phone=...`.
-- Keep `description` as the order note; do not combine address and note in the backend.
-- Canonicalize customer/order phones before resolve/save to digits-only
-  `998XXXXXXXXX`, while retaining normalized matching for existing formatted rows.
-- Keep the current behavior that a supplied name backfills an empty customer name.
-- Add request/service tests for structured address history and phone convergence.
+- The mobile-courier backend provides `GET /api/couriers/` and
+  `POST /api/couriers/assign`, but both are `@manager_required`. The assignment
+  picker is part of cashier checkout, so allow authenticated POS staff to list
+  and assign courier accounts; keep create/regenerate manager-only.
+- `Courier` / `DeliveryAssignment` is a different model from the old
+  `DeliveryPerson` used by `GET /couriers` and `POST /orders/{id}/courier`.
+  Expose the new assignment on `GET /orders` and `GET /orders/{id}` as a stable
+  `{id, code, name, phone, step}` object, and support clearing it safely.
 
-Frontend compatibility: `CreateOrderPage.vue` sends `delivery_address` and clean
-`order_note`, but also continues composing the legacy `description` for older backends.
+## Open — source contract for Telegram online-order receipt printing
+
+- The local edition has no Telegram webhook/online-order route, no durable
+  order origin field, and no `GET /orders/stream` (3-second polling is the
+  agreed desktop refresh path).
+- Add a synced and serialized `order_origin` / `source` enum at least covering
+  `POS`, `QR`, and `TELEGRAM`; set `TELEGRAM` where the server customer bot
+  creates its order and carry it to the till through sync.
+- Include it in `GET /orders` and `GET /orders/{id}` and confirm the server-to-
+  till creation path. The desktop will use that durable value to print a new
+  Telegram order once, without treating ordinary POS orders as online orders.
 
 ## Open — cashiers must be able to read cashbox expense categories
 
@@ -35,11 +41,23 @@ appropriate management role. Add an authenticated cashier test for the GET route
 ---
 
 ## Verified shipped — do **not** re-add
+- **Structured delivery address + canonical phones**: `Order.delivery_address`
+  is synced; `POST /orders/create` and `PATCH /orders/{id}/details` accept it
+  with clean `order_note`; order/client lookup serializers return it; order and
+  customer phones are canonicalized. *(local `0e193e7`, 2026-07-18 verified)*
+- **Courier account + login QR provisioning**: manager endpoints
+  `POST /api/couriers/create` and `POST /api/couriers/<pk>/regenerate` create or
+  rotate a `Courier` credential and return `{server, token}` QR data. Rider QR
+  login is `POST /auth/courier/login/ {qr}`. *(local `c82287b`, tests present in
+  `couriers/tests/test_create_courier.py`)*
 - **SSE order stream**: *dropped by choice* — polling (3s) is sufficient; no backend endpoint built.
 - **Shift close per-tender count**: `POST /shifts/end` (pos_staff) accepts `{counted:{CASH,UZCARD,HUMO,PAYME}, notes}`; core `end_active_for_user` threads `counted` → `end_shift` → `ShiftPaymentTotal` reconciliation. FE: `closeShift` posts to `/shifts/end` (no `/api/admins`). *(shipped 2026-06-25, core 7fc0853 / local 1.0.14)*
 - **CHEF (kitchen) role**: `User.RoleChoices.CHEF` exists; `get_pos_staff` returns CASHIER+MANAGER+CHEF so chefs appear in `GET /cashiers`. FE: PinPage routes CHEF→`/kds`; router guard bounces CHEF off cashier pages. *(shipped 2026-06-25, core b627af4)*
 - **Client-display excludes all-instant orders**: `get_client_display_orders` annotates non-instant item count on both processing + finished, keeps only `>0` (same rule as chef-display). No FE change. *(shipped 2026-06-25)*
-- **Courier list + assign**: `GET /couriers` → `{data:{items:[{id,name,phone}]}}`; `POST /orders/{id}/courier {delivery_person_id}` assign/replace/clear; order serializers include `delivery_person {id,name,phone}|null`. *(shipped — see BACKEND_TODO_DELIVERY.md)*
+- **Legacy courier list + assign**: `GET /couriers` →
+  `{data:{items:[{id,name,phone}]}}`; `POST /orders/{id}/courier
+  {delivery_person_id}` assign/replace/clear. This remains a compatibility
+  fallback only; it is not the new mobile-courier account model.
 - **Staff order edits**: `POST|PATCH /orders/{id}/details {phone_number?, description?, delivery_person_id?}` (pos_staff). *(shipped — FE wiring pending, see BACKEND_TODO_DELIVERY.md)*
 - **Instant products**: `Product.is_instant` — instant items born ready, all-instant orders created `READY`, `GET /orders/chef-display` strips instant items / hides all-instant orders.
 - **Expenses**: cashbox expense create/list and recipient search are

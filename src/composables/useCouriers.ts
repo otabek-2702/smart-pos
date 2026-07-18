@@ -1,12 +1,9 @@
 // src/composables/useCouriers.ts
 //
-// Active couriers (DeliveryPerson) for the order courier picker. The local
-// edition exposes them on the staff API:
-//   GET  /couriers                       -> { data: { items: [{id,name,phone}] } }
-//   POST /orders/{id}/courier {delivery_person_id}  -> assign / replace / clear
-//
-// The list is small and rarely changes, so we cache it in a module ref and
-// refresh on demand (the picker calls loadCouriers when it opens).
+// Active courier accounts for the order courier picker. Current backends expose
+// the courier delivery system at /api/couriers/; older installations still have
+// the legacy DeliveryPerson endpoints. Keep the fallback so a staged POS update
+// doesn't make an existing till lose its courier picker.
 
 import { ref } from 'vue';
 import { api } from 'boot/axios';
@@ -15,10 +12,29 @@ export interface Courier {
   id: number;
   name: string;
   phone?: string | null;
+  source: 'courier-api' | 'legacy';
 }
 
-interface CouriersResp {
-  data?: { items?: Courier[] };
+interface LegacyCourierItem {
+  id: number;
+  name: string;
+  phone?: string | null;
+}
+
+interface LegacyCouriersResp {
+  data?: { items?: LegacyCourierItem[] };
+}
+
+interface DeliveryCourierApiItem {
+  id: string;
+  pk: number;
+  name: string;
+  phone?: string | null;
+}
+
+interface DeliveryCouriersResp {
+  success?: boolean;
+  data?: DeliveryCourierApiItem[];
 }
 
 const couriers = ref<Courier[]>([]);
@@ -28,8 +44,24 @@ const loaded = ref(false);
 export async function loadCouriers(force = false): Promise<Courier[]> {
   if (loaded.value && !force) return couriers.value;
   try {
-    const res = await api.get<CouriersResp>('/couriers', { validateStatus: () => true });
-    couriers.value = res.data?.data?.items ?? [];
+    const deliveryRes = await api.get<DeliveryCouriersResp>('/api/couriers/', {
+      validateStatus: () => true,
+    });
+    if (deliveryRes.status >= 200 && deliveryRes.status < 300 && Array.isArray(deliveryRes.data?.data)) {
+      couriers.value = deliveryRes.data.data.map((courier) => ({
+        id: courier.pk,
+        name: courier.name,
+        phone: courier.phone ?? null,
+        source: 'courier-api',
+      }));
+    } else {
+      const legacyRes = await api.get<LegacyCouriersResp>('/couriers', { validateStatus: () => true });
+      couriers.value = (legacyRes.data?.data?.items ?? []).map((courier) => ({
+        ...courier,
+        phone: courier.phone ?? null,
+        source: 'legacy',
+      }));
+    }
     loaded.value = true;
   } catch (e) {
     console.error('[couriers] load failed:', e);
@@ -43,14 +75,24 @@ export async function loadCouriers(force = false): Promise<Courier[]> {
  */
 export async function assignCourier(
   orderId: number,
-  deliveryPersonId: number | null,
+  courierId: number | null,
+  deliveryAddress = '',
 ): Promise<boolean> {
+  const courier = courierId == null ? null : couriers.value.find((item) => item.id === courierId);
   try {
-    const r = await api.post(
-      `/orders/${orderId}/courier`,
-      { delivery_person_id: deliveryPersonId },
-      { validateStatus: () => true },
-    );
+    if (courier?.source === 'courier-api') {
+      // The new delivery backend owns Courier accounts and emits the rider's
+      // assignment event. It requires the delivery snapshot at assignment time.
+      const r = await api.post(
+        '/api/couriers/assign',
+        { order_id: orderId, courier_id: courierId, addr_text: deliveryAddress },
+        { validateStatus: () => true },
+      );
+      return r.status === 200 || r.status === 201;
+    }
+    const r = await api.post(`/orders/${orderId}/courier`, {
+      delivery_person_id: courierId,
+    }, { validateStatus: () => true });
     return r.status === 200 || r.status === 201;
   } catch (e) {
     console.error('[couriers] assign failed:', e);

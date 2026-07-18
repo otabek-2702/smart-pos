@@ -451,6 +451,7 @@ interface Props {
   creatorId?: number | null;
   creatorName?: string | null;
   phoneNumber?: string | null;
+  deliveryAddress?: string | null;
   // Courier currently assigned (delivery orders), or null.
   deliveryPerson?: { id: number; name: string; phone?: string | null } | null;
 }
@@ -460,6 +461,7 @@ const props = withDefaults(defineProps<Props>(), {
   creatorId: null,
   creatorName: null,
   phoneNumber: null,
+  deliveryAddress: null,
   deliveryPerson: null,
 });
 
@@ -536,7 +538,7 @@ async function selectCourier(id: number | null): Promise<void> {
   const prev = courierLocal.value;
   courierLocal.value = id; // optimistic
   try {
-    const ok = await assignCourier(props.orderId, id);
+    const ok = await assignCourier(props.orderId, id, props.deliveryAddress || '');
     if (ok) emit('courier-changed');
     else courierLocal.value = prev;
   } catch (e) {
@@ -867,6 +869,7 @@ function onPrintCheck(): void {
     })),
     total: props.totalAmount,
     description: props.orderDescription || undefined,
+    address: props.deliveryAddress || undefined,
     phoneNumber: props.phoneNumber || undefined,
     isPaid: false,
   });
@@ -883,6 +886,7 @@ interface OrderDetail {
   items: Array<{ product: { id: number; name: string }; quantity: number; price: string }>;
   total_amount: string;
   description?: string | null;
+  delivery_address?: string | null;
   phone_number?: string | null;
   is_paid: boolean;
 }
@@ -913,6 +917,7 @@ async function printPaidFromBackend(): Promise<void> {
       discountPercent: discountPercent.value,
       paymentMethodLabel: methodLabel(dominantMethod.value),
       description: d.description || undefined,
+      address: d.delivery_address || props.deliveryAddress || undefined,
       phoneNumber: d.phone_number || undefined,
       isPaid: d.is_paid,
     });

@@ -146,6 +146,7 @@
       :creator-id="selectedCreator?.id ?? null"
       :creator-name="selectedCreator?.name ?? null"
       :phone-number="selectedOrder?.phone_number ?? null"
+      :delivery-address="selectedOrder?.deliveryAddress ?? null"
       :delivery-person="selectedDelivery"
     />
     <OrderInfoDialog
@@ -157,6 +158,7 @@
       :order-description="selectedOrder?.description || null"
       :total-amount="selectedOrder?.totalAmount ?? 0"
       :phone-number="selectedOrder?.phone_number ?? null"
+      :delivery-address="selectedOrder?.deliveryAddress ?? null"
       :cashier-name="selectedCreator?.name ?? null"
       :delivery-person="selectedDelivery"
       @type-changed="onOrderTypeChanged"
@@ -261,6 +263,7 @@ interface ApiOrder {
   created_at: string;
   items?: ApiOrderItem[];
   description: string;
+  delivery_address?: string | null;
   phone_number: string;
   is_paid: boolean;
   // Creator — list sends `cashier`, detail sends `user`. Either identifies who
@@ -292,6 +295,7 @@ interface Order {
   itemsCount: number;
   time: string;
   description: string;
+  deliveryAddress: string;
   phone_number: string;
   is_paid: boolean;
 }
@@ -331,7 +335,7 @@ async function onOrderClick(order: Order): Promise<void> {
   const orderDetails = await fetchOrderDetails(order.id);
   if (!orderDetails) return;
 
-  selectedOrder.value = order;
+  selectedOrder.value = mapOrder(orderDetails);
   selectedOrderItems.value = mapOrderItems(orderDetails.items || []);
   // Detail carries `user` (the creator account); fall back to `cashier`.
   const creator = orderDetails.user ?? orderDetails.cashier ?? null;
@@ -411,6 +415,7 @@ function mapOrder(order: ApiOrder): Order {
       hour12: false,
     }),
     description: order.description,
+    deliveryAddress: order.delivery_address || '',
     phone_number: order.phone_number,
     is_paid: order.is_paid,
   };

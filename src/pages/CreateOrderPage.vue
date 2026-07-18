@@ -212,6 +212,7 @@
       :creator-id="currentUserId"
       :creator-name="currentUserName"
       :phone-number="phone_number"
+      :delivery-address="address"
     />
     <ReceiptItemDescriptionDialog
       v-model="showDescriptionDialog"
