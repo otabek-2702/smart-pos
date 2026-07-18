@@ -18,6 +18,10 @@ submodule) unless noted.
   `DeliveryPerson` used by `GET /couriers` and `POST /orders/{id}/courier`.
   Expose the new assignment on `GET /orders` and `GET /orders/{id}` as a stable
   `{id, code, name, phone, step}` object, and support clearing it safely.
+- The returned login QR currently contains reusable `phone:password` credentials.
+  Replace it with a short-lived, one-time claim; return courier-session
+  `expires_at` plus a refresh/revoke contract so a leaked provisioning QR cannot
+  be used indefinitely.
 
 ## Open — source contract for Telegram online-order receipt printing
 
