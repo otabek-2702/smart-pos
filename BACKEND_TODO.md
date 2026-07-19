@@ -4,36 +4,32 @@ What the **smart-pos** Electron POS still needs from the `alpha_pos_local` Djang
 backend (the in-store local edition — the backend of record). The frontend side
 of each task degrades gracefully until the backend lands.
 
-Verified against the local backend source on 2026-07-18 (`alpha_pos_local` `c82287b`). Paths are relative to the
-`alpha_pos_local` repo root (models/services live in the `alpha_pos_core`
-submodule) unless noted.
+Verified against the local backend source on 2026-07-19. The current deployed
+`main` is `c82287b`; the completed delivery contracts are on
+`origin/fix/frontend-backend-contracts-20260715` (`1051a80`, `094ebef`,
+`78024a6`) and must be merged/deployed before the desktop can use them. Paths
+are relative to the `alpha_pos_local` repo root (models/services live in the
+`alpha_pos_core` submodule) unless noted.
 
-## Open — courier dispatch must use the new courier account model end-to-end
+## Implemented in backend branch — courier dispatch
 
-- The mobile-courier backend provides `GET /api/couriers/` and
-  `POST /api/couriers/assign`, but both are `@manager_required`. The assignment
-  picker is part of cashier checkout, so allow authenticated POS staff to list
-  and assign courier accounts; keep create/regenerate manager-only.
-- `Courier` / `DeliveryAssignment` is a different model from the old
-  `DeliveryPerson` used by `GET /couriers` and `POST /orders/{id}/courier`.
-  Expose the new assignment on `GET /orders` and `GET /orders/{id}` as a stable
-  `{id, code, name, phone, step}` object, and support clearing it safely.
-- The returned login QR currently contains reusable `phone:password` credentials.
-  Replace it with a short-lived, one-time claim; return courier-session
-  `expires_at` plus a refresh/revoke contract so a leaked provisioning QR cannot
-  be used indefinitely.
+- `GET /api/couriers/` and `POST /api/couriers/assign` are now available to
+  authenticated POS staff; account creation and QR regeneration stay
+  manager-only.
+- The new `Courier` / `DeliveryAssignment` model is distinct from legacy
+  `DeliveryPerson`. Orders return `courier_assignment` with stable courier
+  identity plus numeric `pk`; explicit `courier_id: null` clears it safely.
+- The QR contains a short-lived, one-time claim only. Courier login and refresh
+  responses provide access and refresh expiry/token fields, and revocation
+  invalidates the family at deliberate sign-out.
 
-## Open — source contract for Telegram online-order receipt printing
+## Implemented in backend branch — durable Telegram online-order receipt printing
 
-- The local edition has no Telegram webhook/online-order route, no durable
-  order origin field, and no `GET /orders/stream` (3-second polling is the
-  agreed desktop refresh path).
-- Add a synced and serialized `order_origin` / `source` enum at least covering
-  `POS`, `QR`, and `TELEGRAM`; set `TELEGRAM` where the server customer bot
-  creates its order and carry it to the till through sync.
-- Include it in `GET /orders` and `GET /orders/{id}` and confirm the server-to-
-  till creation path. The desktop will use that durable value to print a new
-  Telegram order once, without treating ordinary POS orders as online orders.
+- Orders carry durable `order_origin`, including `TELEGRAM`, from server through
+  local sync.
+- The till claims a Telegram job through `POST /orders/print-jobs/claim`, prints
+  it, then calls its claim-token `ack`; a printer failure calls `fail` so the
+  backend can retry. Browser/dev preview leaves jobs unclaimed.
 
 ## Open — cashiers must be able to read cashbox expense categories
 

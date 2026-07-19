@@ -15,6 +15,14 @@ export interface Courier {
   source: 'courier-api' | 'legacy';
 }
 
+/** The display-friendly assignment embedded in an order detail response. */
+export interface AssignedCourier {
+  id: number;
+  name: string;
+  phone?: string | null;
+  step?: string | null;
+}
+
 interface LegacyCourierItem {
   id: number;
   name: string;
@@ -39,6 +47,9 @@ interface DeliveryCouriersResp {
 
 const couriers = ref<Courier[]>([]);
 const loaded = ref(false);
+// New Courier ids and legacy DeliveryPerson ids are different domains. Once
+// the new list endpoint has answered, never send its ids to the legacy route.
+const deliveryCourierApiAvailable = ref(false);
 
 /** Fetch the active courier list. Pass force to bypass the once-cache. */
 export async function loadCouriers(force = false): Promise<Courier[]> {
@@ -48,6 +59,7 @@ export async function loadCouriers(force = false): Promise<Courier[]> {
       validateStatus: () => true,
     });
     if (deliveryRes.status >= 200 && deliveryRes.status < 300 && Array.isArray(deliveryRes.data?.data)) {
+      deliveryCourierApiAvailable.value = true;
       couriers.value = deliveryRes.data.data.map((courier) => ({
         id: courier.pk,
         name: courier.name,
@@ -55,6 +67,7 @@ export async function loadCouriers(force = false): Promise<Courier[]> {
         source: 'courier-api',
       }));
     } else {
+      deliveryCourierApiAvailable.value = false;
       const legacyRes = await api.get<LegacyCouriersResp>('/couriers', { validateStatus: () => true });
       couriers.value = (legacyRes.data?.data?.items ?? []).map((courier) => ({
         ...courier,
@@ -80,7 +93,7 @@ export async function assignCourier(
 ): Promise<boolean> {
   const courier = courierId == null ? null : couriers.value.find((item) => item.id === courierId);
   try {
-    if (courier?.source === 'courier-api') {
+    if (courier?.source === 'courier-api' || (courierId == null && deliveryCourierApiAvailable.value)) {
       // The new delivery backend owns Courier accounts and emits the rider's
       // assignment event. It requires the delivery snapshot at assignment time.
       const r = await api.post(

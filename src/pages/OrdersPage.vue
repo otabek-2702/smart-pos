@@ -231,6 +231,8 @@ import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useOrderStream } from 'src/composables/useOrderStream';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
+import { useTelegramReceiptPrintJobs } from 'src/composables/useTelegramReceiptPrintJobs';
+import type { AssignedCourier } from 'src/composables/useCouriers';
 import { hasPermission } from 'src/composables/usePermissions';
 import { useAppUpdate } from 'src/composables/useAppUpdate';
 
@@ -270,8 +272,18 @@ interface ApiOrder {
   // made the order (for the receipt name + the cross-cashier payment warning).
   cashier?: { id: number; name: string } | null;
   user?: { id: number; name: string } | null;
-  // Assigned courier (delivery orders), or null. Detail-only.
+  // Legacy delivery-person assignment, retained while older tills upgrade.
   delivery_person?: { id: number; name: string; phone?: string | null } | null;
+  // Authoritative Courier assignment (new delivery domain). Its `pk` is the
+  // numeric value required by POST /api/couriers/assign.
+  courier_assignment?: {
+    id: string;
+    pk: number;
+    code?: string;
+    name: string;
+    phone?: string | null;
+    step?: string | null;
+  } | null;
 }
 
 interface OrdersResponse {
@@ -340,7 +352,7 @@ async function onOrderClick(order: Order): Promise<void> {
   // Detail carries `user` (the creator account); fall back to `cashier`.
   const creator = orderDetails.user ?? orderDetails.cashier ?? null;
   selectedCreator.value = creator ? { id: creator.id, name: creator.name } : null;
-  selectedDelivery.value = orderDetails.delivery_person ?? null;
+  selectedDelivery.value = mapAssignedCourier(orderDetails);
   if (status.value === 'UNPAID') {
     showPaymentDialog.value = true;
   } else {
@@ -355,7 +367,7 @@ const selectedOrderItems = ref<ReceiptItem[]>([]);
 // Who created the selected order (for receipt name + cross-cashier warning).
 const selectedCreator = ref<{ id: number; name: string } | null>(null);
 // Courier currently assigned to the selected order (delivery), or null.
-const selectedDelivery = ref<{ id: number; name: string; phone?: string | null } | null>(null);
+const selectedDelivery = ref<AssignedCourier | null>(null);
 
 function getStatusLabel(orderStatus: string): string {
   return STATUS_LABELS[orderStatus] || orderStatus;
@@ -428,6 +440,18 @@ function mapOrderItems(items: ApiOrderItem[]): ReceiptItem[] {
     price: Number(item.price) || 0,
     quantity: item.quantity,
   }));
+}
+
+function mapAssignedCourier(order: ApiOrder): AssignedCourier | null {
+  if (order.courier_assignment) {
+    return {
+      id: order.courier_assignment.pk,
+      name: order.courier_assignment.name,
+      phone: order.courier_assignment.phone ?? null,
+      step: order.courier_assignment.step ?? null,
+    };
+  }
+  return order.delivery_person ?? null;
 }
 
 async function fetchOrders(showSpinner = true): Promise<void> {
@@ -518,6 +542,7 @@ let pollHandle: ReturnType<typeof setInterval> | null = null;
 const dialogOpen = computed<boolean>(
   () => showPaymentDialog.value || showInfoDialog.value,
 );
+const telegramReceiptPrints = useTelegramReceiptPrintJobs(dialogOpen);
 
 function startPolling(): void {
   if (pollHandle) return;
@@ -548,10 +573,12 @@ useOrderStream({
 onMounted(() => {
   void fetchOrders();
   startPolling();
+  telegramReceiptPrints.start();
 });
 
 onUnmounted(() => {
   stopPolling();
+  telegramReceiptPrints.stop();
 });
 </script>
 

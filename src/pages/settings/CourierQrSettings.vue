@@ -7,15 +7,15 @@
           Kuryer akkaunti va login QR
         </h3>
         <p class="section-description">
-          Kuryerni shu yerdan yarating. Tizim uning akkauntini yaratadi va Alfa Courier
-          ilovasiga kirish uchun to'g'ri server manzili bilan QR kod beradi.
+          Kuryerni shu yerdan yarating. Tizim Alfa Courier ilovasiga kirish uchun
+          bir martalik, qisqa muddatli QR kod beradi.
         </p>
 
-        <div v-if="couriers.length" class="existing">
+        <div v-if="qrCouriers.length" class="existing">
           <span class="existing__label">Mavjud kuryer uchun yangi QR</span>
           <div class="existing__list">
             <button
-              v-for="courier in couriers"
+              v-for="courier in qrCouriers"
               :key="courier.id"
               type="button"
               class="existing__item"
@@ -33,24 +33,18 @@
 
         <button type="button" class="fld" :class="{ active: field === 'firstName' }" @click="field = 'firstName'">
           <span class="fld__label"><q-icon name="person" size="15px" /> Ismi</span>
-          <span class="fld__val">{{ firstName || '—' }}</span>
+          <span class="fld__val">{{ firstName || '-' }}</span>
         </button>
 
         <button type="button" class="fld" :class="{ active: field === 'lastName' }" @click="field = 'lastName'">
           <span class="fld__label"><q-icon name="badge" size="15px" /> Familiyasi (ixtiyoriy)</span>
-          <span class="fld__val">{{ lastName || '—' }}</span>
+          <span class="fld__val">{{ lastName || '-' }}</span>
         </button>
 
         <button type="button" class="fld" :class="{ active: field === 'phone' }" @click="field = 'phone'">
           <span class="fld__label"><q-icon name="call" size="15px" /> Kuryer telefoni</span>
-          <span class="fld__val"><span class="fld__pfx">+998</span>{{ formattedPhone || ' —' }}</span>
+          <span class="fld__val"><span class="fld__pfx">+998</span>{{ formattedPhone || ' -' }}</span>
         </button>
-
-        <button type="button" class="fld" :class="{ active: field === 'password' }" @click="field = 'password'">
-          <span class="fld__label"><q-icon name="lock" size="15px" /> Parol (ixtiyoriy)</span>
-          <span class="fld__val">{{ password ? '•'.repeat(password.length) : 'Tizim yaratadi' }}</span>
-        </button>
-        <p v-if="password && password.length < 4" class="field-error">Parol kamida 4 ta belgidan iborat bo'lishi kerak.</p>
 
         <div class="cq__actions">
           <button type="button" class="btn btn-primary" :disabled="!canCreate || saving" @click="createCourier">
@@ -76,14 +70,17 @@
         <div class="qr-frame"><img :src="qrImage" alt="Courier login QR" class="qr-img" /></div>
         <div class="qr-name">{{ provisioned.name }}</div>
         <div class="qr-phone">{{ provisioned.phone }}</div>
-        <div class="qr-password"><span>Parol:</span> {{ provisioned.password }}</div>
+        <div class="qr-expiry">
+          <q-icon name="schedule" size="17px" />
+          {{ expiryLabel(provisioned.expiresAt) }} gacha skaner qiling
+        </div>
         <div class="qr-hint">
           <q-icon name="qr_code_scanner" size="18px" />
           Alfa Courier ilovasida ushbu kodni skaner qiling
         </div>
         <div class="qr-warn">
           <q-icon name="visibility_off" size="16px" />
-          Ushbu QR va parolni faqat shu kuryerga bering.
+          QR bir marta ishlaydi. Uni faqat shu kuryerga bering.
         </div>
       </div>
       <div v-else class="qr-empty">
@@ -106,9 +103,9 @@ import NumericKeyboard from 'src/components/numeric-keyboard/NumericKeyboard.vue
 interface ProvisioningPayload {
   id: number;
   phone: string;
-  password: string;
+  expires_at: string;
   courier?: { name?: string; phone?: string };
-  qr: { v: number; type?: string; server: string; token: string };
+  qr: { v: 2; type: 'courier_login'; server: string; token: string; expires_at: string };
 }
 
 interface ProvisioningResponse {
@@ -121,26 +118,24 @@ const { couriers, loadCouriers } = useCouriers();
 const firstName = ref('');
 const lastName = ref('');
 const phone = ref('');
-const password = ref('');
-const field = ref<'firstName' | 'lastName' | 'phone' | 'password'>('firstName');
+const field = ref<'firstName' | 'lastName' | 'phone'>('firstName');
 const qrImage = ref('');
-const provisioned = ref<{ id: number; name: string; phone: string; password: string } | null>(null);
+const provisioned = ref<{ id: number; name: string; phone: string; expiresAt: string } | null>(null);
 const saving = ref(false);
 const selectedCourierId = ref<number | null>(null);
+const qrCouriers = computed(() => couriers.value.filter((courier) => courier.source === 'courier-api'));
 
 const formattedPhone = computed(() => {
-  const d = phone.value;
-  if (!d) return '';
-  let r = ` ${d.slice(0, 2)}`;
-  if (d.length > 2) r += ` ${d.slice(2, 5)}`;
-  if (d.length > 5) r += ` ${d.slice(5, 7)}`;
-  if (d.length > 7) r += ` ${d.slice(7, 9)}`;
-  return r;
+  const digits = phone.value;
+  if (!digits) return '';
+  let result = ` ${digits.slice(0, 2)}`;
+  if (digits.length > 2) result += ` ${digits.slice(2, 5)}`;
+  if (digits.length > 5) result += ` ${digits.slice(5, 7)}`;
+  if (digits.length > 7) result += ` ${digits.slice(7, 9)}`;
+  return result;
 });
 
-const canCreate = computed(
-  () => firstName.value.trim().length > 0 && phone.value.length === 9 && (!password.value || password.value.length >= 4),
-);
+const canCreate = computed(() => firstName.value.trim().length > 0 && phone.value.length === 9);
 
 function onNumInput(value: string): void {
   if (phone.value.length < 9) phone.value += value;
@@ -149,25 +144,29 @@ function onNumInput(value: string): void {
 function onTextInput(value: string): void {
   if (field.value === 'firstName') firstName.value += value;
   else if (field.value === 'lastName') lastName.value += value;
-  else if (field.value === 'password') password.value += value;
 }
 
 function onTextBackspace(): void {
   if (field.value === 'firstName') firstName.value = firstName.value.slice(0, -1);
   else if (field.value === 'lastName') lastName.value = lastName.value.slice(0, -1);
-  else if (field.value === 'password') password.value = password.value.slice(0, -1);
+}
+
+function expiryLabel(expiresAt: string): string {
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return 'Tez orada';
+  return date.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
 }
 
 async function showProvisioning(payload: ProvisioningPayload): Promise<void> {
-  if (!payload.qr?.server || !payload.qr.token || !payload.password) {
-    throw new Error('Backend qaytargan QR ma\'lumotlari to\'liq emas');
+  if (!payload.qr?.server || !payload.qr.token || !payload.expires_at) {
+    throw new Error("Backend qaytargan QR ma'lumotlari to'liq emas");
   }
   qrImage.value = await generateQrDataUrl(JSON.stringify(payload.qr));
   provisioned.value = {
     id: payload.id,
     name: payload.courier?.name || firstName.value.trim() || 'Kuryer',
     phone: payload.courier?.phone || payload.phone,
-    password: payload.password,
+    expiresAt: payload.expires_at,
   };
 }
 
@@ -176,14 +175,15 @@ async function createCourier(): Promise<void> {
   saving.value = true;
   selectedCourierId.value = null;
   try {
-    const body: { first_name: string; last_name?: string; phone: string; password?: string } = {
+    const body: { first_name: string; last_name?: string; phone: string } = {
       first_name: firstName.value.trim(),
       phone: `+998${phone.value}`,
     };
     if (lastName.value.trim()) body.last_name = lastName.value.trim();
-    if (password.value) body.password = password.value;
     const response = await api.post<ProvisioningResponse>('/api/couriers/create', body);
-    if (!response.data.success || !response.data.data) throw new Error(response.data.message || 'Akkaunt yaratilmadi');
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.message || 'Akkaunt yaratilmadi');
+    }
     await showProvisioning(response.data.data);
     await loadCouriers(true);
     toast.success('Kuryer akkaunti va QR tayyor');
@@ -197,17 +197,14 @@ async function createCourier(): Promise<void> {
 }
 
 async function regenerate(courier: Courier): Promise<void> {
-  if (saving.value) return;
+  if (saving.value || courier.source !== 'courier-api') return;
   saving.value = true;
   selectedCourierId.value = courier.id;
   try {
-    const body = password.value ? { password: password.value } : {};
-    if (password.value && password.value.length < 4) {
-      toast.error("Parol kamida 4 ta belgidan iborat bo'lishi kerak");
-      return;
+    const response = await api.post<ProvisioningResponse>(`/api/couriers/${courier.id}/regenerate`, {});
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.message || 'QR yangilanmadi');
     }
-    const response = await api.post<ProvisioningResponse>(`/api/couriers/${courier.id}/regenerate`, body);
-    if (!response.data.success || !response.data.data) throw new Error(response.data.message || 'QR yangilanmadi');
     const fallbackCourier = {
       name: courier.name,
       ...(courier.phone ? { phone: courier.phone } : {}),
@@ -216,7 +213,6 @@ async function regenerate(courier: Courier): Promise<void> {
       ...response.data.data,
       courier: response.data.data.courier ?? fallbackCourier,
     });
-    password.value = '';
     toast.success('Yangi login QR tayyor');
   } catch (error) {
     console.error('Courier QR regeneration failed:', error);
@@ -254,7 +250,6 @@ onMounted(() => {
 .fld__label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .fld__val { min-height: 24px; font-size: 18px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .fld__pfx { color: var(--accent-primary); }
-.field-error { margin: -4px 2px 8px; color: var(--negative); font-size: 12px; }
 .cq__actions { margin-top: 8px; }
 .btn { height: 48px; border-radius: 12px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 22px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -267,8 +262,7 @@ onMounted(() => {
 .qr-img { width: 100%; height: 100%; image-rendering: pixelated; }
 .qr-name { font-size: 18px; font-weight: 800; color: var(--text-primary); }
 .qr-phone { font-size: 15px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.qr-password { padding: 7px 11px; border-radius: 8px; background: var(--bg-app); color: var(--text-primary); font-family: monospace; font-size: 14px; font-weight: 700; }
-.qr-password span { color: var(--text-muted); font-family: inherit; font-weight: 600; }
+.qr-expiry { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 8px; background: var(--bg-app); color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .qr-hint, .qr-warn { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); text-align: center; }
 .qr-warn { color: var(--warning); }
 .qr-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text-muted); font-size: 14px; text-align: center; }
