@@ -142,10 +142,6 @@ async function loadLogo(): Promise<void> {
 }
 
 const BASE_URL_KEY = 'pos:IpAdress';
-// Local cache of the picker grid. Filled from the public staff endpoint;
-// kept so the grid renders instantly on next boot (and survives a brief
-// backend blip) before the live fetch returns.
-const CACHED_USERS_KEY = 'pos:cachedUsers';
 
 // Public pre-login picker endpoint. Returns POS staff = cashiers + MANAGERs
 // (managers are the on-POS settings tier; admins are NOT here — they use the
@@ -222,18 +218,11 @@ const isReloading = ref(false);
  * Methods
  * ============ */
 
-function loadCachedUsers(): User[] {
-  const cached = read<User[]>(CACHED_USERS_KEY);
-  return Array.isArray(cached) ? cached : [];
-}
-
+/* The picker is always live: one call to the public staff endpoint, no local
+   copy of the roster. A backend that is down shows the empty state (with the
+   diagnostics panel) rather than a stale grid whose PINs may no longer work. */
 async function fetchUsers(): Promise<void> {
   isLoading.value = true;
-
-  // Show whatever we cached locally immediately so the grid isn't empty
-  // while we wait for the network. If the API works, it overwrites this.
-  users.value = loadCachedUsers();
-
   try {
     // Public pre-login picker endpoint (no auth): lists active cashiers for
     // the monoblock login screen. The operator taps a face → PinPage. Admins
@@ -248,12 +237,9 @@ async function fetchUsers(): Promise<void> {
       email: u.email,
       onShift: u.on_shift,
     }));
-
-    void write(CACHED_USERS_KEY, users.value);
   } catch (e) {
-    // Backend unreachable / not yet activated → fall back to the cached grid.
-    // Empty cache → the "first setup" empty state is shown by the template.
-    console.warn('[/cashiers] not available, using cached users:', e);
+    console.warn('[/cashiers] not available:', e);
+    users.value = [];
   } finally {
     isLoading.value = false;
   }

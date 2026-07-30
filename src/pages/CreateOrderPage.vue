@@ -126,9 +126,10 @@
 
           <!-- Results -->
           <div class="products">
-            <div v-if="products.length === 0 && search" class="products-state">
-              Mahsulot topilmadi
+            <div v-if="loadingProducts && !products.length" class="products-state">
+              Yuklanmoqda…
             </div>
+            <div v-else-if="!products.length" class="products-state">Mahsulot topilmadi</div>
 
             <TransitionGroup v-if="products.length" name="product" tag="div" class="products-list">
               <button
@@ -149,6 +150,19 @@
                 <div class="product-price">{{ formatPrice(product.price) }} so'm</div>
               </button>
             </TransitionGroup>
+
+            <!-- Only appears when the server reports another page for this view
+                 (menus over 100 items in one category / search). -->
+            <button
+              v-if="hasMoreProducts"
+              type="button"
+              class="products-more"
+              :disabled="loadingProducts"
+              @click="fetchProducts(true)"
+            >
+              <q-icon :name="loadingProducts ? 'progress_activity' : 'expand_more'" size="18px" />
+              {{ loadingProducts ? 'Yuklanmoqda…' : "Ko'proq ko'rsatish" }}
+            </button>
           </div>
 
           <!-- Keyboard -->
@@ -284,6 +298,7 @@ interface ProductsResponse {
   success: boolean;
   data: {
     products: ApiProduct[];
+    pagination?: { has_next?: boolean; total_products?: number };
   };
 }
 
@@ -362,29 +377,17 @@ const receiptItems = ref<ReceiptItem[]>([]);
 const orderType = ref<OrderType>('HALL');
 const search = ref<string>('');
 
-const allProducts = ref<ApiProduct[]>([]); // full catalog, fetched once on open
+const products = ref<ApiProduct[]>([]);
 const categories = ref<Category[]>([]);
 const selectedCategory = ref<number | null>(null);
+// True while the server says the current view has further pages.
+const hasMoreProducts = ref<boolean>(false);
 // On-screen keyboard visibility (only the keys; the action row stays put).
 // Picking a category hides it (browse mode); searching / adding reopens it.
 const keyboardOpen = ref<boolean>(true);
 const loadingProducts = ref<boolean>(false);
 const loadingCategories = ref<boolean>(false);
 const submitting = ref<boolean>(false);
-
-// Client-side filtered view — instant, no per-keystroke server call. While
-// searching, match the name across ALL products (category ignored); otherwise
-// show the selected category (or everything).
-const products = computed<ApiProduct[]>(() => {
-  const q = search.value.trim().toLowerCase();
-  if (q) return allProducts.value.filter((p) => p.name.toLowerCase().includes(q));
-  if (selectedCategory.value != null) {
-    return allProducts.value.filter(
-      (p) => String(p.category?.id) === String(selectedCategory.value),
-    );
-  }
-  return allProducts.value;
-});
 
 const description = ref('');
 const address = ref('');
@@ -529,31 +532,92 @@ function setOrderType(value: OrderType): void {
   orderType.value = value;
 }
 
-/* Load the WHOLE catalog once (paginated; /products caps at 100/page) so search
-   + category filtering happen instantly on the client — no slow per-keystroke
-   round-trip. */
-async function loadAllProducts(): Promise<void> {
+/* ---- product loading ----
+   The catalog is NOT pulled down whole. Every view (all / one category / a
+   search) is one server call with the matching filter, so a big menu costs the
+   same as a small one and edits on the admin side show up without a restart.
+   Views already fetched during this visit are memoised, so the reset back to
+   "Barchasi" after each added item stays instant instead of hitting the LAN. */
+const PER_PAGE = 100; // backend MAX_PER_PAGE
+
+interface ProductView {
+  items: ApiProduct[];
+  hasMore: boolean;
+}
+
+const viewCache = new Map<string, ProductView>();
+// Bumped per request; a slow earlier response must never overwrite a newer view.
+let fetchSeq = 0;
+
+function currentViewKey(): string {
+  const q = search.value.trim().toLowerCase();
+  return q ? `q:${q}` : `c:${selectedCategory.value ?? 'all'}`;
+}
+
+async function fetchProducts(append = false): Promise<void> {
+  const key = currentViewKey();
+  const q = search.value.trim();
+
+  if (!append) {
+    const cached = viewCache.get(key);
+    if (cached) {
+      products.value = cached.items;
+      hasMoreProducts.value = cached.hasMore;
+      return;
+    }
+  }
+
+  const seq = ++fetchSeq;
   loadingProducts.value = true;
   try {
-    const perPage = 100;
-    const all: ApiProduct[] = [];
-    for (let page = 1; page <= 50; page++) {
-      const response = await api.get<ProductsResponse>('/products', {
-        params: { per_page: perPage, page },
-      });
-      const batch = response.data.data.products ?? [];
-      all.push(...batch);
-      if (batch.length < perPage) break; // last page
+    const params: Record<string, string | number> = {
+      per_page: PER_PAGE,
+      page: append ? Math.floor(products.value.length / PER_PAGE) + 1 : 1,
+    };
+    // A search spans the whole menu; a category filter applies only when not
+    // searching (the search watcher clears the category anyway).
+    if (q) params.search = q;
+    else if (selectedCategory.value != null) params.category_ids = selectedCategory.value;
+
+    const response = await api.get<ProductsResponse>('/products', { params });
+    if (seq !== fetchSeq) return; // the cashier moved on — drop this answer
+
+    const batch = response.data.data.products ?? [];
+    products.value = append ? [...products.value, ...batch] : batch;
+    hasMoreProducts.value = response.data.data.pagination?.has_next ?? false;
+    viewCache.set(key, { items: products.value, hasMore: hasMoreProducts.value });
+  } catch (error) {
+    if (seq !== fetchSeq) return;
+    console.error('Failed to fetch products:', error);
+    if (!append) {
+      products.value = [];
+      hasMoreProducts.value = false;
     }
-    allProducts.value = all;
   } finally {
-    loadingProducts.value = false;
+    if (seq === fetchSeq) loadingProducts.value = false;
   }
 }
 
-/* Searching across all products shows the "Barchasi" (no category) view. */
+/* One shared timer, so the search + category watchers can't fire two calls for
+   what is really a single view change. */
+let fetchTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleProductFetch(delay = 0): void {
+  if (fetchTimer) clearTimeout(fetchTimer);
+  fetchTimer = setTimeout(() => {
+    fetchTimer = null;
+    void fetchProducts();
+  }, delay);
+}
+
+/* Searching across all products shows the "Barchasi" (no category) view.
+   Typing is debounced — the on-screen keyboard emits fast. */
 watch(search, (value) => {
   if (value) selectedCategory.value = null;
+  scheduleProductFetch(value ? 220 : 0);
+});
+
+watch(selectedCategory, () => {
+  if (!search.value.trim()) scheduleProductFetch(0);
 });
 
 /* RECEIPT LOGIC */
@@ -681,6 +745,14 @@ async function createOrderAndOpenPayment(): Promise<void> {
     // Store created order info
     createdOrderId.value = response.data.data.order_id;
     createdDisplayId.value = response.data.data.display_id;
+    // Queue only the backend order ID. The main PC fetches the authoritative
+    // snapshot before writing creator, amount, items and status to its report DB.
+    try {
+      await window.electron?.reports.capture(response.data.data.order_id, 'created');
+    } catch (captureError) {
+      // The order is already committed; reconciliation will fill this gap.
+      console.error('Order created but local report capture was delayed:', captureError);
+    }
 
     // Print-before-payment per the order type's policy (Settings → Buyurtma
     // turlari). All-instant orders (drinks/packaged only) are NEVER auto-printed
@@ -722,8 +794,8 @@ function resetForm(): void {
   createdDisplayId.value = null;
   selectedCategory.value = null;
   keyboardOpen.value = true;
-  // Catalog stays cached (allProducts); the computed list resets via the cleared
-  // search/category above.
+  // The cleared search/category above puts the grid back on "Barchasi" through
+  // the watchers (served from the in-visit view cache, so no extra round-trip).
 }
 
 function onCancel(): void {
@@ -736,9 +808,10 @@ onMounted(async () => {
   // resets, so the next order starts clean (no caller number carried over).
   prefillPhone(route.query.phone as string | undefined);
 
-  // Categories for the filter chips + the whole catalog (filtered client-side).
+  // Categories for the filter chips, then the default ("Barchasi") product view.
+  // Both come straight from the API; nothing is preloaded or stored locally.
   await fetchCategories();
-  await loadAllProducts();
+  await fetchProducts();
 });
 </script>
 
@@ -1152,6 +1225,37 @@ onMounted(async () => {
 
 .products-state {
   color: var(--ink-3);
+  padding: 14px 2px;
+  font-weight: 600;
+}
+
+/* Next page of the current view (category / search) — only rendered when the
+   backend says there is one, so most menus never see it. */
+.products-more {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--ink);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 }
 
 .products-list {

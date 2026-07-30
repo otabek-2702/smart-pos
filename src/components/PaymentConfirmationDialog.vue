@@ -212,13 +212,16 @@
               </template>
               <template v-else-if="liveBalance < 0">
                 <span class="calc__status-label">Qaytim</span>
-                <span class="calc__status-val is-change">{{ formatPrice(liveBalance) }} so'm</span>
+                <span class="calc__status-val is-change">{{ formatPrice(Math.abs(liveBalance)) }} so'm</span>
               </template>
               <template v-else-if="effectiveTotal > 0 || payments.length > 0 || amountValue > 0">
                 <span class="calc__status-val is-ok"
                   ><q-icon name="check_circle" size="18px" /> To'liq to'landi</span
                 >
               </template>
+            </div>
+            <div v-if="paymentValidationMessage" class="calc__validation" role="status">
+              {{ paymentValidationMessage }}
             </div>
 
             <div class="pad__wraper">
@@ -427,6 +430,16 @@ import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue
 import { usePaymentPrefs } from 'src/composables/usePaymentPrefs';
 import { useInstantProducts } from 'src/composables/useInstantProducts';
 import { shouldPrintAfter } from 'src/composables/usePrintPolicy';
+import { readPersistent, remove, write } from 'src/utils/storage';
+import {
+  buildCheckoutPayload,
+  checkoutValidationMessage,
+  clearPendingPaymentAttempt,
+  getOrCreatePendingPaymentAttempt,
+  PendingPaymentConflictError,
+  shouldRetainPendingPaymentAttempt,
+  type PaymentLine,
+} from 'src/utils/paymentCheckout';
 
 type OrderType = 'HALL' | 'PICKUP' | 'DELIVERY';
 
@@ -477,6 +490,7 @@ const emit = defineEmits<{
 const router = useRouter();
 const payLoading = ref(false);
 const cancelLoading = ref(false);
+const payError = ref<string | null>(null);
 
 const { labelFor } = useOrderTypes();
 // Local copy so a change reflects immediately; synced from the prop on open.
@@ -560,11 +574,6 @@ const isOpen = computed({
 suppressInternetWarningWhile(toRef(props, 'modelValue'));
 
 /* ============ state ============ */
-
-interface PaymentLine {
-  method: string;
-  amount: number;
-}
 
 const amountInput = ref<string>('');
 const discountInput = ref<string>('');
@@ -680,26 +689,22 @@ const effectiveTotal = computed<number>(() =>
 const paidSoFar = computed<number>(() => payments.value.reduce((s, p) => s + p.amount, 0));
 const remaining = computed<number>(() => Math.max(0, effectiveTotal.value - paidSoFar.value));
 // Live balance shown in "Qoldi": total − already-paid − the amount being typed.
-// >0 still to pay; <0 = overpay → show as a red return amount.
+// >0 still to pay; <0 = cash change due to the customer.
 const liveBalance = computed<number>(
   () => effectiveTotal.value - paidSoFar.value - amountValue.value,
 );
-const canPay = computed<boolean>(() =>
-  effectiveTotal.value === 0 ? true : paidSoFar.value >= effectiveTotal.value,
+const checkout = computed(() =>
+  buildCheckoutPayload({
+    orderId: props.orderId,
+    effectiveTotal: effectiveTotal.value,
+    discountPercent: discountPercent.value,
+    payments: payments.value,
+  }),
 );
-
-const dominantMethod = computed<string>(() => {
-  if (payments.value.length === 0) return 'CASH';
-  const totals = new Map<string, number>();
-  for (const p of payments.value) totals.set(p.method, (totals.get(p.method) ?? 0) + p.amount);
-  let best = 'CASH';
-  let max = -1;
-  for (const [m, t] of totals)
-    if (t > max) {
-      max = t;
-      best = m;
-    }
-  return best;
+const canPay = computed<boolean>(() => checkout.value.ok);
+const paymentValidationMessage = computed<string | null>(() => {
+  if (checkout.value.ok || payments.value.length === 0) return payError.value;
+  return payError.value ?? checkoutValidationMessage(checkout.value.code);
 });
 
 /* ============ helpers ============ */
@@ -792,22 +797,24 @@ async function removePromo(): Promise<void> {
 
 function addPayment(method: string): void {
   activeDiscField.value = null; // close discount sheet when choosing a method
-  let amount = amountValue.value > 0 ? amountValue.value : remaining.value;
+  const normalizedMethod = method.trim().toUpperCase();
+  const amount = amountValue.value > 0 ? amountValue.value : remaining.value;
+  if (!normalizedMethod) return;
   if (amount <= 0) return;
-  // Never add more than what's left to pay — clamp to the remaining balance,
-  // so entering a bigger amount just fills the rest (the overpay/change is shown
-  // live in "Qoldi" before adding).
-  amount = Math.min(amount, remaining.value);
-  if (amount <= 0) return;
-  payments.value.push({ method, amount });
+  // Preserve the tendered amount. Cash may exceed the order total so change is
+  // auditable; the validation helper rejects excess non-cash tender.
+  payments.value.push({ method: normalizedMethod, amount });
   amountInput.value = '';
+  payError.value = null;
 }
 function removePayment(index: number): void {
   payments.value.splice(index, 1);
+  payError.value = null;
 }
 function resetPayments(): void {
   payments.value = [];
   amountInput.value = '';
+  payError.value = null;
 }
 
 /* ============ reset on open ============ */
@@ -825,6 +832,7 @@ watch(isOpen, (open) => {
     showPinPad.value = false;
     pinEntry.value = '';
     pinError.value = false;
+    payError.value = null;
     activeDiscField.value = null;
     orderTypeLocal.value = props.orderType;
     showTypePicker.value = false;
@@ -891,7 +899,7 @@ interface OrderDetail {
   is_paid: boolean;
 }
 
-async function printPaidFromBackend(): Promise<void> {
+async function printPaidFromBackend(paymentMethod: string): Promise<void> {
   if (!props.orderId) return;
   try {
     const res = await api.get(`/orders/${props.orderId}`);
@@ -915,7 +923,7 @@ async function printPaidFromBackend(): Promise<void> {
       total: Number(d.total_amount) || props.totalAmount,
       subtotal: baseTotal.value,
       discountPercent: discountPercent.value,
-      paymentMethodLabel: methodLabel(dominantMethod.value),
+      paymentMethodLabel: methodLabel(paymentMethod),
       description: d.description || undefined,
       address: d.delivery_address || props.deliveryAddress || undefined,
       phoneNumber: d.phone_number || undefined,
@@ -928,21 +936,60 @@ async function printPaidFromBackend(): Promise<void> {
 
 async function onConfirmPayment(): Promise<void> {
   // Only the creator may pay; the button is disabled for cross-cashier orders.
-  if (!props.orderId || !canPay.value || payLoading.value || isCrossCashier.value) return;
+  if (!props.orderId || payLoading.value || isCrossCashier.value) return;
+
+  const currentCheckout = checkout.value;
+  if (!currentCheckout.ok) {
+    payError.value = checkoutValidationMessage(currentCheckout.code);
+    return;
+  }
+
   payLoading.value = true;
+  payError.value = null;
   try {
-    await api.post(`/orders/${props.orderId}/pay`, {
-      payments: payments.value.map((p) => ({ method: p.method, amount: p.amount })),
-      discount_percent: discountPercent.value,
-      payment_method: dominantMethod.value,
+    const attempt = await getOrCreatePendingPaymentAttempt(
+      props.orderId,
+      currentCheckout.fingerprint,
+      { read: readPersistent, write, remove },
+    );
+    await api.post(`/orders/${props.orderId}/pay`, currentCheckout.payload, {
+      headers: { 'Idempotency-Key': attempt.key },
     });
+
+    // A completed checkout is never turned into a cashier-visible failure if
+    // cleanup has a transient storage problem. The server result is final.
+    try {
+      await clearPendingPaymentAttempt(props.orderId, { read: readPersistent, write, remove });
+    } catch (cleanupError) {
+      console.error('Payment succeeded but pending idempotency cleanup failed:', cleanupError);
+    }
+    try {
+      await window.electron?.reports.capture(props.orderId, 'paid');
+    } catch (captureError) {
+      // Never turn a completed payment into a cashier-visible failure. The
+      // main-PC reconciliation worker will recover the authoritative order.
+      console.error('Payment succeeded but report capture was delayed:', captureError);
+    }
     // Backend confirmed paid — print the PAID receipt from the fresh order data.
-    void printPaidFromBackend();
+    void printPaidFromBackend(currentCheckout.payload.payment_method);
     emit('paid');
     isOpen.value = false;
     if (props.navigateOnClose) void router.push({ name: 'orders' });
   } catch (error) {
+    if (error instanceof PendingPaymentConflictError) {
+      payError.value = "Avvalgi to'lov urinishining javobi aniqlanmagan. Uni o'zgartirmasdan qayta yuboring.";
+      return;
+    }
+    const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+    if (!shouldRetainPendingPaymentAttempt(status)) {
+      try {
+        await clearPendingPaymentAttempt(props.orderId, { read: readPersistent, write, remove });
+      } catch (cleanupError) {
+        console.error('Failed to clear rejected payment attempt:', cleanupError);
+      }
+    }
     console.error('Payment failed:', error);
+    payError.value = "To'lov amalga oshmadi. Ma'lumotlarni tekshirib, qayta urinib ko'ring.";
     alert("To'lov amalga oshmadi");
   } finally {
     payLoading.value = false;
@@ -964,6 +1011,11 @@ async function onCancelOrder(): Promise<void> {
   cancelLoading.value = true;
   try {
     await api.post(`/orders/${props.orderId}/cancel`);
+    try {
+      await window.electron?.reports.capture(props.orderId, 'cancelled');
+    } catch (captureError) {
+      console.error('Order cancelled but report capture was delayed:', captureError);
+    }
     emit('cancelled');
     isOpen.value = false;
     if (props.navigateOnClose) void router.push({ name: 'orders' });
@@ -1625,7 +1677,14 @@ async function onCancelOrder(): Promise<void> {
   color: var(--warning);
 }
 .calc__status-val.is-change {
+  color: var(--accent-primary, #ff7a00);
+}
+.calc__validation {
+  min-height: 18px;
   color: var(--error);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 .calc__status-val.is-ok {
   color: var(--success);

@@ -24,6 +24,24 @@ const store = new Store({
   clearInvalidConfig: true,
 });
 
+type KvChangeListener = (key: string | null) => void;
+const changeListeners = new Set<KvChangeListener>();
+
+export function onKvChanged(listener: KvChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function notifyChange(key: string | null): void {
+  for (const listener of changeListeners) {
+    try {
+      listener(key);
+    } catch (error) {
+      console.error('[kv] change listener failed:', error);
+    }
+  }
+}
+
 // One-time migration from the legacy per-user location (<userData>/kv-store.json)
 // so existing installs keep their IP / cached users after the move. Never
 // deletes the old file; only imports when the new store is still empty.
@@ -67,18 +85,21 @@ export function registerKvHandlers(): void {
 
   ipcMain.handle('kv:set', (_event, key: string, value: unknown): boolean => {
     store.set(key, value);
+    notifyChange(key);
     broadcast();
     return true;
   });
 
   ipcMain.handle('kv:delete', (_event, key: string): boolean => {
     store.delete(key);
+    notifyChange(key);
     broadcast();
     return true;
   });
 
   ipcMain.handle('kv:clear', (): boolean => {
     store.clear();
+    notifyChange(null);
     broadcast();
     return true;
   });

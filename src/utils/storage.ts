@@ -43,7 +43,7 @@ export async function initStorage(): Promise<void> {
     // One-time migration from localStorage. Anything in localStorage that's
     // not yet in kv-store wins. After migration we wipe the localStorage key
     // so future reads only consult kv-store.
-    const LEGACY_KEYS = ['pos:IpAdress', 'pos:cachedUsers', 'auth_token', 'auth_user'];
+    const LEGACY_KEYS = ['pos:IpAdress', 'auth_token', 'auth_user'];
     for (const k of LEGACY_KEYS) {
       const legacy = localStorage.getItem(k);
       if (legacy != null && cache[k] == null) {
@@ -93,6 +93,23 @@ function safeParse<T>(s: string): T | null {
  */
 export function read<T = unknown>(key: string): T | null {
   return (cache[key] as T | null) ?? null;
+}
+
+/**
+ * Read a value from the durable backing store. Most UI reads should continue
+ * to use the synchronous hot-cache `read()`, but operations where a crash
+ * between choosing a value and a network request would be harmful (for
+ * example a checkout idempotency key) must await this function instead.
+ */
+export async function readPersistent<T = unknown>(key: string): Promise<T | null> {
+  if (isElectron) {
+    const value = await window.electron.kv.get<T>(key);
+    if (value == null) delete cache[key];
+    else cache[key] = value;
+    return value;
+  }
+
+  return read<T>(key);
 }
 
 /**

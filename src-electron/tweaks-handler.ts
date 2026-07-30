@@ -19,13 +19,11 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { getPersistDir } from './persist-path';
-import { kvGet } from './kv-store';
+import { getConfiguredBackendHost, isMainPc } from './device-role';
 
 const SETTINGS_PORT = 8770;
-// Main PC = configured backend IP is a real loopback literal. NOT '' — an
-// unconfigured till must not self-identify as the main PC (it would serve empty
-// globals and never sync); it stays a plain secondary until an IP is set.
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
+// Main-PC resolution is shared with the other Electron services. A fresh
+// install follows Axios' existing loopback default.
 
 export type TweakScope = 'this-pc' | 'global';
 
@@ -67,11 +65,7 @@ function writeJson(p: string, data: unknown): void {
 }
 
 function mainIp(): string {
-  return String(kvGet<string>('pos:IpAdress', '') || '').trim();
-}
-// Main PC = configured backend IP is loopback/empty (it runs the backend itself).
-function isMainPc(): boolean {
-  return LOOPBACK.has(mainIp());
+  return getConfiguredBackendHost();
 }
 
 // Main-process resolved read — used by the print path to apply per-part sizes.

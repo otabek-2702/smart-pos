@@ -68,7 +68,7 @@
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from 'boot/axios';
-import { read, write } from 'src/utils/storage';
+import { write } from 'src/utils/storage';
 import { usePinHandoffStore } from 'src/stores/pin-handoff';
 import { loadPaymentMethods } from 'src/composables/usePaymentMethods';
 import { loadInstantProducts } from 'src/composables/useInstantProducts';
@@ -237,8 +237,6 @@ async function submitPin(): Promise<void> {
     await write('auth_token', token);
     await write('auth_user', user);
 
-    await cacheUserForPicker(user);
-
     // Cache the payment-methods catalog once per session (not on the hot
     // payment path). Fire-and-forget; falls back to built-ins if absent.
     void loadPaymentMethods();
@@ -278,36 +276,6 @@ async function submitPin(): Promise<void> {
 
 function goBack(): void {
   void router.replace({ name: 'users' });
-}
-
-interface CachedUser {
-  id: number;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  email: string;
-}
-
-const CACHED_USERS_KEY = 'pos:cachedUsers';
-
-async function cacheUserForPicker(
-  user: LoginResponse['data']['user'],
-): Promise<void> {
-  try {
-    const list = read<CachedUser[]>(CACHED_USERS_KEY) ?? [];
-    const next: CachedUser = {
-      id: user.id,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      role: user.role,
-      email: user.email,
-    };
-    const dedup = list.filter((u) => u.email !== next.email);
-    dedup.push(next);
-    await write(CACHED_USERS_KEY, dedup);
-  } catch (e) {
-    console.warn('Failed to cache user for picker:', e);
-  }
 }
 
 /* ============

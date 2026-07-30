@@ -48,6 +48,42 @@ interface TweaksState {
   isMainPc?: boolean;
 }
 
+type ReportMutationKind = 'created' | 'paid' | 'cancelled' | 'updated';
+
+interface TelegramReportPreferences {
+  dailyEnabled: boolean;
+  dailyTime: string;
+}
+
+interface ReportingStatus {
+  isMainPc: boolean;
+  backendHost: string;
+  configured: boolean;
+  running: boolean;
+  botName: string | null;
+  botUsername: string | null;
+  pairedOwner: {
+    displayName: string;
+    username?: string;
+    pairedAt: string;
+  } | null;
+  pairingExpiresAt: string | null;
+  preferences: TelegramReportPreferences;
+  storedOrderCount: number;
+  databaseSizeBytes: number;
+  earliestOrderAt: string | null;
+  latestOrderAt: string | null;
+  lastSyncAt: string | null;
+  lastCaptureAt: string | null;
+  pendingRefreshCount: number;
+  lastError: string | null;
+}
+
+interface ReportPairingResult {
+  url: string;
+  expiresAt: string;
+}
+
 declare global {
   interface Window {
     electron: {
@@ -96,6 +132,17 @@ declare global {
         install(): Promise<void>;
         // Subscribe to live update state from main; returns an unsubscribe fn.
         onState(callback: (state: UpdateState) => void): () => void;
+      };
+      reports: {
+        status(): Promise<ReportingStatus>;
+        capture(orderId: number | string, kind: ReportMutationKind): Promise<boolean>;
+        connectTelegram(token: string): Promise<ReportingStatus>;
+        disconnectTelegram(): Promise<ReportingStatus>;
+        createPairing(): Promise<ReportPairingResult>;
+        unpair(): Promise<ReportingStatus>;
+        savePreferences(preferences: TelegramReportPreferences): Promise<ReportingStatus>;
+        sendTest(): Promise<boolean>;
+        refreshNow(): Promise<ReportingStatus>;
       };
     };
     backend: {

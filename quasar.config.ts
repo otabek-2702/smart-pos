@@ -219,12 +219,12 @@ export default defineConfig((/* ctx */) => {
           createDesktopShortcut: true,
           createStartMenuShortcut: true,
         },
-        // extraResources: [
-        //   {
-        //     from: 'backend',
-        //     to: 'backend',
-        //   },
-        // ],
+        extraResources: [
+          {
+            from: 'src-electron/assets/report-bot-avatar.jpg',
+            to: 'report-bot-avatar.jpg',
+          },
+        ],
       },
     },
 

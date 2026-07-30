@@ -134,6 +134,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('pages/settings/CourierQrSettings.vue'),
             meta: { permissions: ['users.manage'] },
           },
+          {
+            path: 'telegram-reports',
+            name: 'settings-telegram-reports',
+            component: () => import('pages/settings/TelegramReportsSettings.vue'),
+            meta: { permissions: ['telegram.manage'] },
+          },
         ],
       },
     ],

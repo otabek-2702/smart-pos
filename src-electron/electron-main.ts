@@ -13,6 +13,10 @@ import { registerSystemHandler } from './system-handler';
 import { registerUpdateHandler } from './update-handler';
 import { registerOperatorHandler } from './operator-handler';
 import { registerTweaksHandler } from './tweaks-handler';
+import {
+  registerReportingHandlers,
+  ReportingService,
+} from './reporting/reporting-service';
 
 const platform = process.platform || os.platform();
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
@@ -20,6 +24,7 @@ const currentDir = fileURLToPath(new URL('.', import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 let clientWindow: BrowserWindow | null = null;
+let reportingService: ReportingService | null = null;
 
 // Enforce single instance — repeated launcher clicks must focus the
 // existing window instead of spawning a new process. Multiple processes
@@ -61,6 +66,10 @@ function createMainWindow(display: Electron.Display): BrowserWindow {
       webSecurity: false,
     },
   });
+  // The renderer is a kiosk surface, not a general-purpose browser. Never
+  // allow remote links to inherit this window's permissive webSecurity
+  // setting in an unmanaged child BrowserWindow.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   if (process.env.DEV) {
     void win.loadURL(process.env.APP_URL);
@@ -121,6 +130,7 @@ function createClientWindow(display: Electron.Display | null, isPreview = false)
   }
 
   const win = new BrowserWindow(windowOptions);
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   // Build the URL via the URL constructor so the slash before the hash is
   // guaranteed regardless of whether APP_URL ends with '/' or not. In dev
@@ -318,10 +328,27 @@ void app.whenReady().then(() => {
   // startBackend()
   registerClientDisplayHandlers();
   setupWindows();
+  try {
+    const reportAvatar = app.isPackaged
+      ? path.join(process.resourcesPath, 'report-bot-avatar.jpg')
+      : path.resolve(process.cwd(), 'src-electron/assets/report-bot-avatar.jpg');
+    reportingService = new ReportingService(reportAvatar);
+    registerReportingHandlers(reportingService, () => mainWindow);
+    void reportingService.start().catch((error: unknown) => {
+      console.error('[reports] failed to start:', error);
+    });
+  } catch (error) {
+    // Reporting must never prevent the cashier window from starting.
+    console.error('[reports] failed to initialize:', error);
+  }
 
   // React to monitor plug/unplug
   screen.on('display-added', setupWindows);
   screen.on('display-removed', setupWindows);
+});
+
+app.on('before-quit', () => {
+  reportingService?.stop();
 });
 
 app.on('window-all-closed', () => {

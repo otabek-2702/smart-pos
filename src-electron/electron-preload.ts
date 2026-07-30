@@ -117,6 +117,22 @@ contextBridge.exposeInMainWorld('electron', {
       return () => ipcRenderer.removeListener('updater:state', handler);
     },
   },
+
+  // Main-PC local sales archive + private Telegram reports. The token is
+  // write-only from the renderer: status never returns it or its ciphertext.
+  reports: {
+    status: () => invoke('reports:status'),
+    capture: (orderId: number | string, kind: 'created' | 'paid' | 'cancelled' | 'updated') =>
+      invoke('reports:capture', orderId, kind),
+    connectTelegram: (token: string) => invoke('reports:connectTelegram', token),
+    disconnectTelegram: () => invoke('reports:disconnectTelegram'),
+    createPairing: () => invoke('reports:createPairing'),
+    unpair: () => invoke('reports:unpair'),
+    savePreferences: (preferences: { dailyEnabled: boolean; dailyTime: string }) =>
+      invoke('reports:savePreferences', preferences),
+    sendTest: () => invoke('reports:sendTest'),
+    refreshNow: () => invoke('reports:refreshNow'),
+  },
 });
 
 // Scope-aware app tweaks (granular settings; this-pc vs global synced via the
