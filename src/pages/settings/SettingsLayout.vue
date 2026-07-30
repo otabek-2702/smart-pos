@@ -93,12 +93,10 @@ import VirtualKeyboard from 'src/components/virtual-keyboard/VirtualKeyboard.vue
 import VirtualNumpad from 'src/components/virtual-keyboard/VirtualNumpad.vue';
 import { virtualKeyboardEnabled } from 'src/boot/virtual-keyboard';
 import { hasPermission } from 'src/composables/usePermissions';
-import { useDeviceRole } from 'src/composables/useDeviceRole';
 
 const router = useRouter();
 const route = useRoute();
 const $q = useQuasar();
-const { isMainPc } = useDeviceRole();
 
 // Persistent left rail on wide terminals (≥1024); drawer below (SPEC §4).
 const railMode = computed(() => $q.screen.gt.sm);
@@ -126,7 +124,6 @@ interface MenuItem {
   // Permission key the user must hold to see this entry. ADMIN role and
   // '*' permission both bypass the check (see usePermissions).
   permission: string;
-  mainOnly?: boolean;
 }
 
 const ALL_MENU_ITEMS: MenuItem[] = [
@@ -140,16 +137,14 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { route: 'settings-products', label: 'Mahsulotlar', icon: 'inventory_2', permission: 'products.manage' },
   { route: 'settings-roles', label: 'Rollar va ruxsatlar', icon: 'admin_panel_settings', permission: '*' },
   { route: 'settings-courier-qr', label: 'Kuryer QR', icon: 'qr_code_2', permission: 'users.manage' },
-  { route: 'settings-telegram-reports', label: 'Telegram hisobotlari', icon: 'send', permission: 'telegram.manage', mainOnly: true },
+  { route: 'settings-telegram-reports', label: 'Telegram hisobotlari', icon: 'send', permission: 'telegram.manage' },
   { route: 'settings-backup', label: 'Zaxira / sinxron', icon: 'sync', permission: 'display.manage' },
 ];
 
 // Sidebar only shows entries the current user can actually open. Avoids
 // the dead-click-then-redirect UX a non-admin would otherwise see.
 const menuItems = computed<MenuItem[]>(() =>
-  ALL_MENU_ITEMS.filter(
-    (m) => hasPermission(m.permission) && (!m.mainOnly || isMainPc.value),
-  ),
+  ALL_MENU_ITEMS.filter((m) => hasPermission(m.permission)),
 );
 
 // Sidebar functions

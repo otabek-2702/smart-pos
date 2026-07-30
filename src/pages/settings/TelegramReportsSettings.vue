@@ -8,25 +8,42 @@
           savdo, kassirlar va buyurtmalarni xavfsiz ko‘ring.
         </p>
       </div>
-      <span v-if="status" class="main-badge" :class="{ secondary: !status.isMainPc }">
-        <q-icon :name="status.isMainPc ? 'dns' : 'computer'" size="17px" />
-        {{ status.isMainPc ? 'Asosiy kompyuter' : 'Qo‘shimcha kassa' }}
+      <span class="main-badge" :class="{ secondary: !isMainPc }">
+        <q-icon :name="isMainPc ? 'dns' : 'computer'" size="17px" />
+        {{ isMainPc ? 'Asosiy kompyuter' : 'Qo‘shimcha kassa' }}
       </span>
     </div>
 
-    <div v-if="loading && !status" class="state-card">
+    <div v-if="!isMainPc" class="state-card warning">
+      <q-icon name="info" size="34px" />
+      <div>
+        <h3>Telegram botni asosiy kompyuterda sozlang</h3>
+        <p>
+          Ushbu kassa <code>{{ configuredIp }}</code> serveriga ulangan. Bot
+          tokeni va savdo bazasi faqat PC A da saqlanadi.
+        </p>
+        <p class="main-pc-hint">
+          Agar bu PC A bo‘lsa, foydalanuvchilar sahifasidagi server manzilini
+          <code>127.0.0.1</code> qilib saqlang va ilovani qayta oching.
+          Qo‘shimcha kassalarda esa PC A ning tarmoq IP manzili qolishi kerak.
+        </p>
+      </div>
+    </div>
+
+    <div v-else-if="loading && !status" class="state-card">
       <q-icon name="progress_activity" size="30px" class="spin" />
       Hisobot xizmati tekshirilmoqda…
     </div>
 
-    <div v-else-if="status && !status.isMainPc" class="state-card warning">
-      <q-icon name="info" size="34px" />
+    <div v-else-if="!status" class="state-card error-state">
+      <q-icon name="error_outline" size="34px" />
       <div>
-        <h3>Bu sozlama faqat asosiy kompyuterda ochiladi</h3>
-        <p>
-          Ushbu kassa <code>{{ status.backendHost }}</code> serveriga ulangan.
-          Bot tokeni va savdo bazasi serverning o‘zida saqlanadi.
-        </p>
+        <h3>Telegram hisobotlarini ochib bo‘lmadi</h3>
+        <p>{{ errorMessage || 'Hisobot xizmati javob bermadi.' }}</p>
+        <button type="button" class="btn primary retry-btn" @click="loadStatus()">
+          <q-icon name="refresh" size="19px" />
+          Qayta tekshirish
+        </button>
       </div>
     </div>
 
@@ -297,10 +314,12 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import QRCode from 'qrcode';
 import { toast } from 'vue3-toastify';
+import { useDeviceRole } from 'src/composables/useDeviceRole';
 
 type ReportsStatus = Awaited<ReturnType<typeof window.electron.reports.status>>;
 type ReportsPreferences = ReportsStatus['preferences'];
 
+const { configuredIp, isMainPc } = useDeviceRole();
 const status = ref<ReportsStatus | null>(null);
 const loading = ref(true);
 const busy = ref(false);
@@ -346,6 +365,14 @@ function applyStatus(next: ReportsStatus): void {
 }
 
 async function loadStatus(silent = false): Promise<void> {
+  if (!isMainPc.value) {
+    loading.value = false;
+    return;
+  }
+  if (!silent) {
+    loading.value = true;
+    errorMessage.value = '';
+  }
   try {
     applyStatus(await window.electron.reports.status());
     if (!silent) errorMessage.value = '';
@@ -487,6 +514,10 @@ function formatDateTime(value: string | null): string {
 }
 
 onMounted(() => {
+  if (!isMainPc.value) {
+    loading.value = false;
+    return;
+  }
   void loadStatus();
   pollTimer = setInterval(() => void loadStatus(true), 5_000);
 });
@@ -564,6 +595,16 @@ onUnmounted(() => {
 
     h3 { margin: 0 0 7px; color: var(--text-primary); }
     p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+    .main-pc-hint { margin-top: 10px; }
+  }
+
+  &.error-state {
+    justify-content: flex-start;
+    color: var(--error);
+
+    h3 { margin: 0 0 7px; color: var(--text-primary); }
+    p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+    .retry-btn { margin-top: 14px; }
   }
 }
 
