@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 const roleMock = vi.hoisted(() => ({
   isMainPc: vi.fn(() => true),
 }));
+const kvMock = vi.hoisted(() => ({
+  get: vi.fn(),
+}));
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
@@ -14,7 +17,7 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('../../src-electron/kv-store', () => ({
-  kvGet: vi.fn(),
+  kvGet: kvMock.get,
   onKvChanged: vi.fn(() => () => undefined),
 }));
 
@@ -37,6 +40,7 @@ import type {
   BackendOrderSnapshot,
 } from '../../src-electron/reporting/backend-order-mapper';
 import type { OrderReportRecord } from '../../src-electron/reporting/report-types';
+import type { ReportStore } from '../../src-electron/reporting/report-store';
 
 describe('reporting PC roles', () => {
   it('does not create or open the SQLite report store on a secondary PC', async () => {
@@ -55,6 +59,77 @@ describe('reporting PC roles', () => {
       service.stop();
       roleMock.isMainPc.mockReturnValue(true);
       vi.useRealTimers();
+    }
+  });
+
+  it('reuses the renderer User-Agent for auth-bound backend requests', async () => {
+    roleMock.isMainPc.mockReturnValue(true);
+    kvMock.get.mockImplementation((key: string, fallback: unknown) =>
+      key === 'auth_token' ? 'active-session-token' : fallback,
+    );
+    const rendererUserAgent =
+      'Mozilla/5.0 Smart-POS Electron/39.2.7 Chrome/142.0.0.0';
+    const fetchMock = vi.fn(
+      (
+        input: string | URL | Request,
+        _init?: RequestInit,
+      ): Promise<Response> => {
+        const url = String(input);
+        const body = url.endsWith('/auth-me')
+          ? { data: { role: 'MANAGER', status: 'ACTIVE' } }
+          : {
+              data: {
+                orders: [],
+                pagination: { current_page: 1, total_pages: 1 },
+              },
+            };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const storeFactory = vi.fn(
+      () =>
+        ({
+          stats: () =>
+            Promise.resolve({
+              orderCount: 0,
+              earliestBusinessDate: null,
+              latestBusinessDate: null,
+              databaseBytes: 0,
+            }),
+          close: vi.fn(),
+        }) as unknown as ReportStore,
+    );
+    const service = new ReportingService(undefined, {
+      storeFactory,
+      getUserAgent: () => rendererUserAgent,
+    });
+
+    try {
+      await service.refreshNow();
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+        'http://127.0.0.1:8000/auth-me',
+      );
+      expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+        'http://127.0.0.1:8000/orders?',
+      );
+      for (const [, init] of fetchMock.mock.calls) {
+        const headers = init?.headers as Record<string, string>;
+        expect(headers.Authorization).toBe('Bearer active-session-token');
+        expect(headers['User-Agent']).toBe(rendererUserAgent);
+      }
+    } finally {
+      service.stop();
+      vi.unstubAllGlobals();
+      kvMock.get.mockReset();
     }
   });
 });

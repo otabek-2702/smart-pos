@@ -1,6 +1,6 @@
 // src-electron/electron-main.ts
 
-import { app, BrowserWindow, screen, ipcMain } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, session } from 'electron';
 import path from 'path';
 // import { spawn } from 'child_process'
 import os from 'os';
@@ -332,7 +332,14 @@ void app.whenReady().then(() => {
     const reportAvatar = app.isPackaged
       ? path.join(process.resourcesPath, 'report-bot-avatar.jpg')
       : path.resolve(process.cwd(), 'src-electron/assets/report-bot-avatar.jpg');
-    reportingService = new ReportingService(reportAvatar);
+    reportingService = new ReportingService(reportAvatar, {
+      // Django binds the login session to the renderer's User-Agent. Reuse
+      // that exact identity for authoritative background report requests.
+      getUserAgent: () =>
+        mainWindow && !mainWindow.isDestroyed()
+          ? mainWindow.webContents.getUserAgent()
+          : session.defaultSession.getUserAgent(),
+    });
     registerReportingHandlers(reportingService, () => mainWindow);
     void reportingService.start().catch((error: unknown) => {
       console.error('[reports] failed to start:', error);

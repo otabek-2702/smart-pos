@@ -66,6 +66,12 @@ export interface ReportingServiceOptions {
    * machine has been identified as the main PC.
    */
   storeFactory?: (baseDir: string) => ReportStore;
+  /**
+   * Backend sessions are bound to the renderer User-Agent that logged in.
+   * Main-process fetches must present that exact identity or Django rejects
+   * the otherwise valid bearer token as a replay from another client.
+   */
+  getUserAgent?: () => string;
 }
 
 export interface ReportingReconciliationOptions {
@@ -163,6 +169,7 @@ function hostForUrl(host: string): string {
 async function fetchJson(
   url: string,
   authorization: string,
+  userAgent: string,
   init: RequestInit = {},
 ): Promise<unknown> {
   const controller = new AbortController();
@@ -173,6 +180,7 @@ async function fetchJson(
       headers: {
         ...(init.headers ?? {}),
         Authorization: authorization,
+        'User-Agent': userAgent,
         Accept: 'application/json',
       },
       signal: controller.signal,
@@ -372,6 +380,7 @@ export class ReportingService {
   private readonly bot: TelegramReportBot;
   private readonly avatarJpgPath: string | undefined;
   private readonly storeFactory: (baseDir: string) => ReportStore;
+  private readonly getUserAgent: () => string;
   private store: ReportStore | null = null;
   private server: http.Server | null = null;
   private outboxTimer: ReturnType<typeof setInterval> | null = null;
@@ -396,6 +405,7 @@ export class ReportingService {
     this.avatarJpgPath = avatarJpgPath;
     this.storeFactory =
       options.storeFactory ?? ((baseDir) => new ReportStore({ baseDir }));
+    this.getUserAgent = options.getUserAgent ?? (() => '');
     this.bot = new TelegramReportBot({
       config: this.config,
       data: {
@@ -598,6 +608,7 @@ export class ReportingService {
     const payload = await fetchJson(
       `${localBackendBaseUrl()}/auth-me`,
       authorization,
+      this.backendUserAgent(),
     );
     assertReportManagerPayload(payload);
     this.managerAuthorizationCache = {
@@ -614,6 +625,19 @@ export class ReportingService {
     return `Bearer ${token}`;
   }
 
+  private backendUserAgent(): string {
+    let value = '';
+    try {
+      value = this.getUserAgent();
+    } catch {
+      // The main window can disappear during shutdown. A reporting retry is
+      // safer than weakening the backend's session-client binding.
+    }
+    const userAgent = String(value || '').slice(0, 256).trim();
+    if (!userAgent) throw new Error('POS client identity is unavailable');
+    return userAgent;
+  }
+
   private async processOutbox(): Promise<void> {
     if (this.processingOutbox) return;
     this.processingOutbox = true;
@@ -622,10 +646,11 @@ export class ReportingService {
       for (const event of events) {
         try {
           const authorization = this.tokenAuthorization();
+          const userAgent = this.backendUserAgent();
           if (isMainPc()) {
-            await this.refreshOne(event.orderId, authorization);
+            await this.refreshOne(event.orderId, authorization, userAgent);
           } else {
-            await this.forwardRefresh(event.orderId, authorization);
+            await this.forwardRefresh(event.orderId, authorization, userAgent);
           }
           await this.outbox.acknowledge(event);
         } catch (error) {
@@ -639,21 +664,31 @@ export class ReportingService {
     }
   }
 
-  private async forwardRefresh(orderId: string, authorization: string): Promise<void> {
+  private async forwardRefresh(
+    orderId: string,
+    authorization: string,
+    userAgent: string,
+  ): Promise<void> {
     const host = hostForUrl(getConfiguredBackendHost());
     await fetchJson(
       `http://${host}:${REPORT_SERVER_PORT}/v1/orders/${encodeURIComponent(orderId)}/refresh`,
       authorization,
+      userAgent,
       { method: 'POST' },
     );
   }
 
-  private async refreshOne(orderId: string, authorization: string): Promise<void> {
+  private async refreshOne(
+    orderId: string,
+    authorization: string,
+    userAgent: string,
+  ): Promise<void> {
     if (!isMainPc()) throw new Error('Authoritative refresh can run only on the main PC');
     const store = this.requireStore();
     const payload = await fetchJson(
       `${localBackendBaseUrl()}/orders/${encodeURIComponent(orderId)}`,
       authorization,
+      userAgent,
     );
     // The configured server IP can change while the detail request is in
     // flight. Once this PC becomes secondary, do not write that response here;
@@ -704,17 +739,21 @@ export class ReportingService {
       return;
     }
     const authorization = request.headers.authorization;
+    const userAgent = request.headers['user-agent'];
     if (
       typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') ||
-      authorization.length > 4096
+      authorization.length > 4096 ||
+      typeof userAgent !== 'string' ||
+      !userAgent.trim() ||
+      userAgent.length > 256
     ) {
       response.writeHead(401);
       response.end(JSON.stringify({ ok: false }));
       return;
     }
     try {
-      await this.refreshOne(match[1] as string, authorization);
+      await this.refreshOne(match[1] as string, authorization, userAgent);
       response.writeHead(200);
       response.end(JSON.stringify({ ok: true }));
     } catch (error) {
@@ -739,6 +778,7 @@ export class ReportingService {
     const from = isoDateShift(to, includeWeek ? -6 : -1);
     try {
       const authorization = this.tokenAuthorization();
+      const userAgent = this.backendUserAgent();
       const result = await reconcileBackendOrders({
         includeWeek,
         fromBusinessDate: from,
@@ -753,6 +793,7 @@ export class ReportingService {
           const payload = await fetchJson(
             `${localBackendBaseUrl()}/orders?${query.toString()}`,
             authorization,
+            userAgent,
           );
           return unwrapBackendOrders(payload);
         },
@@ -761,6 +802,7 @@ export class ReportingService {
           const payload = await fetchJson(
             `${localBackendBaseUrl()}/orders/${encodeURIComponent(orderId)}`,
             authorization,
+            userAgent,
           );
           return unwrapBackendOrder(payload);
         },
