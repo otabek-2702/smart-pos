@@ -25,6 +25,9 @@ const currentDir = fileURLToPath(new URL('.', import.meta.url));
 let mainWindow: BrowserWindow | null = null;
 let clientWindow: BrowserWindow | null = null;
 let reportingService: ReportingService | null = null;
+let clientDisplayHealthTimer: ReturnType<typeof setInterval> | null = null;
+
+const CLIENT_DISPLAY_HEALTH_CHECK_MS = 5 * 60 * 1000;
 
 // Enforce single instance — repeated launcher clicks must focus the
 // existing window instead of spawning a new process. Multiple processes
@@ -185,6 +188,44 @@ function getSecondaryDisplay(): Electron.Display | null {
   return displays.find((d) => d.id !== primary.id) || null;
 }
 
+function attachClientWindow(win: BrowserWindow): void {
+  clientWindow = win;
+  win.once('closed', () => {
+    // A stale `closed` handler from a replaced window must never clear a
+    // newly-opened customer display window.
+    if (clientWindow === win) clientWindow = null;
+  });
+}
+
+/**
+ * Keep the second-screen customer display available without stealing focus
+ * from the cashier. This is deliberately automatic-only: a manually opened
+ * preview still works without a second monitor, while the health check only
+ * restores the real second-monitor kiosk when the feature is enabled.
+ */
+function ensureClientDisplayOpen(): void {
+  if (!getSettings().display.clientDisplayEnabled) return;
+  if (clientWindow && !clientWindow.isDestroyed()) return;
+
+  const secondary = getSecondaryDisplay();
+  if (!secondary) return;
+
+  attachClientWindow(createClientWindow(secondary, false));
+}
+
+function startClientDisplayHealthCheck(): void {
+  if (clientDisplayHealthTimer) return;
+  clientDisplayHealthTimer = setInterval(() => {
+    ensureClientDisplayOpen();
+  }, CLIENT_DISPLAY_HEALTH_CHECK_MS);
+}
+
+function stopClientDisplayHealthCheck(): void {
+  if (!clientDisplayHealthTimer) return;
+  clearInterval(clientDisplayHealthTimer);
+  clientDisplayHealthTimer = null;
+}
+
 function openClientDisplay(forcePreview = false, manual = false): { success: boolean; mode: 'secondary' | 'preview' | 'focused' | 'disabled' } {
   // The toggle only controls AUTO-open. A manual "open" from Settings works
   // regardless, so the operator can preview the display any time.
@@ -202,17 +243,11 @@ function openClientDisplay(forcePreview = false, manual = false): { success: boo
 
   if (secondary && !forcePreview) {
     // Has second monitor - open fullscreen on it
-    clientWindow = createClientWindow(secondary, false);
-    clientWindow.on('closed', () => {
-      clientWindow = null;
-    });
+    attachClientWindow(createClientWindow(secondary, false));
     return { success: true, mode: 'secondary' };
   } else {
     // No second monitor or force preview - open as preview window
-    clientWindow = createClientWindow(null, true);
-    clientWindow.on('closed', () => {
-      clientWindow = null;
-    });
+    attachClientWindow(createClientWindow(null, true));
     return { success: true, mode: 'preview' };
   }
 }
@@ -260,13 +295,7 @@ function setupWindows(): void {
   //   2. no client window already exists,
   //   3. the user hasn't disabled the feature in display settings.
   // Setting check is the new gate added for the toggle on IndexPage modal.
-  const clientDisplayEnabled = getSettings().display.clientDisplayEnabled;
-  if (secondary && !clientWindow && clientDisplayEnabled) {
-    clientWindow = createClientWindow(secondary, false);
-    clientWindow.on('closed', () => {
-      clientWindow = null;
-    });
-  }
+  if (secondary) ensureClientDisplayOpen();
 }
 
 // Called by settings-handler whenever display settings are saved. If the
@@ -282,15 +311,7 @@ export function applyClientDisplayEnabled(enabled: boolean): void {
     return;
   }
   // Enabled: if there's a secondary monitor and no window yet, open it.
-  if (!clientWindow) {
-    const secondary = getSecondaryDisplay();
-    if (secondary) {
-      clientWindow = createClientWindow(secondary, false);
-      clientWindow.on('closed', () => {
-        clientWindow = null;
-      });
-    }
-  }
+  ensureClientDisplayOpen();
 }
 
 // Register handlers AFTER applyClientDisplayEnabled is in scope so
@@ -328,6 +349,10 @@ void app.whenReady().then(() => {
   // startBackend()
   registerClientDisplayHandlers();
   setupWindows();
+  // Windows occasionally drops a secondary BrowserWindow after display sleep
+  // or a cable/monitor handshake. Re-check it every five minutes while the
+  // setting remains enabled; do not open a preview or focus the cashier view.
+  startClientDisplayHealthCheck();
   try {
     const reportAvatar = app.isPackaged
       ? path.join(process.resourcesPath, 'report-bot-avatar.jpg')
@@ -355,6 +380,7 @@ void app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  stopClientDisplayHealthCheck();
   reportingService?.stop();
 });
 

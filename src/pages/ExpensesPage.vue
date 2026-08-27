@@ -85,6 +85,48 @@
                   {{ category.name }}
                 </button>
               </template>
+
+              <div class="category-create">
+                <button
+                  v-if="!creatingCategoryOpen"
+                  type="button"
+                  class="category-create__toggle"
+                  @click="openCategoryCreate"
+                >
+                  <q-icon name="add" size="18px" /> Yangi kategoriya
+                </button>
+                <div v-else class="category-create__form">
+                  <input
+                    ref="newCategoryInput"
+                    v-model="newCategoryName"
+                    class="category-create__input"
+                    maxlength="100"
+                    placeholder="Kategoriya nomi"
+                    @keyup.enter="createCategory"
+                  >
+                  <button
+                    type="button"
+                    class="btn primary category-create__save"
+                    :disabled="!newCategoryName.trim() || creatingCategory"
+                    @click="createCategory"
+                  >
+                    <q-spinner v-if="creatingCategory" size="18px" />
+                    <span v-else>Qo‘shish</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn category-create__close"
+                    :disabled="creatingCategory"
+                    aria-label="Kategoriya yaratishni yopish"
+                    @click="closeCategoryCreate()"
+                  >
+                    <q-icon name="close" size="19px" />
+                  </button>
+                  <div v-if="categoryCreateError" class="category-create__error">
+                    {{ categoryCreateError }}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Recipient — who this cash is paid to (staff or supplier). -->
@@ -163,11 +205,11 @@
               @clear="onNumClear"
             />
             <VirtualKeyboard
-              v-else-if="field !== 'category'"
+              v-else-if="field !== 'category' || creatingCategoryOpen"
               position="inline"
               @input="onKeyInput"
               @backspace="onKeyBackspace"
-              @enter="field = 'amount'"
+              @enter="onKeyEnter"
             />
           </div>
 
@@ -184,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import { formatPrice } from 'src/utils/formatPrice';
@@ -265,6 +307,11 @@ const categories = ref<ExpenseCategory[]>([]);
 const categorySel = ref<ExpenseCategory | null>(null);
 const categoriesLoading = ref(false);
 const categoryError = ref('');
+const creatingCategoryOpen = ref(false);
+const creatingCategory = ref(false);
+const newCategoryName = ref('');
+const categoryCreateError = ref('');
+const newCategoryInput = ref<HTMLInputElement | null>(null);
 
 const canAdd = computed(() =>
   amountValue.value > 0 && categorySel.value !== null && recipientSel.value !== null,
@@ -301,6 +348,62 @@ function openCategory(): void {
 function selectCategory(category: ExpenseCategory): void {
   categorySel.value = category;
   openRecipient();
+}
+
+function openCategoryCreate(): void {
+  categoryCreateError.value = '';
+  newCategoryName.value = '';
+  creatingCategoryOpen.value = true;
+  void nextTick(() => newCategoryInput.value?.focus());
+}
+
+function closeCategoryCreate(force = false): void {
+  if (creatingCategory.value && !force) return;
+  creatingCategoryOpen.value = false;
+  categoryCreateError.value = '';
+  newCategoryName.value = '';
+}
+
+async function createCategory(): Promise<void> {
+  const name = newCategoryName.value.trim();
+  if (!name || creatingCategory.value) return;
+
+  creatingCategory.value = true;
+  categoryCreateError.value = '';
+  try {
+    const res = await api.post(`${CASHBOX}/categories/`, {
+      name,
+      sort_order: categories.value.length,
+    }, { validateStatus: () => true });
+    if (res.status === 200 || res.status === 201) {
+      const saved = res.data?.data ?? res.data;
+      const category: ExpenseCategory = {
+        id: Number(saved?.id),
+        name: String(saved?.name ?? name),
+        sort_order: Number(saved?.sort_order ?? categories.value.length),
+      };
+      if (!Number.isInteger(category.id) || category.id <= 0) {
+        categoryCreateError.value = 'Kategoriya yaratildi, lekin uni qayta yuklab bo‘lmadi.';
+        await loadCategories();
+        return;
+      }
+      categories.value = [...categories.value, category].sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      );
+      categorySel.value = category;
+      closeCategoryCreate(true);
+      openRecipient();
+    } else if (res.status === 401 || res.status === 403) {
+      categoryCreateError.value = 'Kategoriya qo‘shish uchun menejer yoki admin ruxsati kerak.';
+    } else {
+      categoryCreateError.value = res.data?.message || `Kategoriya qo‘shilmadi (HTTP ${res.status}).`;
+    }
+  } catch (e) {
+    console.error('expense category creation failed:', e);
+    categoryCreateError.value = 'Kategoriya yaratishda server bilan aloqa bo‘lmadi.';
+  } finally {
+    creatingCategory.value = false;
+  }
 }
 
 /* recipient (who the cash is paid to) — staff user or supplier */
@@ -380,14 +483,23 @@ function onNumInput(v: string): void {
 function onNumBackspace(): void { amountInput.value = amountInput.value.slice(0, -1); }
 function onNumClear(): void { amountInput.value = ''; }
 function onKeyInput(c: string): void {
-  if (field.value === 'recipient') { recipientQuery.value += c; queueRecipientSearch(); }
+  if (creatingCategoryOpen.value) { newCategoryName.value += c; }
+  else if (field.value === 'recipient') { recipientQuery.value += c; queueRecipientSearch(); }
   else { comment.value += c; }
 }
 function onKeyBackspace(): void {
-  if (field.value === 'recipient') {
+  if (creatingCategoryOpen.value) { newCategoryName.value = newCategoryName.value.slice(0, -1); }
+  else if (field.value === 'recipient') {
     recipientQuery.value = recipientQuery.value.slice(0, -1);
     queueRecipientSearch();
   } else { comment.value = comment.value.slice(0, -1); }
+}
+function onKeyEnter(): void {
+  if (creatingCategoryOpen.value) {
+    void createCategory();
+    return;
+  }
+  field.value = 'amount';
 }
 
 function openAdd(): void {
@@ -400,6 +512,7 @@ function openAdd(): void {
   recipientSearchVersion += 1;
   recipientsLoading.value = false;
   categorySel.value = null;
+  closeCategoryCreate();
   field.value = 'amount';
   addError.value = null;
   showAdd.value = true;
@@ -562,6 +675,30 @@ onMounted(() => void init());
   color: var(--text-muted); font-size: 13px;
 }
 .picker-state--error { color: var(--error); }
+.category-create {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+.category-create__toggle {
+  width: 100%; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px dashed var(--border-color); border-radius: 10px;
+  background: transparent; color: var(--brand); cursor: pointer;
+  font-size: 13px; font-weight: 800;
+}
+.category-create__form {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px;
+  align-items: center;
+}
+.category-create__input {
+  min-width: 0; width: 100%; height: 44px; padding: 0 12px;
+  border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--bg-surface-2); color: var(--text-primary); font: inherit;
+}
+.category-create__input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 22%, transparent); }
+.category-create__save { min-width: 92px; }
+.category-create__close { width: 44px; height: 44px; }
+.category-create__error { grid-column: 1 / -1; color: var(--error); font-size: 12px; line-height: 1.35; }
 
 /* recipient search results */
 .rcp {

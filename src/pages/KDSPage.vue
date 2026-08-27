@@ -71,7 +71,6 @@
 
       <div class="footer-center">
         <AppClock size="md" />
-        <InternetStatusIcon :network="network" />
       </div>
 
       <div class="footer-right">
@@ -112,12 +111,13 @@ import { api } from 'src/boot/axios';
 import { useRouter } from 'vue-router';
 import OrderCard from 'src/components/OrderCard.vue';
 import AppClock from 'src/components/AppClock.vue';
-import InternetStatusIcon from 'src/components/InternetStatusIcon.vue';
-import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useOrderStream } from 'src/composables/useOrderStream';
+import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
 import { read, write } from 'src/utils/storage';
 
-const network = useNetworkStatus();
+// Kitchen staff must not be interrupted by an internet modal. The KDS keeps
+// its last successful ticket board and continues polling the local POS server.
+suppressInternetWarningOnPage();
 
 /* Chef-chosen columns per row (overrides the responsive default). Persisted
    per-PC; null = automatic (responsive media queries). */
@@ -135,6 +135,13 @@ const muted = ref<boolean>(read<boolean>(KDS_MUTED_KEY) === true);
 function toggleMute(): void {
   muted.value = !muted.value;
   void write(KDS_MUTED_KEY, muted.value);
+  // This click is a browser-recognized gesture, so turning sound back on also
+  // unlocks and confirms the new-order alert instead of leaving it silently
+  // suspended until the next ticket arrives.
+  if (!muted.value) {
+    unlockAudio();
+    playBeep();
+  }
 }
 
 /* KDS color theme (persisted per-PC): light → dark → blue. Cycles on the
@@ -178,6 +185,14 @@ interface Cashier {
   name: string;
 }
 
+interface OrderUser {
+  email?: string | null;
+}
+
+interface OrderCustomer {
+  telegram_id?: number | string | null;
+}
+
 interface Order {
   id: number;
   display_id: number;
@@ -186,7 +201,14 @@ interface Order {
   created_at: string;
   ready_at: string;
   updated_at: string;
-  cashier: Cashier;
+  cashier: Cashier | null;
+  user?: OrderUser | null;
+  customer?: OrderCustomer | null;
+  source?: string | null;
+  order_source?: string | null;
+  channel?: string | null;
+  origin?: string | null;
+  is_telegram?: boolean;
   items: OrderItem[];
 }
 
@@ -240,6 +262,64 @@ let pollingInterval: number | undefined;
    only the latest issued one is allowed to apply its result. */
 let fetchSeq = 0;
 
+/* Telegram checkout uses a service account (`tg-…@telegram.local`). The
+   list endpoint on older local servers does not include that identity, so
+   resolve it once from the detail endpoint only for tickets with no cashier.
+   The result is cached per order and never guessed from a person's name. */
+const telegramOriginByOrderId = new Map<number, boolean>();
+const telegramOriginRequests = new Set<number>();
+
+function explicitTelegramOrigin(order: Order): boolean | null {
+  if (order.is_telegram === true) return true;
+  if (order.customer?.telegram_id != null) return true;
+
+  const source = [
+    order.source,
+    order.order_source,
+    order.channel,
+    order.origin,
+  ].find((value): value is string => typeof value === 'string' && value.length > 0);
+  return source ? source.toLowerCase().includes('telegram') : null;
+}
+
+async function hydrateTelegramOrigins(ticketList: Order[]): Promise<void> {
+  const unresolved = ticketList.filter((order) => {
+    const explicit = explicitTelegramOrigin(order);
+    if (explicit != null) {
+      telegramOriginByOrderId.set(order.id, explicit);
+      return false;
+    }
+    return order.cashier == null
+      && !telegramOriginByOrderId.has(order.id)
+      && !telegramOriginRequests.has(order.id);
+  });
+
+  await Promise.all(unresolved.map(async (order) => {
+    telegramOriginRequests.add(order.id);
+    let isTelegram = false;
+    try {
+      const response = await api.get<{ data?: { order?: Order } }>(`/orders/${order.id}`);
+      const detail = response.data?.data?.order;
+      isTelegram = /^tg-.+@telegram\.local$/i.test(detail?.user?.email ?? '');
+    } catch (error) {
+      // A failed optional enrichment must never wipe, delay, or mislabel a
+      // kitchen ticket. Cache "not identified" to avoid retrying every 3 sec.
+      console.warn('[KDS] Telegram source lookup failed:', error);
+    } finally {
+      telegramOriginRequests.delete(order.id);
+      telegramOriginByOrderId.set(order.id, isTelegram);
+    }
+
+    // The board may have switched tabs or received a newer list while the
+    // detail request was in flight. Update only the still-visible ticket.
+    if (orders.value.some((current) => current.id === order.id)) {
+      orders.value = orders.value.map((current) =>
+        current.id === order.id ? { ...current, is_telegram: isTelegram } : current,
+      );
+    }
+  }));
+}
+
 /* ================= SOUND (NEW ORDERS ONLY) ================= */
 
 let audioContext: AudioContext | null = null;
@@ -250,15 +330,20 @@ function initAudioContext(): void {
   }
 }
 
+function unlockAudio(): void {
+  initAudioContext();
+  if (audioContext?.state === 'suspended') {
+    void audioContext.resume();
+  }
+}
+
 function playBeep(): void {
   if (muted.value) return;
   if (audioContext === null) return;
   // Created without a user gesture (onMounted), the context starts 'suspended'
   // per the autoplay policy — start()/stop() would schedule silently. Resume
   // it here as a safety net so the new-order beep is actually audible.
-  if (audioContext.state === 'suspended') {
-    void audioContext.resume();
-  }
+  unlockAudio();
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
 
@@ -317,7 +402,12 @@ async function fetchOrders(): Promise<void> {
     // it or double-counting orders in the new-order beep detection.
     if (seq !== fetchSeq) return;
 
-    const newOrders = response.data?.data?.orders ?? [];
+    const newOrders = (response.data?.data?.orders ?? []).map((order) => {
+      const explicit = explicitTelegramOrigin(order);
+      const cached = telegramOriginByOrderId.get(order.id);
+      const isTelegram = explicit ?? cached;
+      return isTelegram == null ? order : { ...order, is_telegram: isTelegram };
+    });
 
     if (currentMode.value === 'PREPARING') {
       checkForNewOrders(newOrders);
@@ -328,6 +418,7 @@ async function fetchOrders(): Promise<void> {
     orders.value = [...newOrders].sort((a, b) =>
       (b.created_at || '').localeCompare(a.created_at || ''),
     );
+    void hydrateTelegramOrigins(orders.value);
   } catch (e) {
     console.error('[KDS] fetchOrders failed:', e);
   }
@@ -368,12 +459,12 @@ function stopPolling(): void {
 /* ================= LIFECYCLE ================= */
 
 function handleUserInteraction(): void {
-  initAudioContext();
-  // A real gesture is what unlocks audio — resume the (suspended) context now.
-  if (audioContext !== null && audioContext.state === 'suspended') {
-    void audioContext.resume();
-  }
-  document.removeEventListener('click', handleUserInteraction);
+  // A real gesture is what unlocks Web Audio. Listen for pointer and keyboard
+  // input, not just a mouse click, so touch-screen and keyboard-only kitchens
+  // receive the first new-order alert too.
+  unlockAudio();
+  document.removeEventListener('pointerdown', handleUserInteraction);
+  document.removeEventListener('keydown', handleUserInteraction);
 }
 
 // SSE makes new tickets appear immediately for the kitchen. Polling stays
@@ -386,7 +477,8 @@ useOrderStream({
 
 onMounted(() => {
   initAudioContext();
-  document.addEventListener('click', handleUserInteraction);
+  document.addEventListener('pointerdown', handleUserInteraction, { once: true });
+  document.addEventListener('keydown', handleUserInteraction, { once: true });
   window.addEventListener('resize', onResize);
   void fetchOrders();
   startPolling();
@@ -394,7 +486,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPolling();
-  document.removeEventListener('click', handleUserInteraction);
+  document.removeEventListener('pointerdown', handleUserInteraction);
+  document.removeEventListener('keydown', handleUserInteraction);
   window.removeEventListener('resize', onResize);
 
   if (audioContext !== null) {

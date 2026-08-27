@@ -9,7 +9,13 @@
     
     <!-- CASHIER -->
     <div class="cashier-row">
-      <strong>{{ order.cashier?.name }}</strong>
+      <div class="cashier-label">
+        <strong>{{ order.cashier?.name ?? (isTelegramOrder ? 'Telegram buyurtma' : '—') }}</strong>
+        <span v-if="isTelegramOrder" class="telegram-badge">
+          <q-icon name="send" size="12px" aria-hidden="true" />
+          Telegram
+        </span>
+      </div>
       <div class="timer" :class="timerClass">⏱ {{ formattedTime }}</div>
     </div>
 
@@ -70,6 +76,14 @@ interface Cashier {
   name: string;
 }
 
+interface OrderUser {
+  email?: string | null;
+}
+
+interface OrderCustomer {
+  telegram_id?: number | string | null;
+}
+
 interface Order {
   id: number;
   display_id: number;
@@ -79,7 +93,17 @@ interface Order {
   ready_at: string;
   updated_at: string;
   // List serializer sends `cashier`; `user` only exists on the detail endpoint.
-  cashier: Cashier;
+  cashier: Cashier | null;
+  // Accept both the current customer-bot identity and explicit source fields
+  // from newer backend serializers. This keeps a Telegram ticket identifiable
+  // without ever guessing from the cashier's name.
+  user?: OrderUser | null;
+  customer?: OrderCustomer | null;
+  source?: string | null;
+  order_source?: string | null;
+  channel?: string | null;
+  origin?: string | null;
+  is_telegram?: boolean;
   items: OrderItem[];
 }
 
@@ -97,6 +121,23 @@ const isLoading = ref<boolean>(false);
 
 const { labelFor } = useOrderTypes();
 const orderTypeLabel = computed<string>(() => labelFor(props.order.order_type));
+
+const isTelegramOrder = computed<boolean>(() => {
+  if (props.order.is_telegram === true) return true;
+  if (props.order.customer?.telegram_id != null) return true;
+
+  const explicitSource = [
+    props.order.source,
+    props.order.order_source,
+    props.order.channel,
+    props.order.origin,
+  ].find((value): value is string => typeof value === 'string' && value.length > 0);
+  if (explicitSource?.toLowerCase().includes('telegram')) return true;
+
+  // Customer-bot checkout provisions `tg-<chat id>@telegram.local`; when the
+  // list endpoint includes `user`, this is the durable legacy signal.
+  return /^tg-.+@telegram\.local$/i.test(props.order.user?.email ?? '');
+});
 
 /* ================= TIMER ================= */
 
@@ -305,13 +346,40 @@ async function handleBackToPreparing(): Promise<void> {
 .cashier-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--kds-text-muted);
   padding-inline: 10px;
 }
 
+.cashier-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .cashier-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--kds-text-primary);
+}
+
+.telegram-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: var(--r-pill);
+  padding: 2px 6px;
+  color: #fff;
+  background: #229ed9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
 }
 
 /* ITEMS */
