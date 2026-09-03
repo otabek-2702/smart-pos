@@ -20,6 +20,7 @@ export interface TelegramBotIdentity {
 export interface TelegramReportPreferences {
   dailyEnabled: boolean;
   dailyTime: string;
+  performanceLoggingEnabled: boolean;
 }
 
 interface StoredReportConfig {
@@ -40,6 +41,7 @@ const DEFAULT_CONFIG: StoredReportConfig = {
   preferences: {
     dailyEnabled: true,
     dailyTime: '03:10',
+    performanceLoggingEnabled: false,
   },
 };
 
@@ -57,6 +59,7 @@ function readStored(): StoredReportConfig {
   try {
     const parsed = JSON.parse(fs.readFileSync(configPath(), 'utf8')) as Partial<StoredReportConfig>;
     const storedDailyTime = parsed.preferences?.dailyTime;
+    const performanceLoggingEnabled = parsed.preferences?.performanceLoggingEnabled === true;
     return {
       ...DEFAULT_CONFIG,
       ...parsed,
@@ -69,10 +72,10 @@ function readStored(): StoredReportConfig {
         ...DEFAULT_CONFIG.preferences,
         ...(parsed.preferences ?? {}),
         dailyTime:
-          typeof storedDailyTime === 'string' &&
-          isValidDailyReportTime(storedDailyTime)
+          typeof storedDailyTime === 'string' && isValidDailyReportTime(storedDailyTime)
             ? storedDailyTime
             : DEFAULT_CONFIG.preferences.dailyTime,
+        performanceLoggingEnabled,
       },
     };
   } catch {
@@ -191,6 +194,7 @@ export class ReportConfig {
     this.value.preferences = {
       dailyEnabled: Boolean(preferences.dailyEnabled),
       dailyTime: preferences.dailyTime,
+      performanceLoggingEnabled: preferences.performanceLoggingEnabled === true,
     };
     writeStored(this.value);
   }

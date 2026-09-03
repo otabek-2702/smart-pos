@@ -17,11 +17,63 @@ const api = axios.create({
   timeout: 10_000,
 });
 
+interface TimedAxiosConfig {
+  url?: string;
+  method?: string;
+  __backendTimingStartedAt?: number;
+}
+
+type TimingOutcome = 'success' | 'http_error' | 'network_error' | 'timeout';
+
+let backendTimingLoggingEnabled = false;
+
+async function syncBackendTimingSetting(
+  reports: Window['electron']['reports'],
+  attempt = 0,
+): Promise<void> {
+  try {
+    backendTimingLoggingEnabled = await reports.performanceLoggingEnabled();
+  } catch {
+    backendTimingLoggingEnabled = false;
+    // The renderer can boot a fraction earlier than the main process finishes
+    // registering reporting IPC. Retry briefly so a persisted opt-in still
+    // takes effect without requiring the manager to revisit Settings.
+    if (attempt < 5) {
+      setTimeout(() => void syncBackendTimingSetting(reports, attempt + 1), 1_000);
+    }
+  }
+}
+
+function recordBackendTiming(
+  config: TimedAxiosConfig | undefined,
+  status: number | null,
+  outcome: TimingOutcome,
+): void {
+  const startedAt = config?.__backendTimingStartedAt;
+  const reports = typeof window !== 'undefined' ? window.electron?.reports : undefined;
+  if (!backendTimingLoggingEnabled || startedAt === undefined || !reports || !config?.url) return;
+
+  void reports
+    .recordBackendTiming({
+      timestamp: new Date().toISOString(),
+      method: config.method || 'GET',
+      url: config.url,
+      status,
+      durationMs: Math.max(0, performance.now() - startedAt),
+      outcome,
+    })
+    .catch(() => undefined);
+}
+
 /* REQUEST INTERCEPTOR — ADD TOKEN
    read() is synchronous because initStorage() pre-populated the in-memory
    cache during boot. */
 api.interceptors.request.use((config) => {
   const token = read<string>('auth_token');
+
+  if (backendTimingLoggingEnabled) {
+    (config as TimedAxiosConfig).__backendTimingStartedAt = performance.now();
+  }
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -36,6 +88,16 @@ export default boot(async ({ app, router }) => {
   //    Also one-shot migrates any pre-refactor localStorage values.
   await initStorage();
 
+  // Response-time logging is opt-in and cached in the renderer. This avoids an
+  // IPC/settings read on every API request while still applying changes live.
+  const reports = window.electron?.reports;
+  if (reports) {
+    reports.onPerformanceLoggingChanged((enabled) => {
+      backendTimingLoggingEnabled = enabled;
+    });
+    await syncBackendTimingSetting(reports);
+  }
+
   // 2. Resolve baseURL from the cached IP. Fallback to 127.0.0.1 for first
   //    boot before the user has set anything.
   const ip = read<string>('pos:IpAdress');
@@ -43,9 +105,19 @@ export default boot(async ({ app, router }) => {
 
   /* RESPONSE INTERCEPTOR — HANDLE 401 */
   api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+      recordBackendTiming(response.config as TimedAxiosConfig, response.status, 'success');
+      return response;
+    },
     (error) => {
       const status = error.response?.status;
+      const outcome: TimingOutcome =
+        error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT'
+          ? 'timeout'
+          : error.response
+            ? 'http_error'
+            : 'network_error';
+      recordBackendTiming(error.config as TimedAxiosConfig | undefined, status ?? null, outcome);
 
       if (status === 401) {
         // Clear BOTH token and user. The router guards key admin access off

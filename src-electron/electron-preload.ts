@@ -46,8 +46,7 @@ contextBridge.exposeInMainWorld('electron', {
     set: <T>(key: string, value: T): Promise<boolean> => invoke<boolean>('kv:set', key, value),
     delete: (key: string): Promise<boolean> => invoke<boolean>('kv:delete', key),
     clear: (): Promise<boolean> => invoke<boolean>('kv:clear'),
-    getAll: (): Promise<Record<string, unknown>> =>
-      invoke<Record<string, unknown>>('kv:getAll'),
+    getAll: (): Promise<Record<string, unknown>> => invoke<Record<string, unknown>>('kv:getAll'),
     // Live cross-window sync: fires with the full store whenever any window
     // mutates it. Returns an unsubscribe fn. Lets a renderer's hot cache stay
     // current (e.g. customer-display window picking up the token at login).
@@ -67,8 +66,7 @@ contextBridge.exposeInMainWorld('electron', {
     getLocalIps: () => invoke('system:getLocalIps'),
     probeTcp: (host: string, port: number, timeoutMs: number) =>
       invoke('system:probeTcp', host, port, timeoutMs),
-    scanForServers: (subnet: string, port: number) =>
-      invoke('system:scanForServers', subnet, port),
+    scanForServers: (subnet: string, port: number) => invoke('system:scanForServers', subnet, port),
     cancelScan: () => invoke('system:cancelScan'),
   },
 
@@ -128,10 +126,21 @@ contextBridge.exposeInMainWorld('electron', {
     disconnectTelegram: () => invoke('reports:disconnectTelegram'),
     createPairing: () => invoke('reports:createPairing'),
     unpair: () => invoke('reports:unpair'),
-    savePreferences: (preferences: { dailyEnabled: boolean; dailyTime: string }) =>
-      invoke('reports:savePreferences', preferences),
+    savePreferences: (preferences: {
+      dailyEnabled: boolean;
+      dailyTime: string;
+      performanceLoggingEnabled: boolean;
+    }) => invoke('reports:savePreferences', preferences),
     sendTest: () => invoke('reports:sendTest'),
     refreshNow: () => invoke('reports:refreshNow'),
+    performanceLoggingEnabled: () => invoke<boolean>('reports:performanceLoggingEnabled'),
+    recordBackendTiming: (data: unknown) => invoke<boolean>('reports:recordBackendTiming', data),
+    sendBackendPerformanceStats: () => invoke('reports:sendBackendPerformanceStats'),
+    onPerformanceLoggingChanged: (callback: (enabled: boolean) => void): (() => void) => {
+      const handler = (_event: unknown, enabled: boolean): void => callback(enabled);
+      ipcRenderer.on('reports:performance-logging-changed', handler);
+      return () => ipcRenderer.removeListener('reports:performance-logging-changed', handler);
+    },
   },
 });
 
@@ -168,5 +177,5 @@ contextBridge.exposeInMainWorld('backend', {
     ipcRenderer.on('backend-error', (_, msg) => callback(msg)),
 
   onLog: (callback: (msg: string) => void) =>
-    ipcRenderer.on('backend-log', (_, msg) => callback(msg))
-})
+    ipcRenderer.on('backend-log', (_, msg) => callback(msg)),
+});

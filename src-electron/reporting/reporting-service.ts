@@ -14,6 +14,11 @@ import {
   type BackendOrderSnapshot,
 } from './backend-order-mapper';
 import { assertReportManagerPayload } from './report-access';
+import {
+  BackendPerformanceLog,
+  type BackendPerformanceStats,
+  type BackendTimingInput,
+} from './backend-performance-log';
 import { ReportConfig, type TelegramReportPreferences } from './report-config';
 import { ReportOutbox, type ReportMutationKind } from './report-outbox';
 import { ReportStore } from './report-store';
@@ -52,6 +57,7 @@ export interface ReportingStatus {
   lastSyncAt: string | null;
   lastCaptureAt: string | null;
   pendingRefreshCount: number;
+  backendPerformance: BackendPerformanceStats;
   lastError: string | null;
 }
 
@@ -232,10 +238,7 @@ async function reconcileSnapshot(
 
   const detailTimestamp =
     optionalSnapshotTime(detail.updated_at) ?? optionalSnapshotTime(detail.created_at);
-  if (
-    detailTimestamp &&
-    Date.parse(detailTimestamp) < Date.parse(snapshotTimestamp)
-  ) {
+  if (detailTimestamp && Date.parse(detailTimestamp) < Date.parse(snapshotTimestamp)) {
     throw new Error(`Backend order ${orderId} detail is older than its list snapshot`);
   }
 
@@ -302,8 +305,7 @@ export async function reconcileBackendOrders(
 
     for (const snapshot of orders) {
       const snapshotTimestamp =
-        optionalSnapshotTime(snapshot.updated_at) ??
-        optionalSnapshotTime(snapshot.created_at);
+        optionalSnapshotTime(snapshot.updated_at) ?? optionalSnapshotTime(snapshot.created_at);
       if (!snapshotTimestamp) {
         throw new Error(
           `Backend order ${canonicalSnapshotId(snapshot.id)} has no valid update timestamp`,
@@ -334,9 +336,7 @@ export async function reconcileBackendOrders(
     for (let index = 0; index < relevant.length; index += detailConcurrency) {
       const batch = relevant.slice(index, index + detailConcurrency);
       const settled = await Promise.allSettled(
-        batch.map(({ snapshot, timestamp }) =>
-          reconcileSnapshot(snapshot, timestamp, options),
-        ),
+        batch.map(({ snapshot, timestamp }) => reconcileSnapshot(snapshot, timestamp, options)),
       );
       const failed = settled.find(
         (result): result is PromiseRejectedResult => result.status === 'rejected',
@@ -354,11 +354,7 @@ export async function reconcileBackendOrders(
       });
     }
 
-    if (
-      reachedBoundary ||
-      hasNext === false ||
-      (hasNext === null && orders.length < pageSize)
-    ) {
+    if (reachedBoundary || hasNext === false || (hasNext === null && orders.length < pageSize)) {
       break;
     }
     page += 1;
@@ -376,6 +372,7 @@ export async function reconcileBackendOrders(
 export class ReportingService {
   private readonly reportingDir = path.join(getPersistDir(), 'reporting');
   private readonly outbox = new ReportOutbox(this.reportingDir);
+  private readonly performanceLog = new BackendPerformanceLog(this.reportingDir);
   private readonly config = new ReportConfig();
   private readonly bot: TelegramReportBot;
   private readonly avatarJpgPath: string | undefined;
@@ -398,13 +395,9 @@ export class ReportingService {
     validUntil: number;
   } | null = null;
 
-  constructor(
-    avatarJpgPath?: string,
-    options: ReportingServiceOptions = {},
-  ) {
+  constructor(avatarJpgPath?: string, options: ReportingServiceOptions = {}) {
     this.avatarJpgPath = avatarJpgPath;
-    this.storeFactory =
-      options.storeFactory ?? ((baseDir) => new ReportStore({ baseDir }));
+    this.storeFactory = options.storeFactory ?? ((baseDir) => new ReportStore({ baseDir }));
     this.getUserAgent = options.getUserAgent ?? (() => '');
     this.bot = new TelegramReportBot({
       config: this.config,
@@ -488,9 +481,10 @@ export class ReportingService {
   async status(): Promise<ReportingStatus> {
     await this.assertReportManager();
     const store = this.requireStore();
-    const [stats, pendingRefreshCount] = await Promise.all([
+    const [stats, pendingRefreshCount, backendPerformance] = await Promise.all([
       store.stats(),
       this.outbox.size(),
+      this.performanceLog.stats(),
     ]);
     const identity = this.config.bot();
     const owner = this.config.owner();
@@ -510,21 +504,18 @@ export class ReportingService {
           }
         : null,
       pairingExpiresAt:
-        pairing && Date.parse(pairing.expiresAt) > Date.now()
-          ? pairing.expiresAt
-          : null,
+        pairing && Date.parse(pairing.expiresAt) > Date.now() ? pairing.expiresAt : null,
       preferences: this.config.preferences(),
       storedOrderCount: stats.orderCount,
       databaseSizeBytes: stats.databaseBytes,
       earliestOrderAt: stats.earliestBusinessDate
         ? `${stats.earliestBusinessDate}T07:00:00+05:00`
         : null,
-      latestOrderAt: stats.latestBusinessDate
-        ? `${stats.latestBusinessDate}T07:00:00+05:00`
-        : null,
+      latestOrderAt: stats.latestBusinessDate ? `${stats.latestBusinessDate}T07:00:00+05:00` : null,
       lastSyncAt: this.lastSyncAt,
       lastCaptureAt: this.lastCaptureAt,
       pendingRefreshCount,
+      backendPerformance,
       lastError: this.bot.lastError || this.lastSyncError,
     };
   }
@@ -571,11 +562,40 @@ export class ReportingService {
     return this.status();
   }
 
-  async savePreferences(
-    preferences: TelegramReportPreferences,
-  ): Promise<ReportingStatus> {
+  async savePreferences(preferences: TelegramReportPreferences): Promise<ReportingStatus> {
     await this.assertReportManager();
     this.config.savePreferences(preferences);
+    return this.status();
+  }
+
+  performanceLoggingEnabled(): boolean {
+    return isMainPc() && this.config.preferences().performanceLoggingEnabled;
+  }
+
+  async recordBackendTiming(input: BackendTimingInput): Promise<boolean> {
+    if (!this.performanceLoggingEnabled()) return false;
+    return this.performanceLog.record(input);
+  }
+
+  async sendBackendPerformanceStats(): Promise<ReportingStatus> {
+    await this.assertReportManager();
+    const snapshot = await this.performanceLog.snapshot();
+    const stats = snapshot.stats;
+    if (stats.requestCount === 0) {
+      throw new Error('Backend response-time log is empty');
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    const caption = [
+      `Alfa POS backend tezligi: ${stats.requestCount} ta so'rov`,
+      `O'rtacha ${stats.averageMs} ms · P95 ${stats.p95Ms} ms · Eng sekin ${stats.slowestMs} ms`,
+      `Xatolar: ${stats.errorCount}`,
+    ].join('\n');
+    await this.bot.sendDocumentToOwner(
+      `alfa-pos-backend-performance-${date}.csv`,
+      `\uFEFF${snapshot.contents}`,
+      caption,
+    );
     return this.status();
   }
 
@@ -633,7 +653,9 @@ export class ReportingService {
       // The main window can disappear during shutdown. A reporting retry is
       // safer than weakening the backend's session-client binding.
     }
-    const userAgent = String(value || '').slice(0, 256).trim();
+    const userAgent = String(value || '')
+      .slice(0, 256)
+      .trim();
     if (!userAgent) throw new Error('POS client identity is unavailable');
     return userAgent;
   }
@@ -870,11 +892,7 @@ export function registerReportingHandlers(
   });
   ipcMain.handle(
     'reports:capture',
-    async (
-      event,
-      orderId: number | string,
-      kind: ReportMutationKind,
-    ): Promise<boolean> => {
+    async (event, orderId: number | string, kind: ReportMutationKind): Promise<boolean> => {
       validateSender(event);
       await service.capture(orderId, kind);
       return true;
@@ -887,13 +905,10 @@ export function registerReportingHandlers(
       return service.connectTelegram(token);
     },
   );
-  ipcMain.handle(
-    'reports:disconnectTelegram',
-    async (event): Promise<ReportingStatus> => {
-      validateSender(event);
-      return service.disconnectTelegram();
-    },
-  );
+  ipcMain.handle('reports:disconnectTelegram', async (event): Promise<ReportingStatus> => {
+    validateSender(event);
+    return service.disconnectTelegram();
+  });
   ipcMain.handle('reports:createPairing', async (event): Promise<PairingResult> => {
     validateSender(event);
     return service.createPairing();
@@ -904,14 +919,32 @@ export function registerReportingHandlers(
   });
   ipcMain.handle(
     'reports:savePreferences',
-    async (
-      event,
-      preferences: TelegramReportPreferences,
-    ): Promise<ReportingStatus> => {
+    async (event, preferences: TelegramReportPreferences): Promise<ReportingStatus> => {
       validateSender(event);
-      return service.savePreferences(preferences);
+      const status = await service.savePreferences(preferences);
+      const mainWindow = getMainWindow();
+      mainWindow?.webContents.send(
+        'reports:performance-logging-changed',
+        status.preferences.performanceLoggingEnabled,
+      );
+      return status;
     },
   );
+  ipcMain.handle('reports:performanceLoggingEnabled', (event): boolean => {
+    validateSender(event);
+    return service.performanceLoggingEnabled();
+  });
+  ipcMain.handle(
+    'reports:recordBackendTiming',
+    async (event, input: BackendTimingInput): Promise<boolean> => {
+      validateSender(event);
+      return service.recordBackendTiming(input);
+    },
+  );
+  ipcMain.handle('reports:sendBackendPerformanceStats', async (event): Promise<ReportingStatus> => {
+    validateSender(event);
+    return service.sendBackendPerformanceStats();
+  });
   ipcMain.handle('reports:sendTest', async (event): Promise<boolean> => {
     validateSender(event);
     await service.sendTest();

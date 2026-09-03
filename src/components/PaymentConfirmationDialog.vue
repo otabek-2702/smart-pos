@@ -46,7 +46,11 @@
               {{ courierName || 'Kuryer' }}
               <q-icon :name="showCourierPicker ? 'expand_less' : 'expand_more'" size="16px" />
             </button>
-            <div v-if="showCourierPicker" class="type-pop courier-pop" @click.self="showCourierPicker = false">
+            <div
+              v-if="showCourierPicker"
+              class="type-pop courier-pop"
+              @click.self="showCourierPicker = false"
+            >
               <button
                 type="button"
                 class="type-opt"
@@ -212,7 +216,9 @@
               </template>
               <template v-else-if="liveBalance < 0">
                 <span class="calc__status-label">Qaytim</span>
-                <span class="calc__status-val is-change">{{ formatPrice(Math.abs(liveBalance)) }} so'm</span>
+                <span class="calc__status-val is-change"
+                  >{{ formatPrice(Math.abs(liveBalance)) }} so'm</span
+                >
               </template>
               <template v-else-if="effectiveTotal > 0 || payments.length > 0 || amountValue > 0">
                 <span class="calc__status-val is-ok"
@@ -304,12 +310,7 @@
             Chek chiqarish
           </button>
 
-          <button
-            v-if="isManager"
-            type="button"
-            class="btn ghost foot-print"
-            @click="onPrintCheck"
-          >
+          <button v-if="isManager" type="button" class="btn ghost foot-print" @click="onPrintCheck">
             <q-icon name="print" size="20px" />
             Chek chiqarish
           </button>
@@ -529,7 +530,9 @@ const courierLocal = ref<number | null>(props.deliveryPerson?.id ?? null);
 
 watch(
   () => props.deliveryPerson,
-  (dp) => { courierLocal.value = dp?.id ?? null; },
+  (dp) => {
+    courierLocal.value = dp?.id ?? null;
+  },
 );
 
 const courierName = computed(() => {
@@ -849,18 +852,15 @@ watch(isOpen, (open) => {
 // else, the Pay button is disabled (no confirming on another's behalf).
 const loggedInId = computed<number | null>(() => getAuthUser()?.id ?? null);
 const isCrossCashier = computed<boolean>(
-  () =>
-    props.creatorId != null &&
-    loggedInId.value != null &&
-    props.creatorId !== loggedInId.value,
+  () => props.creatorId != null && loggedInId.value != null && props.creatorId !== loggedInId.value,
 );
 const crossNote = computed<string>(
   () =>
     `Buyurtmani boshqa kassir${props.creatorName ? ` (${props.creatorName})` : ''} yaratgan — faqat o'sha to'lay oladi`,
 );
 
-/* ---- print the check (manual, center/left footer) — UNPAID copy from the
-   current dialog data; the cashier can print it any time. ---- */
+/* ---- print the check (manual, center/left footer) from the current dialog
+     data; the cashier can print it any time. ---- */
 function onPrintCheck(): void {
   const fallback = getAuthUser();
   const cashierName =
@@ -879,59 +879,40 @@ function onPrintCheck(): void {
     description: props.orderDescription || undefined,
     address: props.deliveryAddress || undefined,
     phoneNumber: props.phoneNumber || undefined,
-    isPaid: false,
   });
 }
 
-// After payment, print the PAID receipt built from the FRESH backend order
-// (correct discount, final total, creator, paid state). The new richer design
-// will consume the same fields later.
-interface OrderDetail {
-  display_id: number;
-  order_type: string;
-  cashier?: { name: string } | null;
-  user?: { name: string } | null;
-  items: Array<{ product: { id: number; name: string }; quantity: number; price: string }>;
-  total_amount: string;
-  description?: string | null;
-  delivery_address?: string | null;
-  phone_number?: string | null;
-  is_paid: boolean;
-}
-
-async function printPaidFromBackend(paymentMethod: string): Promise<void> {
+// After payment, print directly from the checkout data already on screen. The
+// paid/unpaid badge is no longer part of the receipt, so there is no reason to
+// refetch the same order and delay printing after a successful payment.
+function printAfterPayment(): void {
   if (!props.orderId) return;
-  try {
-    const res = await api.get(`/orders/${props.orderId}`);
-    const data = res.data?.data as { order?: OrderDetail } & Partial<OrderDetail>;
-    const d = (data?.order ?? (data as OrderDetail)) ?? null;
-    if (!d) return;
-    // All-instant orders (drinks/packaged only) are NEVER auto-printed — the
-    // cashier can still print manually via the button.
-    if (isAllInstant((d.items || []).map((it) => it.product?.id))) return;
-    // Respect the order type's print-after-payment policy (Settings).
-    if (!shouldPrintAfter(d.order_type)) return;
-    void window.electron?.printer.printReceipt({
-      displayId: d.display_id,
-      orderType: d.order_type,
-      cashierName: d.cashier?.name || d.user?.name || props.creatorName || 'Kassir',
-      items: (d.items || []).map((it) => ({
-        name: it.product.name,
-        quantity: it.quantity,
-        price: Number(it.price) || 0,
-      })),
-      total: Number(d.total_amount) || props.totalAmount,
-      subtotal: baseTotal.value,
-      discountPercent: discountPercent.value,
-      paymentMethodLabel: methodLabel(paymentMethod),
-      description: d.description || undefined,
-      address: d.delivery_address || props.deliveryAddress || undefined,
-      phoneNumber: d.phone_number || undefined,
-      isPaid: d.is_paid,
-    });
-  } catch (e) {
-    console.error('Print after pay failed:', e);
-  }
+  // All-instant orders (drinks/packaged only) are NEVER auto-printed — the
+  // cashier can still print manually via the button.
+  if (isAllInstant(props.items.map((item) => item.productId))) return;
+  // BEFORE takes precedence if an old configuration still has both enabled.
+  if (!shouldPrintAfter(orderTypeLocal.value)) return;
+
+  const fallback = getAuthUser();
+  const cashierName =
+    props.creatorName ||
+    (fallback ? `${fallback.first_name ?? ''} ${fallback.last_name ?? ''}`.trim() : 'Kassir');
+  void window.electron?.printer.printReceipt({
+    displayId: props.displayId ?? 0,
+    orderType: orderTypeLocal.value,
+    cashierName,
+    items: props.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+    total: effectiveTotal.value,
+    subtotal: baseTotal.value,
+    discountPercent: discountPercent.value,
+    description: props.orderDescription || undefined,
+    address: props.deliveryAddress || undefined,
+    phoneNumber: props.phoneNumber || undefined,
+  });
 }
 
 async function onConfirmPayment(): Promise<void> {
@@ -963,21 +944,21 @@ async function onConfirmPayment(): Promise<void> {
     } catch (cleanupError) {
       console.error('Payment succeeded but pending idempotency cleanup failed:', cleanupError);
     }
-    try {
-      await window.electron?.reports.capture(props.orderId, 'paid');
-    } catch (captureError) {
+    // Start printing immediately after the backend confirms payment. Reporting
+    // is best-effort and must not add another network round trip to print latency.
+    printAfterPayment();
+    void window.electron?.reports.capture(props.orderId, 'paid').catch((captureError) => {
       // Never turn a completed payment into a cashier-visible failure. The
       // main-PC reconciliation worker will recover the authoritative order.
       console.error('Payment succeeded but report capture was delayed:', captureError);
-    }
-    // Backend confirmed paid — print the PAID receipt from the fresh order data.
-    void printPaidFromBackend(currentCheckout.payload.payment_method);
+    });
     emit('paid');
     isOpen.value = false;
     if (props.navigateOnClose) void router.push({ name: 'orders' });
   } catch (error) {
     if (error instanceof PendingPaymentConflictError) {
-      payError.value = "Avvalgi to'lov urinishining javobi aniqlanmagan. Uni o'zgartirmasdan qayta yuboring.";
+      payError.value =
+        "Avvalgi to'lov urinishining javobi aniqlanmagan. Uni o'zgartirmasdan qayta yuboring.";
       return;
     }
     const status = (error as { response?: { status?: number } } | undefined)?.response?.status;

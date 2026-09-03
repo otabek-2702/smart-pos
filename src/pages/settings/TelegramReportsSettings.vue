@@ -4,8 +4,8 @@
       <div>
         <h2>Telegram hisobotlari</h2>
         <p>
-          Buyurtmalar asosiy kompyuterda muddatsiz saqlanadi. Telegram orqali
-          savdo, kassirlar va buyurtmalarni xavfsiz ko‘ring.
+          Buyurtmalar asosiy kompyuterda muddatsiz saqlanadi. Telegram orqali savdo, kassirlar va
+          buyurtmalarni xavfsiz ko‘ring.
         </p>
       </div>
       <span class="main-badge" :class="{ secondary: !isMainPc }">
@@ -19,13 +19,13 @@
       <div>
         <h3>Telegram botni asosiy kompyuterda sozlang</h3>
         <p>
-          Ushbu kassa <code>{{ configuredIp }}</code> serveriga ulangan. Bot
-          tokeni va savdo bazasi faqat PC A da saqlanadi.
+          Ushbu kassa <code>{{ configuredIp }}</code> serveriga ulangan. Bot tokeni va savdo bazasi
+          faqat PC A da saqlanadi.
         </p>
         <p class="main-pc-hint">
           Agar bu PC A bo‘lsa, foydalanuvchilar sahifasidagi server manzilini
-          <code>127.0.0.1</code> qilib saqlang va ilovani qayta oching.
-          Qo‘shimcha kassalarda esa PC A ning tarmoq IP manzili qolishi kerak.
+          <code>127.0.0.1</code> qilib saqlang va ilovani qayta oching. Qo‘shimcha kassalarda esa PC
+          A ning tarmoq IP manzili qolishi kerak.
         </p>
       </div>
     </div>
@@ -61,12 +61,17 @@
       <div class="health-grid">
         <div class="health-card">
           <q-icon name="database" size="23px" />
-          <div><strong>{{ formatNumber(status.storedOrderCount) }}</strong><span>buyurtma</span></div>
+          <div>
+            <strong>{{ formatNumber(status.storedOrderCount) }}</strong
+            ><span>buyurtma</span>
+          </div>
         </div>
         <div class="health-card">
           <q-icon :name="status.running ? 'smart_toy' : 'smart_toy_off'" size="23px" />
           <div>
-            <strong>{{ status.running ? 'Ishlayapti' : status.configured ? 'To‘xtagan' : 'Ulanmagan' }}</strong>
+            <strong>{{
+              status.running ? 'Ishlayapti' : status.configured ? 'To‘xtagan' : 'Ulanmagan'
+            }}</strong>
             <span>Telegram bot</span>
           </div>
         </div>
@@ -98,13 +103,16 @@
           <div class="guide">
             <span>1</span>
             <p>
-              Telegramda <b>@BotFather</b> orqali bot yarating. Nomi:
-              <b>Alfa POS Daily Reports</b>; username <b>bot</b> bilan tugashi kerak.
+              Telegramda <b>@BotFather</b> orqali bot yarating. Nomi: <b>Alfa POS Daily Reports</b>;
+              username <b>bot</b> bilan tugashi kerak.
             </p>
           </div>
           <div class="guide">
             <span>2</span>
-            <p>BotFather bergan tokenni shu yerga kiriting. Nomi, tavsifi, rasmi va buyruqlari avtomatik sozlanadi.</p>
+            <p>
+              BotFather bergan tokenni shu yerga kiriting. Nomi, tavsifi, rasmi va buyruqlari
+              avtomatik sozlanadi.
+            </p>
           </div>
 
           <label class="field-label" for="telegram-token">Bot tokeni</label>
@@ -120,7 +128,11 @@
               placeholder="123456789:AA..."
               @keyup.enter="connectBot"
             />
-            <button type="button" :aria-label="showToken ? 'Yashirish' : 'Ko‘rsatish'" @click="showToken = !showToken">
+            <button
+              type="button"
+              :aria-label="showToken ? 'Yashirish' : 'Ko‘rsatish'"
+              @click="showToken = !showToken"
+            >
               <q-icon :name="showToken ? 'visibility_off' : 'visibility'" size="20px" />
             </button>
           </div>
@@ -187,8 +199,8 @@
 
         <div v-else class="pairing-area">
           <p>
-            Bir martalik havola 10 daqiqa ishlaydi. Uni o‘z Telegram hisobingizda
-            oching va <b>Start</b> bosing.
+            Bir martalik havola 10 daqiqa ishlaydi. Uni o‘z Telegram hisobingizda oching va
+            <b>Start</b> bosing.
           </p>
           <button type="button" class="btn primary" :disabled="busy" @click="createPairing">
             <q-icon name="link" size="20px" />
@@ -246,8 +258,8 @@
             @input="preferencesDirty = true"
           />
           <span>
-            Standart 03:10 — ish kuni 03:00 da tugagandan keyin. 03:00 dan
-            oldingi vaqtni tanlab bo‘lmaydi.
+            Standart 03:10 — ish kuni 03:00 da tugagandan keyin. 03:00 dan oldingi vaqtni tanlab
+            bo‘lmaydi.
           </span>
         </div>
         <div class="actions">
@@ -274,6 +286,90 @@
 
       <section class="settings-card">
         <div class="card-title">
+          <span class="icon-box"><q-icon name="speed" size="22px" /></span>
+          <div>
+            <h3>Backend javob tezligi</h3>
+            <p>
+              API so'rovlarining javob vaqtini bitta mahalliy faylga yozadi va tasdiqlangandan keyin
+              Telegramga yuboradi.
+            </p>
+          </div>
+        </div>
+
+        <div class="preference-row">
+          <div>
+            <strong>Tezlik jurnalini yoqish</strong>
+            <span>So'rov matni va maxfiy ma'lumotlar yozilmaydi.</span>
+          </div>
+          <label class="switch">
+            <input
+              v-model="preferences.performanceLoggingEnabled"
+              type="checkbox"
+              @change="preferencesDirty = true"
+            />
+            <span />
+          </label>
+        </div>
+
+        <div class="data-grid performance-grid">
+          <div>
+            <span>So'rovlar</span>
+            <strong>{{ formatNumber(status.backendPerformance.requestCount) }}</strong>
+          </div>
+          <div>
+            <span>O'rtacha</span>
+            <strong>{{ formatDuration(status.backendPerformance.averageMs) }}</strong>
+          </div>
+          <div>
+            <span>P95</span>
+            <strong>{{ formatDuration(status.backendPerformance.p95Ms) }}</strong>
+          </div>
+          <div>
+            <span>Eng sekin</span>
+            <strong>{{ formatDuration(status.backendPerformance.slowestMs) }}</strong>
+          </div>
+          <div>
+            <span>Xatolar</span>
+            <strong>{{ formatNumber(status.backendPerformance.errorCount) }}</strong>
+          </div>
+          <div>
+            <span>Fayl hajmi</span>
+            <strong>{{ formatBytes(status.backendPerformance.fileSizeBytes) }}</strong>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button
+            type="button"
+            class="btn primary"
+            :disabled="busy || !preferencesDirty"
+            @click="savePreferences"
+          >
+            <q-icon name="save" size="20px" />
+            Saqlash
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            :disabled="busy || !status.pairedOwner || status.backendPerformance.requestCount === 0"
+            @click="sendBackendPerformanceStats"
+          >
+            <q-icon name="send" size="19px" />
+            Statistikani Telegramga yuborish
+          </button>
+        </div>
+
+        <p class="retention-note">
+          <q-icon name="privacy_tip" size="18px" />
+          <span>
+            <code>{{ status.backendPerformance.fileName }}</code> faqat sana, metod, ID-lari
+            yashirilgan endpoint, status va millisekundni saqlaydi.
+          </span>
+        </p>
+      </section>
+
+      <section class="settings-card">
+        <div class="card-title">
           <span class="icon-box"><q-icon name="storage" size="22px" /></span>
           <div>
             <h3>Mahalliy savdo bazasi</h3>
@@ -282,12 +378,24 @@
         </div>
 
         <div class="data-grid">
-          <div><span>Buyurtmalar</span><strong>{{ formatNumber(status.storedOrderCount) }}</strong></div>
-          <div><span>Baza hajmi</span><strong>{{ formatBytes(status.databaseSizeBytes) }}</strong></div>
-          <div><span>Birinchi yozuv</span><strong>{{ formatDateTime(status.earliestOrderAt) }}</strong></div>
-          <div><span>Oxirgi yozuv</span><strong>{{ formatDateTime(status.latestOrderAt) }}</strong></div>
-          <div><span>Oxirgi sinxronlash</span><strong>{{ formatDateTime(status.lastSyncAt) }}</strong></div>
-          <div><span>Navbat</span><strong>{{ status.pendingRefreshCount }}</strong></div>
+          <div>
+            <span>Buyurtmalar</span><strong>{{ formatNumber(status.storedOrderCount) }}</strong>
+          </div>
+          <div>
+            <span>Baza hajmi</span><strong>{{ formatBytes(status.databaseSizeBytes) }}</strong>
+          </div>
+          <div>
+            <span>Birinchi yozuv</span><strong>{{ formatDateTime(status.earliestOrderAt) }}</strong>
+          </div>
+          <div>
+            <span>Oxirgi yozuv</span><strong>{{ formatDateTime(status.latestOrderAt) }}</strong>
+          </div>
+          <div>
+            <span>Oxirgi sinxronlash</span><strong>{{ formatDateTime(status.lastSyncAt) }}</strong>
+          </div>
+          <div>
+            <span>Navbat</span><strong>{{ status.pendingRefreshCount }}</strong>
+          </div>
         </div>
 
         <div v-if="status.lastError" class="sync-error">
@@ -336,6 +444,7 @@ const preferencesDirty = ref(false);
 const preferences = reactive<ReportsPreferences>({
   dailyEnabled: true,
   dailyTime: '03:10',
+  performanceLoggingEnabled: false,
 });
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -355,6 +464,7 @@ function applyStatus(next: ReportsStatus): void {
   if (!preferencesDirty.value) {
     preferences.dailyEnabled = next.preferences.dailyEnabled;
     preferences.dailyTime = next.preferences.dailyTime;
+    preferences.performanceLoggingEnabled = next.preferences.performanceLoggingEnabled;
   }
   if (!wasPaired && next.pairedOwner) {
     pairingUrl.value = '';
@@ -456,7 +566,8 @@ async function copyPairingLink(): Promise<void> {
 }
 
 async function unpairOwner(): Promise<void> {
-  if (!window.confirm('Ulangan Telegram hisobining hisobotlarga kirishini bekor qilasizmi?')) return;
+  if (!window.confirm('Ulangan Telegram hisobining hisobotlarga kirishini bekor qilasizmi?'))
+    return;
   await run(async () => {
     applyStatus(await window.electron.reports.unpair());
   }, 'Telegram hisobi uzildi');
@@ -467,16 +578,33 @@ async function savePreferences(): Promise<void> {
     const next = await window.electron.reports.savePreferences({
       dailyEnabled: preferences.dailyEnabled,
       dailyTime: preferences.dailyTime,
+      performanceLoggingEnabled: preferences.performanceLoggingEnabled,
     });
     preferencesDirty.value = false;
     applyStatus(next);
-  }, 'Kunlik hisobot sozlamalari saqlandi');
+  }, 'Hisobot va diagnostika sozlamalari saqlandi');
 }
 
 async function sendTest(): Promise<void> {
   await run(async () => {
     await window.electron.reports.sendTest();
   }, 'Sinov hisoboti Telegramga yuborildi');
+}
+
+async function sendBackendPerformanceStats(): Promise<void> {
+  const count = status.value?.backendPerformance.requestCount ?? 0;
+  if (!count || !status.value?.pairedOwner) return;
+  if (
+    !window.confirm(
+      `${formatNumber(count)} ta backend tezlik yozuvini ${status.value.pairedOwner.displayName} Telegram hisobiga yuborasizmi?`,
+    )
+  ) {
+    return;
+  }
+
+  await run(async () => {
+    applyStatus(await window.electron.reports.sendBackendPerformanceStats());
+  }, 'Backend tezlik statistikasi Telegramga yuborildi');
 }
 
 async function refreshReports(): Promise<void> {
@@ -496,6 +624,10 @@ function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
   return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+}
+
+function formatDuration(milliseconds: number): string {
+  return `${new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 1 }).format(milliseconds)} ms`;
 }
 
 function formatDateTime(value: string | null): string {
@@ -593,18 +725,36 @@ onUnmounted(() => {
     justify-content: flex-start;
     color: var(--warning);
 
-    h3 { margin: 0 0 7px; color: var(--text-primary); }
-    p { margin: 0; color: var(--text-muted); line-height: 1.55; }
-    .main-pc-hint { margin-top: 10px; }
+    h3 {
+      margin: 0 0 7px;
+      color: var(--text-primary);
+    }
+    p {
+      margin: 0;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .main-pc-hint {
+      margin-top: 10px;
+    }
   }
 
   &.error-state {
     justify-content: flex-start;
     color: var(--error);
 
-    h3 { margin: 0 0 7px; color: var(--text-primary); }
-    p { margin: 0; color: var(--text-muted); line-height: 1.55; }
-    .retry-btn { margin-top: 14px; }
+    h3 {
+      margin: 0 0 7px;
+      color: var(--text-primary);
+    }
+    p {
+      margin: 0;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .retry-btn {
+      margin-top: 14px;
+    }
   }
 }
 
@@ -625,10 +775,23 @@ onUnmounted(() => {
   border-radius: 14px;
   background: var(--bg-surface);
 
-  > .q-icon { color: var(--accent-primary); }
-  div { min-width: 0; display: flex; flex-direction: column; }
-  strong { font-size: 17px; line-height: 1.2; }
-  span { margin-top: 3px; color: var(--text-muted); font-size: 12px; }
+  > .q-icon {
+    color: var(--accent-primary);
+  }
+  div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  strong {
+    font-size: 17px;
+    line-height: 1.2;
+  }
+  span {
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
 }
 
 .settings-card {
@@ -645,9 +808,20 @@ onUnmounted(() => {
   gap: 12px;
   margin-bottom: 18px;
 
-  h3 { margin: 0 0 3px; font-size: 17px; font-weight: 750; }
-  p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
-  > div:nth-child(2) { flex: 1; }
+  h3 {
+    margin: 0 0 3px;
+    font-size: 17px;
+    font-weight: 750;
+  }
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  > div:nth-child(2) {
+    flex: 1;
+  }
 }
 
 .icon-box {
@@ -674,8 +848,13 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 800;
 
-  &.configured { color: var(--warning); }
-  &.online { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+  &.configured {
+    color: var(--warning);
+  }
+  &.online {
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
+  }
 }
 
 .guide {
@@ -697,7 +876,12 @@ onUnmounted(() => {
     font-weight: 800;
   }
 
-  p { margin: 1px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+  p {
+    margin: 1px 0 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
 }
 
 .field-label {
@@ -719,8 +903,13 @@ onUnmounted(() => {
   border-radius: 12px;
   background: var(--bg-surface-2);
 
-  &:focus-within { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--primary-weak); }
-  > .q-icon { color: var(--text-muted); }
+  &:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--primary-weak);
+  }
+  > .q-icon {
+    color: var(--text-muted);
+  }
   input {
     min-width: 0;
     flex: 1;
@@ -745,7 +934,9 @@ onUnmounted(() => {
   gap: 10px;
   margin-top: 16px;
 
-  &.compact { margin: 0 0 0 auto; }
+  &.compact {
+    margin: 0 0 0 auto;
+  }
 }
 
 .btn {
@@ -761,12 +952,30 @@ onUnmounted(() => {
   font-weight: 750;
   cursor: pointer;
 
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:active:not(:disabled) { transform: scale(0.98); }
-  &.primary { background: var(--accent-primary); color: var(--on-primary); }
-  &.ghost { border-color: var(--border-color); background: var(--bg-surface-2); color: var(--text-primary); }
-  &.danger { border-color: color-mix(in srgb, var(--error) 40%, transparent); background: transparent; color: var(--error); }
-  &.subtle { margin-left: auto; }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  &.primary {
+    background: var(--accent-primary);
+    color: var(--on-primary);
+  }
+  &.ghost {
+    border-color: var(--border-color);
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+  &.danger {
+    border-color: color-mix(in srgb, var(--error) 40%, transparent);
+    background: transparent;
+    color: var(--error);
+  }
+  &.subtle {
+    margin-left: auto;
+  }
 }
 
 .connected-bot,
@@ -799,7 +1008,11 @@ onUnmounted(() => {
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  span, small { color: var(--text-muted); font-size: 12px; }
+  span,
+  small {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
 }
 
 .pairing-area > p {
@@ -819,16 +1032,32 @@ onUnmounted(() => {
   border-radius: 14px;
   background: var(--primary-weak);
 
-  img { width: 150px; height: 150px; border-radius: 10px; background: #fff; }
-  > div { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+  img {
+    width: 150px;
+    height: 150px;
+    border-radius: 10px;
+    background: #fff;
+  }
+  > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+  }
   .pairing-link {
     max-width: 100%;
     overflow-wrap: anywhere;
     color: var(--accent-primary);
     font-size: 12px;
   }
-  .pairing-copy { align-self: flex-start; height: 38px; padding: 0 12px; }
-  small { color: var(--text-muted); }
+  .pairing-copy {
+    align-self: flex-start;
+    height: 38px;
+    padding: 0 12px;
+  }
+  small {
+    color: var(--text-muted);
+  }
 }
 
 .preference-row,
@@ -842,12 +1071,22 @@ onUnmounted(() => {
 
 .preference-row {
   justify-content: space-between;
-  > div { display: flex; flex-direction: column; gap: 3px; }
-  span { color: var(--text-muted); font-size: 12px; }
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  span {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
 }
 
 .time-row {
-  label { min-width: 110px; font-weight: 700; }
+  label {
+    min-width: 110px;
+    font-weight: 700;
+  }
   input {
     height: 42px;
     padding: 0 12px;
@@ -857,14 +1096,20 @@ onUnmounted(() => {
     color: var(--text-primary);
     font: inherit;
   }
-  span { color: var(--text-muted); font-size: 12px; }
+  span {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
 }
 
 .switch {
   position: relative;
   width: 48px;
   height: 27px;
-  input { opacity: 0; position: absolute; }
+  input {
+    opacity: 0;
+    position: absolute;
+  }
   span {
     position: absolute;
     inset: 0;
@@ -884,8 +1129,12 @@ onUnmounted(() => {
       transition: 0.18s;
     }
   }
-  input:checked + span { background: var(--accent-primary); }
-  input:checked + span::after { transform: translateX(21px); }
+  input:checked + span {
+    background: var(--accent-primary);
+  }
+  input:checked + span::after {
+    transform: translateX(21px);
+  }
 }
 
 .data-grid {
@@ -902,8 +1151,19 @@ onUnmounted(() => {
     border-radius: 11px;
     background: var(--bg-surface-2);
   }
-  span { color: var(--text-muted); font-size: 11px; }
-  strong { overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  span {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+  }
+}
+
+.performance-grid {
+  margin-top: 14px;
 }
 
 .sync-error,
@@ -918,26 +1178,68 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.sync-error { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
-.retention-note { background: var(--primary-weak); color: var(--text-secondary); }
+.sync-error {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}
+.retention-note {
+  background: var(--primary-weak);
+  color: var(--text-secondary);
+}
 
 .notice {
   margin: 0 0 12px;
   font-size: 13px;
-  &.error { background: color-mix(in srgb, var(--error) 12%, transparent); color: var(--error); }
-  &.success { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
-  span { flex: 1; }
-  button { border: 0; background: transparent; color: currentColor; font-size: 21px; cursor: pointer; }
+  &.error {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+    color: var(--error);
+  }
+  &.success {
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
+  }
+  span {
+    flex: 1;
+  }
+  button {
+    border: 0;
+    background: transparent;
+    color: currentColor;
+    font-size: 21px;
+    cursor: pointer;
+  }
 }
 
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 @media (max-width: 760px) {
-  .page-heading { flex-direction: column; }
-  .health-grid, .data-grid { grid-template-columns: 1fr; }
-  .connected-bot, .owner-row, .pairing-result, .time-row { align-items: flex-start; flex-direction: column; }
-  .actions.compact, .btn.subtle { margin-left: 0; }
-  .pairing-result img { align-self: center; }
+  .page-heading {
+    flex-direction: column;
+  }
+  .health-grid,
+  .data-grid {
+    grid-template-columns: 1fr;
+  }
+  .connected-bot,
+  .owner-row,
+  .pairing-result,
+  .time-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .actions.compact,
+  .btn.subtle {
+    margin-left: 0;
+  }
+  .pairing-result img {
+    align-self: center;
+  }
 }
 </style>

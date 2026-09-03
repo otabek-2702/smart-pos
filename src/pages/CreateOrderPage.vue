@@ -480,7 +480,7 @@ function selectCategory(categoryId: number | null): void {
 }
 
 // Add this function to your script setup
-async function printReceipt(displayId: number, isPaid = false): Promise<void> {
+async function printReceipt(displayId: number): Promise<void> {
   const authUser = read<{ first_name: string; last_name: string }>('auth_user');
   const cashierName = authUser ? `${authUser.first_name} ${authUser.last_name}` : 'Kassir';
 
@@ -512,7 +512,6 @@ async function printReceipt(displayId: number, isPaid = false): Promise<void> {
     description: description.value || undefined,
     address: address.value || undefined,
     phoneNumber: phone_number.value || undefined,
-    isPaid,
     // logoBase64,
   };
 
@@ -759,7 +758,7 @@ async function createOrderAndOpenPayment(): Promise<void> {
     // — the cashier can still print manually.
     const allInstant = isAllInstant(receiptItems.value.map((i) => i.productId));
     if (!allInstant && shouldPrintBefore(orderType.value)) {
-      void printReceipt(response.data.data.display_id, false);
+      void printReceipt(response.data.data.display_id);
     }
 
     // Open payment confirmation dialog
@@ -1245,7 +1244,9 @@ onMounted(async () => {
   color: var(--ink-2);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 
   &:hover:not(:disabled) {
     background: var(--surface-3);

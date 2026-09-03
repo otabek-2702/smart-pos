@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { usePrintBefore, usePrintAfter, type OrderTypeKey } from 'src/composables/usePrintPolicy';
 import type { TweakScope } from 'src/composables/useTweaks';
 
@@ -38,9 +39,22 @@ const props = defineProps<{ type: OrderTypeKey; label: string }>();
 
 const b = usePrintBefore(props.type);
 const a = usePrintAfter(props.type);
-// Top-level so the template auto-unwraps them for v-model.
-const before = b.value;
-const after = a.value;
+// Keep the two choices mutually exclusive. Older installations can have both
+// stored as true; BEFORE takes precedence and the UI reflects the effective
+// policy without requiring a migration request at startup.
+const before = computed<boolean>({
+  get: () => b.value.value,
+  set: (enabled) => {
+    b.value.value = enabled;
+  },
+});
+const after = computed<boolean>({
+  get: () => a.value.value && !b.value.value,
+  set: (enabled) => {
+    a.value.value = enabled;
+    if (enabled) b.value.value = false;
+  },
+});
 const scope = b.scope;
 
 // Before + after share one scope decision per order type.

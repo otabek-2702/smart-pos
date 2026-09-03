@@ -9,8 +9,7 @@ vi.mock('electron', () => ({
   safeStorage: {
     isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(`encrypted:${value}`, 'utf8'),
-    decryptString: (value: Buffer) =>
-      value.toString('utf8').replace(/^encrypted:/, ''),
+    decryptString: (value: Buffer) => value.toString('utf8').replace(/^encrypted:/, ''),
   },
 }));
 
@@ -61,12 +60,9 @@ beforeEach(() => {
 });
 
 describe('daily Telegram report preference', () => {
-  it.each(['03:00', '03:10', '12:45', '23:59'])(
-    'accepts safe post-close time %s',
-    (value) => {
-      expect(isValidDailyReportTime(value)).toBe(true);
-    },
-  );
+  it.each(['03:00', '03:10', '12:45', '23:59'])('accepts safe post-close time %s', (value) => {
+    expect(isValidDailyReportTime(value)).toBe(true);
+  });
 
   it.each(['00:00', '02:59', '24:00', '3:10', '03:60', 'invalid'])(
     'rejects unsafe or malformed time %s',
@@ -74,6 +70,19 @@ describe('daily Telegram report preference', () => {
       expect(isValidDailyReportTime(value)).toBe(false);
     },
   );
+
+  it('defaults backend performance logging to off and persists an explicit opt-in', () => {
+    const config = new ReportConfig();
+    expect(config.preferences().performanceLoggingEnabled).toBe(false);
+
+    config.savePreferences({
+      dailyEnabled: true,
+      dailyTime: '03:10',
+      performanceLoggingEnabled: true,
+    });
+
+    expect(new ReportConfig().preferences().performanceLoggingEnabled).toBe(true);
+  });
 });
 
 describe('Telegram report connection reset', () => {

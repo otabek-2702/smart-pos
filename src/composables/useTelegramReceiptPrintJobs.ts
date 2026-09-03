@@ -111,7 +111,6 @@ export function useTelegramReceiptPrintJobs(isPaused: Ref<boolean>) {
           description: job.order.description || undefined,
           address: job.order.delivery_address || undefined,
           phoneNumber: job.order.phone_number || undefined,
-          isPaid: Boolean(job.order.is_paid),
         });
       } catch (printError) {
         await release(job, printError);

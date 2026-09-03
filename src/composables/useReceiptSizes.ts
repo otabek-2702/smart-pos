@@ -1,7 +1,7 @@
 // src/composables/useReceiptSizes.ts
 //
 // Per-part receipt font-size multipliers, on the scoped tweak store. Each part
-// (meta, items, total, grand, status, orderno, footer) has a size 0.6–2.0
+// (meta, items, total, grand, orderno, footer) has a size 0.6–2.0
 // (default 1.0). Used by the ReceiptSettings live preview (click a part → slider)
 // and mirrored into the printed receipt (the print template reads the same keys
 // via the main-process tweak store). Default scope 'global' — the receipt design
@@ -21,7 +21,6 @@ export const RECEIPT_PARTS: ReceiptPart[] = [
   { key: 'items', label: 'Mahsulotlar' },
   { key: 'total', label: 'Oraliq summa / chegirma' },
   { key: 'grand', label: 'Jami summa' },
-  { key: 'status', label: "To'lov holati" },
   { key: 'orderno', label: 'Buyurtma raqami' },
   { key: 'footer', label: 'Pastki matn' },
 ];

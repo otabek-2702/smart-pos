@@ -174,18 +174,14 @@ export function latestBusinessDate(now = new Date()): string {
   return local.hour < 7 ? shiftIsoDate(local.date, -1) : local.date;
 }
 
-export function scheduledBusinessDate(
-  now: Date,
-  dailyTime: string,
-): string | null {
+export function scheduledBusinessDate(now: Date, dailyTime: string): string | null {
   if (!isValidDailyReportTime(dailyTime)) return null;
   const local = localDateParts(now);
   if (local.hour < 3) return null;
   const targetHour = Number(dailyTime.slice(0, 2));
   const targetMinute = Number(dailyTime.slice(3, 5));
   const afterTarget =
-    local.hour > targetHour ||
-    (local.hour === targetHour && local.minute >= targetMinute);
+    local.hour > targetHour || (local.hour === targetHour && local.minute >= targetMinute);
   return afterTarget ? shiftIsoDate(local.date, -1) : null;
 }
 
@@ -230,9 +226,7 @@ function displayName(user: TelegramUser): string {
   return [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || 'Telegram user';
 }
 
-export function formatCsvCell(
-  value: string | number | boolean | null | undefined,
-): string {
+export function formatCsvCell(value: string | number | boolean | null | undefined): string {
   const raw = String(value ?? '');
   // Quoting alone does not stop Excel/LibreOffice from evaluating a cell as
   // a formula. Prefix dangerous leading characters (including after leading
@@ -332,6 +326,13 @@ export class TelegramReportBot {
     await this.sendHtml(token, owner.chatId, message);
   }
 
+  async sendDocumentToOwner(filename: string, contents: string, caption: string): Promise<void> {
+    const token = this.requireToken();
+    const owner = this.requireOwner();
+    this.assertEnabled();
+    await sendTelegramDocument(token, owner.chatId, filename, contents, caption);
+  }
+
   async applyOwnerCommands(): Promise<void> {
     const token = this.config.getToken();
     const owner = this.config.owner();
@@ -394,8 +395,7 @@ export class TelegramReportBot {
       } catch (error) {
         if (!this.active || generation !== this.generation || !this.enabled()) break;
         this.setError(error);
-        const retryAfter =
-          error instanceof TelegramApiError ? error.retryAfterSeconds : null;
+        const retryAfter = error instanceof TelegramApiError ? error.retryAfterSeconds : null;
         await sleep(retryAfter ? retryAfter * 1_000 : retryDelay);
         retryDelay = Math.min(30_000, retryDelay * 2);
       }
@@ -508,10 +508,7 @@ export class TelegramReportBot {
     await this.sendDaySummary(token, chatId, latestBusinessDate());
   }
 
-  private async processCallback(
-    token: string,
-    callback: TelegramCallbackQuery,
-  ): Promise<void> {
+  private async processCallback(token: string, callback: TelegramCallbackQuery): Promise<void> {
     const message = callback.message;
     const owner = this.config.owner();
     if (
@@ -541,11 +538,7 @@ export class TelegramReportBot {
     }
   }
 
-  private async runCommand(
-    token: string,
-    chatId: string,
-    command: string,
-  ): Promise<void> {
+  private async runCommand(token: string, chatId: string, command: string): Promise<void> {
     await this.refreshWithNotice(token, chatId);
     const today = latestBusinessDate();
     switch (command) {
@@ -553,7 +546,12 @@ export class TelegramReportBot {
         await this.sendDaySummary(token, chatId, today);
         break;
       case 'yesterday':
-        await this.sendDaySummary(token, chatId, shiftIsoDate(today, -1), 'Kecha yakunlangan savdo');
+        await this.sendDaySummary(
+          token,
+          chatId,
+          shiftIsoDate(today, -1),
+          'Kecha yakunlangan savdo',
+        );
         break;
       case 'week':
         await this.sendWeek(token, chatId, shiftIsoDate(today, -6), today);
@@ -615,11 +613,9 @@ export class TelegramReportBot {
         periodEnd: times.length ? new Date(times.at(-1) as number) : null,
         paidOrderCount: aggregate.orderCount,
         totalUzs: aggregate.totalMinor,
-        averageCheckUzs:
-          aggregate.orderCount > 0 ? aggregate.totalMinor / aggregate.orderCount : 0,
-        cancelledOrderCount: records.filter((order) =>
-          CANCELLED.has(order.status.toUpperCase()),
-        ).length,
+        averageCheckUzs: aggregate.orderCount > 0 ? aggregate.totalMinor / aggregate.orderCount : 0,
+        cancelledOrderCount: records.filter((order) => CANCELLED.has(order.status.toUpperCase()))
+          .length,
         cashiers: cashierRows(aggregate.byCashier),
         payments: paymentRows(aggregate.byPaymentMethod),
         orderTypes: paymentRows(aggregate.byOrderType),
@@ -658,8 +654,7 @@ export class TelegramReportBot {
   private async sendCashier(token: string, chatId: string, cashierId: string): Promise<void> {
     const date = latestBusinessDate();
     const records = (await this.data.queryBusinessDate(date)).filter(
-      (order) =>
-        includedSale(order) && String(order.cashier.id ?? '') === cashierId,
+      (order) => includedSale(order) && String(order.cashier.id ?? '') === cashierId,
     );
     const total = records.reduce((sum, order) => sum + order.totalMinor, 0);
     const paymentTotals = new Map<string, { orderCount: number; totalUzs: number }>();
@@ -706,8 +701,7 @@ export class TelegramReportBot {
     const pageSize = 15;
     const records = (await this.data.queryBusinessDate(date)).sort(
       (left, right) =>
-        Date.parse(right.paidAt || right.createdAt) -
-        Date.parse(left.paidAt || left.createdAt),
+        Date.parse(right.paidAt || right.createdAt) - Date.parse(left.paidAt || left.createdAt),
     );
     const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
     const page = Math.min(totalPages, Math.max(1, requestedPage));
@@ -715,9 +709,7 @@ export class TelegramReportBot {
     const keyboard: ReplyMarkup = {
       inline_keyboard: [
         [
-          ...(page > 1
-            ? [{ text: '⬅️ Oldingi', callback_data: `orders:${page - 1}` }]
-            : []),
+          ...(page > 1 ? [{ text: '⬅️ Oldingi', callback_data: `orders:${page - 1}` }] : []),
           ...(page < totalPages
             ? [{ text: 'Keyingi ➡️', callback_data: `orders:${page + 1}` }]
             : []),
@@ -746,12 +738,7 @@ export class TelegramReportBot {
     );
   }
 
-  private async sendWeek(
-    token: string,
-    chatId: string,
-    from: string,
-    to: string,
-  ): Promise<void> {
+  private async sendWeek(token: string, chatId: string, from: string, to: string): Promise<void> {
     const aggregate = await this.data.aggregateRange({ from, to });
     const days: Array<{ businessDate: string; paidOrderCount: number; totalUzs: number }> = [];
     for (let cursor = from; cursor <= to; cursor = shiftIsoDate(cursor, 1)) {
@@ -770,8 +757,7 @@ export class TelegramReportBot {
         endDate: `${to}T07:00:00+05:00`,
         paidOrderCount: aggregate.orderCount,
         totalUzs: aggregate.totalMinor,
-        averageCheckUzs:
-          aggregate.orderCount > 0 ? aggregate.totalMinor / aggregate.orderCount : 0,
+        averageCheckUzs: aggregate.orderCount > 0 ? aggregate.totalMinor / aggregate.orderCount : 0,
         days,
         cashiers: cashierRows(aggregate.byCashier),
       }),
@@ -869,9 +855,7 @@ export class TelegramReportBot {
         text: chunks[index],
         parse_mode: 'HTML',
         disable_web_page_preview: true,
-        ...(replyMarkup && index === chunks.length - 1
-          ? { reply_markup: replyMarkup }
-          : {}),
+        ...(replyMarkup && index === chunks.length - 1 ? { reply_markup: replyMarkup } : {}),
       });
     }
   }
@@ -898,22 +882,14 @@ export class TelegramReportBot {
     const preferences = this.config.preferences();
     if (!owner || !preferences.dailyEnabled) return;
 
-    const completedBusinessDate = scheduledBusinessDate(
-      new Date(),
-      preferences.dailyTime,
-    );
+    const completedBusinessDate = scheduledBusinessDate(new Date(), preferences.dailyTime);
     if (!completedBusinessDate) return;
     if (this.config.lastDailyBusinessDate() === completedBusinessDate) return;
     // A "final" report must never silently use a stale local snapshot. If
     // refresh fails, leave lastDailyBusinessDate untouched so the poll loop
     // retries after the backend recovers.
     await this.refresh();
-    await this.sendDaySummary(
-      token,
-      owner.chatId,
-      completedBusinessDate,
-      'Kunlik yakuniy hisobot',
-    );
+    await this.sendDaySummary(token, owner.chatId, completedBusinessDate, 'Kunlik yakuniy hisobot');
     this.config.setLastDailyBusinessDate(completedBusinessDate);
   }
 }

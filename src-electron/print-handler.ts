@@ -21,14 +21,17 @@ function receiptSizes(): Record<string, number> {
 function getDefaultLogoPath(): string {
   // Get app paths
   const appPath = app.getAppPath();
-  const isDev = process.env.DEV === 'true' || process.env.NODE_ENV === 'development' || appPath.includes('node_modules');
-  
+  const isDev =
+    process.env.DEV === 'true' ||
+    process.env.NODE_ENV === 'development' ||
+    appPath.includes('node_modules');
+
   // console.log('=== Logo Path Debug ===');
   // console.log('App path:', appPath);
   // console.log('Is development:', isDev);
   // console.log('__dirname:', __dirname);
   // console.log('process.cwd():', process.cwd());
-  
+
   // Possible logo filenames (in order of preference)
   const logoFilenames = [
     'logo-black-default.png',
@@ -41,7 +44,7 @@ function getDefaultLogoPath(): string {
 
   // Possible directories to search
   const directories: string[] = [];
-  
+
   if (isDev) {
     // Development paths
     directories.push(
@@ -52,7 +55,7 @@ function getDefaultLogoPath(): string {
       // path.join(__dirname, '..', '..', 'src', 'assets'),
     );
   }
-  
+
   // Production paths
   directories.push(
     path.join(process.resourcesPath || '', 'assets'),
@@ -115,8 +118,6 @@ interface PrintReceiptData {
   discountPercent?: number;
   freeItems?: Array<{ name: string; promo?: string }>;
   logoBase64?: string;
-  isPaid?: boolean;
-  paymentMethodLabel?: string;
 }
 
 interface PrintResult {
@@ -134,7 +135,12 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
   const tmp = path.join(os.tmpdir(), 'smartpos-receipt-' + Date.now() + '.html');
   fs.writeFileSync(tmp, html, 'utf8');
 
-  const win = new BrowserWindow({ width: 400, height: 800, show: false, webPreferences: { offscreen: true } });
+  const win = new BrowserWindow({
+    width: 400,
+    height: 800,
+    show: false,
+    webPreferences: { offscreen: true },
+  });
   try {
     await win.loadFile(tmp);
 
@@ -193,7 +199,11 @@ async function printViaWindows(html: string, deviceName: string): Promise<PrintR
     });
   } finally {
     if (!win.isDestroyed()) win.close();
-    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -244,7 +254,10 @@ export function registerPrintHandler(): void {
         console.log('Using logo from print data');
       }
 
-      const html = generateReceiptHtml(data, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb', sizes: receiptSizes() });
+      const html = generateReceiptHtml(data, logoBase64, receiptSettings, {
+        print: settings.printer.connectionType === 'usb',
+        sizes: receiptSizes(),
+      });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -281,11 +294,12 @@ export function registerPrintHandler(): void {
         description: 'Test buyurtma',
         phoneNumber: '+998901234567',
         address: 'Chilonzor t., 12-kvartal, 5-uy, 14-xonadon',
-        isPaid: true,
-        paymentMethodLabel: 'Karta',
       };
 
-      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { print: settings.printer.connectionType === 'usb', sizes: receiptSizes() });
+      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, {
+        print: settings.printer.connectionType === 'usb',
+        sizes: receiptSizes(),
+      });
       return await doPrint(html);
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -295,21 +309,24 @@ export function registerPrintHandler(): void {
   });
 
   // List Windows-installed printers for the USB/driver picker in settings.
-  ipcMain.handle('printer:list', async (): Promise<{ name: string; displayName: string; isDefault: boolean }[]> => {
-    try {
-      const win = BrowserWindow.getAllWindows()[0];
-      if (!win) return [];
-      const printers = await win.webContents.getPrintersAsync();
-      return printers.map((p) => ({
-        name: p.name,
-        displayName: p.displayName || p.name,
-        isDefault: Boolean((p as { isDefault?: boolean }).isDefault),
-      }));
-    } catch (e) {
-      console.error('printer:list failed:', e);
-      return [];
-    }
-  });
+  ipcMain.handle(
+    'printer:list',
+    async (): Promise<{ name: string; displayName: string; isDefault: boolean }[]> => {
+      try {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win) return [];
+        const printers = await win.webContents.getPrintersAsync();
+        return printers.map((p) => ({
+          name: p.name,
+          displayName: p.displayName || p.name,
+          isDefault: Boolean((p as { isDefault?: boolean }).isDefault),
+        }));
+      } catch (e) {
+        console.error('printer:list failed:', e);
+        return [];
+      }
+    },
+  );
 
   ipcMain.handle('print-preview', (): { success: boolean; html?: string; error?: string } => {
     try {
@@ -337,7 +354,9 @@ export function registerPrintHandler(): void {
         phoneNumber: '+998901234567',
       };
 
-      const html = generateReceiptHtml(previewData, logoBase64, receiptSettings, { sizes: receiptSizes() });
+      const html = generateReceiptHtml(previewData, logoBase64, receiptSettings, {
+        sizes: receiptSizes(),
+      });
 
       return { success: true, html };
     } catch (err: unknown) {
@@ -372,7 +391,9 @@ export function registerPrintHandler(): void {
         phoneNumber: '+998901234567',
       };
 
-      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, { sizes: receiptSizes() });
+      const html = generateReceiptHtml(testData, logoBase64, receiptSettings, {
+        sizes: receiptSizes(),
+      });
       const imageBuffer = await htmlToImage(html);
 
       const desktopPath = app.getPath('desktop');
@@ -391,33 +412,36 @@ export function registerPrintHandler(): void {
   });
 
   // Debug handler - returns logo search info
-  ipcMain.handle('debug-logo-path', (): { found: boolean; path: string; searchedPaths: string[] } => {
-    const searchedPaths: string[] = [];
-    const appPath = app.getAppPath();
-    
-    const directories = [
-      path.join(process.cwd(), 'src', 'assets'),
-      path.join(appPath, 'src', 'assets'),
-      path.join(appPath, '..', 'src', 'assets'),
-      path.join(__dirname, '..', 'src', 'assets'),
-      path.join(__dirname, '..', '..', 'src', 'assets'),
-      path.join(process.resourcesPath || '', 'assets'),
-    ];
-    
-    const filenames = ['logo-black-default.png', 'logo-default.png', 'logo-black.png'];
-    
-    for (const dir of directories) {
-      for (const filename of filenames) {
-        searchedPaths.push(path.join(dir, filename));
+  ipcMain.handle(
+    'debug-logo-path',
+    (): { found: boolean; path: string; searchedPaths: string[] } => {
+      const searchedPaths: string[] = [];
+      const appPath = app.getAppPath();
+
+      const directories = [
+        path.join(process.cwd(), 'src', 'assets'),
+        path.join(appPath, 'src', 'assets'),
+        path.join(appPath, '..', 'src', 'assets'),
+        path.join(__dirname, '..', 'src', 'assets'),
+        path.join(__dirname, '..', '..', 'src', 'assets'),
+        path.join(process.resourcesPath || '', 'assets'),
+      ];
+
+      const filenames = ['logo-black-default.png', 'logo-default.png', 'logo-black.png'];
+
+      for (const dir of directories) {
+        for (const filename of filenames) {
+          searchedPaths.push(path.join(dir, filename));
+        }
       }
-    }
-    
-    const foundPath = getDefaultLogoPath();
-    
-    return {
-      found: !!foundPath,
-      path: foundPath,
-      searchedPaths
-    };
-  });
+
+      const foundPath = getDefaultLogoPath();
+
+      return {
+        found: !!foundPath,
+        path: foundPath,
+        searchedPaths,
+      };
+    },
+  );
 }

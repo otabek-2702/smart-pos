@@ -60,10 +60,6 @@ export interface ReceiptData {
   discountPercent?: number;
   // Free (promo) products — printed with a "Bepul" tag.
   freeItems?: ReceiptFreeItem[];
-  // Paid state — TO'LANDI / TO'LANMAGAN pill. paymentMethodLabel (e.g. "Karta")
-  // is appended to the paid pill when provided.
-  isPaid?: boolean;
-  paymentMethodLabel?: string;
 }
 
 // Same kv key the renderer's useOrderTypes composable writes — one source, so
@@ -98,10 +94,7 @@ function formatDate(): string {
 }
 
 function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Palette — all TEXT is black (#000); a 1-bit thermal head would smear grey text
@@ -209,13 +202,6 @@ function receiptStyle(print: boolean, scale: number, sizes: Record<string, numbe
   .grand .amt { font-size: 1.7em; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
   .grand .amt .cur { font-size: 0.6em; font-weight: 600; color: ${C.faint}; }
 
-  .status { text-align: center; margin-top: 1.1em; font-size: calc(1em * var(--sz-status, 1)); }
-  .pill { display: inline-flex; align-items: center; gap: 0.5em; border-radius: 999px; font-size: 0.92em; font-weight: 700; }
-  .pill.paid { background: ${C.ink}; color: #fff; padding: 0.5em 1.1em; }
-  .pill.paid .dot { width: 0.45em; height: 0.45em; border-radius: 50%; background: #fff; }
-  .pill.unpaid { background: #fff; border: 0.12em solid ${C.ink}; color: ${C.ink}; padding: 0.42em 1em; }
-  .pill.unpaid .dot { width: 0.5em; height: 0.5em; border-radius: 50%; border: 0.12em solid ${C.ink}; }
-
   .note { margin-top: 0.6em; }
   .note .k { font-size: 0.82em; letter-spacing: 0.06em; color: ${C.faint}; font-weight: 700; text-transform: uppercase; }
   .note .t { line-height: 1.35; word-break: break-word; }
@@ -242,7 +228,6 @@ export const RECEIPT_SIZE_KEYS = [
   'items',
   'total',
   'grand',
-  'status',
   'orderno',
   'footer',
 ] as const;
@@ -306,8 +291,7 @@ export function generateReceiptHtml(
     .join('');
 
   // Totals — show the breakdown only when a discount actually applied.
-  const hasDiscount =
-    !!data.discountPercent && data.discountPercent > 0 && data.subtotal != null;
+  const hasDiscount = !!data.discountPercent && data.discountPercent > 0 && data.subtotal != null;
   const subtotal = hasDiscount ? (data.subtotal as number) : data.total;
   const totalsHtml = `
     ${
@@ -320,15 +304,6 @@ export function generateReceiptHtml(
       <span class="lbl">Jami</span>
       <span class="amt">${formatPrice(data.total)}<span class="cur"> so'm</span></span>
     </div>`;
-
-  // Paid / unpaid pill.
-  let statusHtml = '';
-  if (data.isPaid === true) {
-    const label = data.paymentMethodLabel ? ` · ${esc(data.paymentMethodLabel)}` : '';
-    statusHtml = `<div class="status"><span class="pill paid"><span class="dot"></span>To'landi${label}</span></div>`;
-  } else if (data.isPaid === false) {
-    statusHtml = `<div class="status"><span class="pill unpaid"><span class="dot"></span>To'lanmagan</span></div>`;
-  }
 
   // Izoh + (non-delivery) client phone.
   const noteParts: string[] = [];
@@ -405,8 +380,6 @@ export function generateReceiptHtml(
         <div class="rule"></div>
 
         ${totalsHtml}
-
-        ${statusHtml}
 
         ${noteHtml}
 

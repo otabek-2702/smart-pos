@@ -2,9 +2,7 @@
   <div class="receipt-settings">
     <div class="settings-form">
       <h2 class="section-title">Chek sozlamalari</h2>
-      <p class="section-description">
-        Chekda ko'rsatiladigan ma'lumotlarni sozlang
-      </p>
+      <p class="section-description">Chekda ko'rsatiladigan ma'lumotlarni sozlang</p>
 
       <!-- Logo Section -->
       <div class="form-section">
@@ -15,11 +13,7 @@
 
         <div class="form-group">
           <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="settings.useDefaultLogo"
-              class="toggle-input"
-            />
+            <input type="checkbox" v-model="settings.useDefaultLogo" class="toggle-input" />
             <span class="toggle-switch"></span>
             <span>Standart logoni ishlatish</span>
           </label>
@@ -28,10 +22,7 @@
         <div v-if="!settings.useDefaultLogo" class="form-group">
           <label class="form-label">Maxsus logo yuklash</label>
           <div class="logo-upload">
-            <div
-              v-if="settings.logoBase64"
-              class="logo-preview"
-            >
+            <div v-if="settings.logoBase64" class="logo-preview">
               <img :src="settings.logoBase64" alt="Logo preview" />
               <button type="button" class="remove-logo" @click="removeLogo">
                 <q-icon name="close" size="16px" />
@@ -64,11 +55,7 @@
 
         <div class="form-group">
           <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="settings.showThankYouMessage"
-              class="toggle-input"
-            />
+            <input type="checkbox" v-model="settings.showThankYouMessage" class="toggle-input" />
             <span class="toggle-switch"></span>
             <span>Ko'rsatish</span>
           </label>
@@ -94,11 +81,7 @@
 
         <div class="form-group">
           <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="settings.showQr"
-              class="toggle-input"
-            />
+            <input type="checkbox" v-model="settings.showQr" class="toggle-input" />
             <span class="toggle-switch"></span>
             <span>Ko'rsatish (Telegram bot / aksiyalar)</span>
           </label>
@@ -113,18 +96,12 @@
               class="form-input"
               placeholder="https://t.me/smartfood_bot"
             />
-            <span class="field-hint">
-              Havolani kiriting — QR avtomatik yaratiladi
-            </span>
+            <span class="field-hint"> Havolani kiriting — QR avtomatik yaratiladi </span>
           </div>
 
           <div class="qr-row">
             <div class="qr-box">
-              <img
-                v-if="settings.qrImageBase64"
-                :src="settings.qrImageBase64"
-                alt="QR"
-              />
+              <img v-if="settings.qrImageBase64" :src="settings.qrImageBase64" alt="QR" />
               <div v-else-if="qrGenerating" class="qr-state">Yaratilmoqda…</div>
               <div v-else-if="qrError" class="qr-state error">{{ qrError }}</div>
               <div v-else class="qr-state">
@@ -166,11 +143,7 @@
 
         <div class="form-group">
           <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="settings.showFooterPhone"
-              class="toggle-input"
-            />
+            <input type="checkbox" v-model="settings.showFooterPhone" class="toggle-input" />
             <span class="toggle-switch"></span>
             <span>Ko'rsatish</span>
           </label>
@@ -208,11 +181,7 @@
 
         <div class="form-group">
           <label class="toggle-label">
-            <input
-              type="checkbox"
-              v-model="settings.showAdditionalFooter"
-              class="toggle-input"
-            />
+            <input type="checkbox" v-model="settings.showAdditionalFooter" class="toggle-input" />
             <span class="toggle-switch"></span>
             <span>Ko'rsatish</span>
           </label>
@@ -231,22 +200,12 @@
 
       <!-- Actions -->
       <div class="form-actions">
-        <button
-          type="button"
-          class="btn btn-secondary"
-          @click="resetToDefaults"
-          :disabled="saving"
-        >
+        <button type="button" class="btn btn-secondary" @click="resetToDefaults" :disabled="saving">
           <q-icon name="restart_alt" size="20px" />
           Standartga qaytarish
         </button>
 
-        <button
-          type="button"
-          class="btn btn-primary"
-          @click="saveSettings"
-          :disabled="saving"
-        >
+        <button type="button" class="btn btn-primary" @click="saveSettings" :disabled="saving">
           <q-icon v-if="!saving" name="save" size="20px" />
           <span v-if="saving">Saqlanmoqda...</span>
           <span v-else>Saqlash</span>
@@ -258,12 +217,7 @@
     <div class="preview-section">
       <div class="preview-header">
         <h3>Ko'rinish</h3>
-        <button
-          type="button"
-          class="btn btn-outline"
-          @click="testPrint"
-          :disabled="testPrinting"
-        >
+        <button type="button" class="btn btn-outline" @click="testPrint" :disabled="testPrinting">
           <q-icon name="print" size="20px" />
           <span v-if="testPrinting">Chop etilmoqda...</span>
           <span v-else>Test chop etish</span>
@@ -432,7 +386,7 @@ async function regenerateQr(): Promise<void> {
   } catch (e) {
     console.error('QR generation failed:', e);
     settings.qrImageBase64 = null;
-    qrError.value = 'QR yaratib bo\'lmadi';
+    qrError.value = "QR yaratib bo'lmadi";
   } finally {
     qrGenerating.value = false;
   }
@@ -440,7 +394,7 @@ async function regenerateQr(): Promise<void> {
 
 async function loadSettings(): Promise<void> {
   try {
-    const result = await window.electron.settings.getReceipt() as ReceiptSettings;
+    const result = (await window.electron.settings.getReceipt()) as ReceiptSettings;
     Object.assign(settings, result);
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -450,12 +404,12 @@ async function loadSettings(): Promise<void> {
 async function saveSettings(): Promise<void> {
   saving.value = true;
   try {
-    const result = await window.electron.settings.saveReceipt({ ...settings }) as IpcResult;
+    const result = (await window.electron.settings.saveReceipt({ ...settings })) as IpcResult;
 
     if (result.success) {
       alert('Sozlamalar saqlandi!');
     } else {
-      alert('Xatolik: ' + (result.error || 'Noma\'lum xatolik'));
+      alert('Xatolik: ' + (result.error || "Noma'lum xatolik"));
     }
   } catch (error) {
     console.error('Failed to save settings:', error);
@@ -485,7 +439,7 @@ function esc(s: string): string {
 }
 
 // Mirrors the print template (src-electron/receipt-template.ts) so the on-screen
-// preview matches what prints. Sample = a paid delivery order showcasing every
+// preview matches what prints. Sample = a delivery order showcasing every
 // optional block; toggles/text/QR/size come straight from `settings`.
 function generateLocalPreview(): string {
   const s = settings;
@@ -500,11 +454,17 @@ function generateLocalPreview(): string {
       : '';
   const footPhone =
     s.showFooterPhone && (s.footerTitle || s.footerPhone)
-      ? `<div>${[s.footerTitle, s.footerPhone].filter(Boolean).map((t) => esc(t)).join(' ')}</div>`
+      ? `<div>${[s.footerTitle, s.footerPhone]
+          .filter(Boolean)
+          .map((t) => esc(t))
+          .join(' ')}</div>`
       : '';
   const extra =
     s.showAdditionalFooter && s.additionalFooterText
-      ? `<div class="extra">${s.additionalFooterText.split('\n').map((l) => esc(l)).join('<br>')}</div>`
+      ? `<div class="extra">${s.additionalFooterText
+          .split('\n')
+          .map((l) => esc(l))
+          .join('<br>')}</div>`
       : '';
   const foot =
     thank || footPhone || extra
@@ -551,8 +511,6 @@ function generateLocalPreview(): string {
       <div class="r-tot" data-part="total"><span>Chegirma 10%</span><span class="off">−7 000</span></div>
       <div class="r-grand" data-part="grand"><span class="lbl">Jami</span><span class="amt">63 000<span class="cur"> so'm</span></span></div>
 
-      <div class="r-status" data-part="status"><span class="r-pill paid"><span class="dot"></span>To'landi · Karta</span></div>
-
       ${qr}
 
       <div class="r-orderno" data-part="orderno"><div class="lbl">BUYURTMA RAQAMI</div><div class="num">123</div></div>
@@ -569,7 +527,7 @@ async function testPrint(): Promise<void> {
     await window.electron.settings.saveReceipt({ ...settings });
 
     // Then test print
-    const result = await window.electron.printer.test() as IpcResult;
+    const result = (await window.electron.printer.test()) as IpcResult;
 
     if (result.success) {
       alert('Test chop etildi!');
@@ -1083,8 +1041,12 @@ function resetToDefaults(): void {
   }
 
   /* delivery block — stacked small label over big value (matches print) */
-  :deep(.r-dblock) { margin-bottom: 0.7em; }
-  :deep(.r-dblock:last-child) { margin-bottom: 0; }
+  :deep(.r-dblock) {
+    margin-bottom: 0.7em;
+  }
+  :deep(.r-dblock:last-child) {
+    margin-bottom: 0;
+  }
   :deep(.r-dk) {
     font-size: 0.82em;
     letter-spacing: 0.04em;
@@ -1187,30 +1149,6 @@ function resetToDefaults(): void {
     color: #000;
   }
 
-  :deep(.r-status) {
-    text-align: center;
-    margin-top: 1.1em;
-  }
-  :deep(.r-pill) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
-    border-radius: 999px;
-    font-size: 0.92em;
-    font-weight: 700;
-  }
-  :deep(.r-pill.paid) {
-    background: #000;
-    color: #fff;
-    padding: 0.5em 1.1em;
-  }
-  :deep(.r-pill.paid .dot) {
-    width: 0.45em;
-    height: 0.45em;
-    border-radius: 50%;
-    background: #fff;
-  }
-
   :deep(.r-qr) {
     text-align: center;
   }
@@ -1291,7 +1229,9 @@ function resetToDefaults(): void {
   :deep([data-part]) {
     cursor: pointer;
     border-radius: 6px;
-    transition: background 0.12s ease, outline-color 0.12s ease;
+    transition:
+      background 0.12s ease,
+      outline-color 0.12s ease;
   }
   :deep([data-part]:hover) {
     background: var(--primary-weak);

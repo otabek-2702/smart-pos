@@ -6,7 +6,6 @@ interface IpcResult {
   error?: string;
 }
 
-
 interface LocalIp {
   address: string;
   subnet: string;
@@ -53,6 +52,30 @@ type ReportMutationKind = 'created' | 'paid' | 'cancelled' | 'updated';
 interface TelegramReportPreferences {
   dailyEnabled: boolean;
   dailyTime: string;
+  performanceLoggingEnabled: boolean;
+}
+
+type BackendTimingOutcome = 'success' | 'http_error' | 'network_error' | 'timeout';
+
+interface BackendTimingInput {
+  timestamp: string;
+  method: string;
+  url: string;
+  status: number | null;
+  durationMs: number;
+  outcome: BackendTimingOutcome;
+}
+
+interface BackendPerformanceStats {
+  fileName: string;
+  fileSizeBytes: number;
+  requestCount: number;
+  errorCount: number;
+  averageMs: number;
+  p95Ms: number;
+  slowestMs: number;
+  firstRecordedAt: string | null;
+  lastRecordedAt: string | null;
 }
 
 interface ReportingStatus {
@@ -76,6 +99,7 @@ interface ReportingStatus {
   lastSyncAt: string | null;
   lastCaptureAt: string | null;
   pendingRefreshCount: number;
+  backendPerformance: BackendPerformanceStats;
   lastError: string | null;
 }
 
@@ -143,6 +167,10 @@ declare global {
         savePreferences(preferences: TelegramReportPreferences): Promise<ReportingStatus>;
         sendTest(): Promise<boolean>;
         refreshNow(): Promise<ReportingStatus>;
+        performanceLoggingEnabled(): Promise<boolean>;
+        recordBackendTiming(data: BackendTimingInput): Promise<boolean>;
+        sendBackendPerformanceStats(): Promise<ReportingStatus>;
+        onPerformanceLoggingChanged(callback: (enabled: boolean) => void): () => void;
       };
     };
     backend: {
