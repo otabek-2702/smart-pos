@@ -19,41 +19,59 @@
       <div class="timer" :class="timerClass">⏱ {{ formattedTime }}</div>
     </div>
 
+    <div class="preparation-target">
+      <span>{{ order.status === 'READY' ? 'Tayyorlanish me’yori' : 'Qolgan taomlar me’yori' }}</span>
+      <strong>{{ targetLabel }}</strong>
+    </div>
+
     <!-- ITEMS -->
     <div class="items-list">
       <div
         v-for="item in order.items"
         :key="item.id"
         class="item-row"
-        :class="{ done: doneItems.has(item.id) }"
-        @dblclick="markItemDone(item.id)"
+        :class="{ done: item.is_ready === true, busy }"
+        @dblclick="toggleItem(item.id)"
       >
         <div class="item-main">
           <span class="item-name">{{ item.product__name }}</span>
           <span class="item-qty">×{{ item.quantity }}</span>
+          <button
+            type="button"
+            class="item-ready-btn"
+            :aria-pressed="item.is_ready === true"
+            :aria-label="`${item.product__name}: ${item.is_ready ? 'jarayonga qaytarish' : 'tayyor deb belgilash'}`"
+            :disabled="busy || item.is_ready == null || item.is_instant === true"
+            @click.stop="toggleItem(item.id)"
+            @dblclick.stop
+          >
+            <span aria-hidden="true">{{ item.is_ready ? '✓' : '○' }}</span>
+          </button>
         </div>
 
         <div v-if="item.detail" class="item-description">
           {{ item.detail }}
         </div>
 
-        <div v-if="doneItems.has(item.id)" class="done-check">✓</div>
       </div>
     </div>
+
+    <p v-if="error" class="action-error" role="alert">{{ error }}</p>
 
     <!-- ACTIONS -->
     <div class="actions-row">
       <button
         v-if="order.status === 'PREPARING'"
         class="btn btn-primary"
-        :disabled="isLoading"
-        @click="handleMarkReady"
+        type="button"
+        :disabled="busy"
+        @click="emit('ready')"
       >
-        {{ isLoading ? 'YUKLANMOQDA...' : 'TAYYOR' }}
+        {{ busy ? 'YUKLANMOQDA...' : 'TAYYOR' }}
       </button>
 
-      <button v-else class="btn btn-back" :disabled="isLoading" @click="handleBackToPreparing">
-        ← JARAYONDA
+      <button v-else type="button" class="btn btn-back" :disabled="busy" @click="emit('reopen')">
+        {{ busy ? 'YUKLANMOQDA...' : '← JARAYONDA' }}
       </button>
     </div>
   </div>
@@ -61,61 +79,29 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { api } from 'src/boot/axios';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 
-interface OrderItem {
-  id: number;
-  product__name: string;
-  quantity: number;
-  // The orders-list serializer sends the item note as `detail`.
-  detail?: string | null;
-}
-
-interface Cashier {
-  name: string;
-}
-
-interface OrderUser {
-  email?: string | null;
-}
-
-interface OrderCustomer {
-  telegram_id?: number | string | null;
-}
-
-interface Order {
-  id: number;
-  display_id: number;
-  order_type: 'HALL' | 'PICKUP' | 'DELIVERY';
-  status: 'PREPARING' | 'READY';
-  created_at: string;
-  ready_at: string;
-  updated_at: string;
-  // List serializer sends `cashier`; `user` only exists on the detail endpoint.
-  cashier: Cashier | null;
-  // Accept both the current customer-bot identity and explicit source fields
-  // from newer backend serializers. This keeps a Telegram ticket identifiable
-  // without ever guessing from the cashier's name.
-  user?: OrderUser | null;
-  customer?: OrderCustomer | null;
-  source?: string | null;
-  order_source?: string | null;
-  channel?: string | null;
-  origin?: string | null;
-  is_telegram?: boolean;
-  items: OrderItem[];
-}
+import type { KdsOrder } from 'src/types/kds';
+import { getKdsPreparation, formatPreparationElapsed, formatPreparationTarget } from 'src/utils/kdsPreparation';
 
 const props = defineProps<{
-  order: Order;
+  order: KdsOrder;
+  busy: boolean;
+  error?: string;
 }>();
 
 const emit = defineEmits<{
-  statusChanged: [];
+  itemReady: [itemId: number];
+  ready: [];
+  reopen: [];
 }>();
 
-const isLoading = ref<boolean>(false);
+function toggleItem(itemId: number): void {
+  if (props.busy) return;
+  const item = props.order.items.find((entry) => entry.id === itemId);
+  if (item?.is_ready == null || item.is_instant === true) return;
+  emit('itemReady', itemId);
+}
 
 /* ================= ORDER TYPE LABEL ================= */
 
@@ -144,49 +130,18 @@ const isTelegramOrder = computed<boolean>(() => {
 const currentTime = ref<number>(Date.now());
 let timerInterval: number | undefined;
 
-const createdAtTimestamp = computed<number>(() => {
-  return new Date(props.order.created_at).getTime();
-});
-
-const readyAtTimestamp = computed<number>(() => {
-  return new Date(props.order.ready_at).getTime();
-});
-
-const elapsedSeconds = computed<number>(() => {
-  const created = createdAtTimestamp.value;
-  if (!Number.isFinite(created)) return 0;
-
-  // Only use ready_at when it's a valid date — a READY order with a missing/
-  // bad ready_at would otherwise make the timer render "NaN:NaN".
-  if (props.order.status === 'READY' && Number.isFinite(readyAtTimestamp.value)) {
-    return Math.max(0, Math.floor((readyAtTimestamp.value - created) / 1000));
-  }
-
-  return Math.max(0, Math.floor((currentTime.value - created) / 1000));
-});
-
-const formattedTime = computed<string>(() => {
-  const totalSeconds = elapsedSeconds.value;
-
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-});
-
-const timerClass = computed<string>(() => {
-  if (elapsedSeconds.value > 480) return 'timer-late';
-  if (elapsedSeconds.value > 300) return 'timer-warn';
-  return 'timer-normal';
-});
+const preparation = computed(() => getKdsPreparation(props.order, currentTime.value));
+const formattedTime = computed(() => formatPreparationElapsed(preparation.value.elapsedSeconds));
+const targetLabel = computed(() => formatPreparationTarget(preparation.value.target, 'daq'));
+const timerClass = computed(() => ({
+  'timer-on-time': preparation.value.tone === 'success',
+  'timer-warn': preparation.value.tone === 'warning',
+  'timer-late': preparation.value.tone === 'error',
+}));
 
 function startTimer(): void {
   stopTimer();
+  currentTime.value = Date.now();
   timerInterval = window.setInterval(() => {
     currentTime.value = Date.now();
   }, 1000);
@@ -220,60 +175,6 @@ watch(
   },
 );
 
-/* ================= DOUBLE-CLICK DONE ================= */
-
-const doneItems = ref<Set<number>>(new Set());
-
-function markItemDone(itemId: number): void {
-  if (props.order.status === 'READY') return;
-
-  const newSet = new Set(doneItems.value);
-  if (newSet.has(itemId)) {
-    newSet.delete(itemId);
-  } else {
-    newSet.add(itemId);
-  }
-  doneItems.value = newSet;
-}
-
-const allItemsDone = computed<boolean>(() => {
-  if (props.order.items.length === 0) return false;
-  return props.order.items.every((item) => doneItems.value.has(item.id));
-});
-
-watch(allItemsDone, (isDone) => {
-  if (isDone && props.order.status === 'PREPARING' && !isLoading.value) {
-    void handleMarkReady();
-  }
-});
-
-/* ================= STATUS ACTIONS ================= */
-
-async function handleMarkReady(): Promise<void> {
-  if (isLoading.value) return;
-
-  isLoading.value = true;
-  try {
-    await api.post(`/orders/${props.order.id}/ready`);
-    emit('statusChanged');
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-async function handleBackToPreparing(): Promise<void> {
-  if (isLoading.value) return;
-
-  isLoading.value = true;
-  try {
-    await api.patch(`/orders/${props.order.id}/status`, {
-      status: 'PREPARING',
-    });
-    emit('statusChanged');
-  } finally {
-    isLoading.value = false;
-  }
-}
 </script>
 
 <style scoped>
@@ -301,6 +202,8 @@ async function handleBackToPreparing(): Promise<void> {
 /* HEADER */
 .order-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   justify-content: space-between;
   align-items: center;
   padding-inline: 10px;
@@ -316,6 +219,7 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .order-type {
+  overflow-wrap: anywhere;
   font-size: 12px;
   font-weight: 700;
   color: var(--kds-pill-text);
@@ -328,6 +232,8 @@ async function handleBackToPreparing(): Promise<void> {
 
 /* TIMER */
 .timer {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: 17px;
   font-weight: 600;
   color: var(--kds-text-muted);
@@ -335,16 +241,21 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .timer-warn {
-  color: var(--unpaid);
+  color: var(--kds-warning, var(--unpaid));
+}
+
+.timer-on-time {
+  color: var(--kds-success, var(--ready));
 }
 
 .timer-late {
-  color: var(--cancel-light);
+  color: var(--kds-error, var(--cancel));
 }
 
 /* CASHIER */
 .cashier-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
@@ -410,18 +321,45 @@ async function handleBackToPreparing(): Promise<void> {
 /* DONE STATE — check + strikethrough (no heavy fill) */
 .item-row.done .item-name,
 .item-row.done .item-qty {
-  color: var(--ink-3);
+  color: var(--kds-text-muted);
   text-decoration: line-through;
 }
 
-.done-check {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--ready);
+.item-ready-btn {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--kds-text-muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+.item-ready-btn[aria-pressed='true'] {
+  color: var(--kds-success, var(--ready));
+  background: var(--ready-bg);
+}
+.item-ready-btn:disabled { cursor: wait; opacity: 0.6; }
+.item-ready-btn:focus-visible { outline-offset: 1px; }
+.item-row.busy { cursor: wait; }
+
+.preparation-target {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding-inline: 10px;
+  font-size: 11px;
+  color: var(--kds-text-muted);
+}
+.preparation-target strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.action-error {
+  margin: 0;
+  padding: 4px 10px;
+  color: var(--kds-error, var(--cancel));
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .item-main {
@@ -432,18 +370,25 @@ async function handleBackToPreparing(): Promise<void> {
 }
 
 .item-name {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
   font-size: 15px;
   font-weight: 500;
   color: var(--kds-text-primary);
 }
 
 .item-qty {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 600;
   color: var(--kds-text-primary);
 }
 
 .item-description {
+  overflow-wrap: anywhere;
+  padding-right: 44px;
   font-size: 11px;
   color: var(--kds-text-muted);
   margin-top: 2px;
@@ -495,7 +440,7 @@ async function handleBackToPreparing(): Promise<void> {
    orange rule down the card sides — the bg tint already reads as "back". */
 .btn-back {
   background: var(--unpaid-bg);
-  color: var(--unpaid);
+  color: var(--kds-warning, var(--unpaid));
 }
 
 .btn-back:hover:not(:disabled) {

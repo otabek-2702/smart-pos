@@ -1,33 +1,35 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="oq" @click.self="hidden = true">
-      <div class="oq__box">
-        <div class="oq__title">Operator rejimi</div>
+    <div
+      v-if="store.qrVisible"
+      class="oq"
+      @click.self="store.hidePairing()"
+      @keydown.esc="store.hidePairing()"
+    >
+      <div class="oq__box" role="dialog" aria-modal="true" aria-labelledby="operator-pairing-title">
+        <div id="operator-pairing-title" class="oq__title">Telefonni ulash</div>
+        <div class="oq__name">{{ store.deviceName }}</div>
         <img v-if="store.qrDataUrl" :src="store.qrDataUrl" alt="QR" class="oq__qr" />
-        <div class="oq__hint">Operator telefoni bilan skanerlang</div>
-        <button type="button" class="btn secondary" @click="hidden = true">Yopish</button>
+        <div v-else-if="store.busy" class="oq__hint">QR kod yuklanmoqda…</div>
+        <div class="oq__hint">
+          Operator telefonida bir marta skanerlang. Ulanish shu kompyuter uchun saqlanadi.
+        </div>
+        <div v-if="!store.operatorMode" class="oq__hint">
+          Qo‘ng‘iroqlarni olish uchun Operator rejimini yoqing.
+        </div>
+        <div v-if="store.error" class="oq__error" role="alert">{{ store.error }}</div>
+        <button type="button" class="btn secondary" autofocus @click="store.hidePairing()">
+          Yopish
+        </button>
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
 import { useOperatorStore } from 'src/stores/operator';
 
 const store = useOperatorStore();
-
-// Visible while operatorMode && qrDataUrl. A local "hide" lets the operator
-// dismiss the QR after pairing without turning operator mode off; it re-shows
-// if operator mode is toggled again (a fresh QR).
-const hidden = ref(false);
-watch(
-  () => store.qrDataUrl,
-  (url) => {
-    if (url) hidden.value = false;
-  },
-);
-const visible = computed(() => store.operatorMode && !!store.qrDataUrl && !hidden.value);
 </script>
 
 <style scoped lang="scss">
@@ -43,6 +45,7 @@ const visible = computed(() => store.operatorMode && !!store.qrDataUrl && !hidde
   padding: 20px;
 }
 .oq__box {
+  max-width: 400px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
@@ -67,6 +70,16 @@ const visible = computed(() => store.operatorMode && !!store.qrDataUrl && !hidde
 .oq__hint {
   font-size: 14px;
   color: var(--text-secondary);
+  text-align: center;
+}
+.oq__name {
+  color: var(--text);
+  font-weight: 600;
+}
+.oq__error {
+  color: var(--danger, #ef6b6b);
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 .btn.secondary {
   height: 44px;

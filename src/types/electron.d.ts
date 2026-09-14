@@ -1,5 +1,6 @@
 // src/electron.d.ts
 export {};
+import type { OperatorPairing, OperatorStatus } from './operator';
 
 interface IpcResult {
   success: boolean;
@@ -178,8 +179,12 @@ declare global {
       onLog: (callback: (msg: string) => void) => void;
     };
     operator: {
-      start(): Promise<{ url: string }>;
-      stop(): Promise<void>;
+      status(): Promise<OperatorStatus>;
+      pairing(): Promise<OperatorPairing>;
+      customerName(phone: string, name: string): Promise<void>;
+      start(): Promise<OperatorStatus & OperatorPairing>;
+      stop(): Promise<OperatorStatus>;
+      onState(callback: (state: OperatorStatus) => void): () => void;
       // Subscribe to caller events from the phone; returns an unsubscribe fn.
       onCallEvent(callback: (data: unknown) => void): () => void;
     };

@@ -1,19 +1,33 @@
 <template>
   <div class="kds-page" :class="`kds-${theme}`">
+    <div v-if="error" class="board-error" role="alert">
+      <span>{{ error }}</span>
+      <button type="button" class="retry-btn" :disabled="loading" @click="retryRefresh">Qayta urinish</button>
+    </div>
     <!-- ORDERS — round-robin into columns (item i → column i % N) so tickets
-         read oldest→newest left-to-right (17 18 19 20 / 21 22 23) while each
+         read newest→oldest left-to-right while each
          column still packs tight (no big row-height gaps). -->
     <div v-if="orders.length > 0" class="orders-board">
       <div v-for="(col, ci) in columns" :key="ci" class="kds-col">
         <div v-for="order in col" :key="order.id" class="order-wrapper">
-          <OrderCard :order="order" @status-changed="handleStatusChanged" />
+          <OrderCard
+            :order="order"
+            :busy="isBusy(order.id)"
+            :error="errorFor(order.id)"
+            @item-ready="markItem(order.id, $event)"
+            @ready="markReady(order.id)"
+            @reopen="reopen(order.id)"
+          />
         </div>
       </div>
     </div>
 
     <!-- EMPTY -->
+    <div v-else-if="!loaded && loading" class="empty-state" role="status">
+      Buyurtmalar yuklanmoqda…
+    </div>
     <div v-else class="empty-state">
-      <span class="empty-text">
+      <span v-if="!error" class="empty-text">
         {{ currentMode === 'PREPARING' ? "Buyurtmalar yo'q" : "Tayyor buyurtmalar yo'q" }}
       </span>
     </div>
@@ -114,6 +128,8 @@ import AppClock from 'src/components/AppClock.vue';
 import { useOrderStream } from 'src/composables/useOrderStream';
 import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarningSuppress';
 import { read, write } from 'src/utils/storage';
+import { useKdsOrders } from 'src/composables/useKdsOrders';
+import type { KdsOrder as Order, KdsMode as OrderStatus } from 'src/types/kds';
 
 // Kitchen staff must not be interrupted by an internet modal. The KDS keeps
 // its last successful ticket board and continues polling the local POS server.
@@ -171,59 +187,20 @@ const themeLabel = computed<string>(() =>
 
 /* ================= TYPES ================= */
 
-type OrderStatus = 'PREPARING' | 'READY';
-
-interface OrderItem {
-  id: number;
-  product__name: string;
-  quantity: number;
-  // Orders-list serializer sends the item note as `detail`.
-  detail?: string | null;
-}
-
-interface Cashier {
-  name: string;
-}
-
-interface OrderUser {
-  email?: string | null;
-}
-
-interface OrderCustomer {
-  telegram_id?: number | string | null;
-}
-
-interface Order {
-  id: number;
-  display_id: number;
-  order_type: 'HALL' | 'PICKUP' | 'DELIVERY';
-  status: OrderStatus;
-  created_at: string;
-  ready_at: string;
-  updated_at: string;
-  cashier: Cashier | null;
-  user?: OrderUser | null;
-  customer?: OrderCustomer | null;
-  source?: string | null;
-  order_source?: string | null;
-  channel?: string | null;
-  origin?: string | null;
-  is_telegram?: boolean;
-  items: OrderItem[];
-}
-
-interface OrdersResponse {
-  data: {
-    orders: Order[];
-  };
-}
-
-/* ================= STATE ================= */
-
 const router = useRouter();
-
-const currentMode = ref<OrderStatus>('PREPARING');
-const orders = ref<Order[]>([]);
+const {
+  orders, mode: currentMode, loading, loaded, error, isBusy, errorFor,
+  refresh: fetchOrders, retryRefresh, switchMode: setMode, markItem, markReady, reopen, dispose,
+} = useKdsOrders({
+  onLoaded: (newOrders, mode) => {
+    for (const order of newOrders) {
+      const origin = explicitTelegramOrigin(order) ?? telegramOriginByOrderId.get(order.id);
+      if (origin != null) order.is_telegram = origin;
+    }
+    if (mode === 'PREPARING') checkForNewOrders(newOrders);
+    void hydrateTelegramOrigins(newOrders);
+  },
+});
 
 /* ---- column distribution (round-robin, row-major reading order) ---- */
 const windowWidth = ref(window.innerWidth);
@@ -240,7 +217,9 @@ const responsiveCols = computed<number>(() => {
   if (w <= 1600) return 5;
   return 6;
 });
-const columnCount = computed<number>(() => colsPerRow.value ?? responsiveCols.value);
+const columnCount = computed<number>(() => windowWidth.value <= 800
+  ? Math.min(colsPerRow.value ?? responsiveCols.value, responsiveCols.value)
+  : colsPerRow.value ?? responsiveCols.value);
 // orders[i] → column (i % N): row r reads left→right as orders[r*N … r*N+N-1].
 const columns = computed<Order[][]>(() => {
   const n = Math.max(1, columnCount.value);
@@ -255,12 +234,6 @@ const isInitialLoad = ref(true);
 
 /* polling */
 let pollingInterval: number | undefined;
-
-/* Both the 3s poll and every SSE event call fetchOrders with no in-flight
-   guard, so responses can land out of order — a slow older one overwriting a
-   fresh list (flicker) and corrupting new-order detection. Tag each request;
-   only the latest issued one is allowed to apply its result. */
-let fetchSeq = 0;
 
 /* Telegram checkout uses a service account (`tg-…@telegram.local`). The
    list endpoint on older local servers does not include that identity, so
@@ -384,57 +357,11 @@ function checkForNewOrders(newOrders: Order[]): void {
 
 /* ================= API ================= */
 
-async function fetchOrders(): Promise<void> {
-  // Called from a 3s poll AND on every SSE event — must never throw, or it
-  // floods the kitchen display with unhandled rejections. On a transient
-  // failure keep the current list rather than wiping the board.
-  const seq = ++fetchSeq;
-  try {
-    const response = await api.get<OrdersResponse>('/orders', {
-      params: {
-        statuses: currentMode.value,
-        per_page: 100000,
-      },
-    });
-
-    // A newer fetch was issued while this one was in flight — its result is
-    // fresher, so discard this (possibly stale) response to avoid overwriting
-    // it or double-counting orders in the new-order beep detection.
-    if (seq !== fetchSeq) return;
-
-    const newOrders = (response.data?.data?.orders ?? []).map((order) => {
-      const explicit = explicitTelegramOrigin(order);
-      const cached = telegramOriginByOrderId.get(order.id);
-      const isTelegram = explicit ?? cached;
-      return isTelegram == null ? order : { ...order, is_telegram: isTelegram };
-    });
-
-    if (currentMode.value === 'PREPARING') {
-      checkForNewOrders(newOrders);
-    }
-
-    // Newest orders first (top of the board). created_at is ISO, so a string
-    // compare is chronological.
-    orders.value = [...newOrders].sort((a, b) =>
-      (b.created_at || '').localeCompare(a.created_at || ''),
-    );
-    void hydrateTelegramOrigins(orders.value);
-  } catch (e) {
-    console.error('[KDS] fetchOrders failed:', e);
-  }
-}
-
 function switchMode(newMode: OrderStatus): void {
   if (currentMode.value === newMode) return;
-
-  currentMode.value = newMode;
   isInitialLoad.value = true;
   previousOrderIds.value = new Set();
-  void fetchOrders();
-}
-
-function handleStatusChanged(): void {
-  void fetchOrders();
+  void setMode(newMode);
 }
 
 /* ================= POLLING ================= */
@@ -486,6 +413,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPolling();
+  dispose();
   document.removeEventListener('pointerdown', handleUserInteraction);
   document.removeEventListener('keydown', handleUserInteraction);
   window.removeEventListener('resize', onResize);
@@ -499,6 +427,7 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .kds-page {
   height: 100vh;
+  height: 100dvh;
   background: var(--kds-bg-app);
   display: flex;
   flex-direction: column;
@@ -508,6 +437,9 @@ onUnmounted(() => {
    custom properties inherit through component boundaries, so OrderCard and
    the footer controls pick these up automatically. */
 .kds-page.kds-dark {
+  --kds-warning: #f0b557;
+  --kds-error: #f48376;
+  --kds-success: #6ee7a0;
   --bg-app: #0f1115;
   --kds-bg-app: #0f1115;
   --surface: #1a1d23;
@@ -542,6 +474,9 @@ onUnmounted(() => {
 /* Blue theme — the navy ticket-wall look (blue cards on a deep-navy board).
    Same token-override trick as dark; cards/footer inherit it automatically. */
 .kds-page.kds-blue {
+  --kds-warning: #f0b557;
+  --kds-error: #ffaaa1;
+  --kds-success: #6ee7a0;
   --bg-app: #081b30;
   --kds-bg-app: #081b30;
   --surface: #123a5e;
@@ -624,6 +559,7 @@ onUnmounted(() => {
    Each column stacks its tickets with a gap (the "space between rows"). */
 .orders-board {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   align-items: flex-start;
@@ -789,5 +725,40 @@ onUnmounted(() => {
 .btn.secondary {
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
+}
+.board-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--cancel-bg);
+  color: var(--kds-error, var(--cancel));
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.retry-btn {
+  border: 1px solid currentColor;
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.retry-btn:disabled { opacity: 0.6; cursor: wait; }
+.page-footer { gap: 8px; }
+@media (max-width: 1000px) {
+  .page-footer { grid-template-columns: 1fr auto; }
+  .footer-center { grid-column: 2; grid-row: 1; }
+  .footer-right { grid-column: 1 / -1; justify-self: stretch; justify-content: space-between; }
+}
+@media (max-width: 500px) {
+  .page-footer { display: flex; flex-wrap: wrap; justify-content: space-between; }
+  .footer-left { flex-wrap: wrap; gap: 6px; }
+  .footer-center { margin-inline-start: auto; }
+  .footer-right { width: 100%; gap: 6px; flex-wrap: wrap; }
+  .tab-btn { padding: 8px 12px; }
+  .orders-board { padding: 10px; gap: 8px; }
 }
 </style>

@@ -29,6 +29,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { OperatorPairing, OperatorStatus } from '../src/types/operator';
 
 // Channel-specific, typed IPC surface. The renderer can ONLY reach the
 // channels enumerated below — there is no generic `ipcRenderer.invoke(anyString)`
@@ -163,8 +164,17 @@ contextBridge.exposeInMainWorld('tweaks', {
 // CTI operator mode — start/stop the LAN WebSocket server (main process) and
 // subscribe to caller events streamed from the operator's phone.
 contextBridge.exposeInMainWorld('operator', {
-  start: (): Promise<{ url: string }> => invoke<{ url: string }>('operator:start'),
-  stop: (): Promise<void> => invoke<void>('operator:stop'),
+  status: (): Promise<OperatorStatus> => invoke<OperatorStatus>('operator:status'),
+  pairing: (): Promise<OperatorPairing> => invoke<OperatorPairing>('operator:pairing'),
+  customerName: (phone: string, name: string): Promise<void> =>
+    invoke('operator:customer-name', phone, name),
+  start: (): Promise<OperatorStatus & OperatorPairing> => invoke('operator:start'),
+  stop: (): Promise<OperatorStatus> => invoke<OperatorStatus>('operator:stop'),
+  onState: (callback: (state: OperatorStatus) => void): (() => void) => {
+    const handler = (_event: unknown, state: OperatorStatus): void => callback(state);
+    ipcRenderer.on('operator:state', handler);
+    return () => ipcRenderer.removeListener('operator:state', handler);
+  },
   onCallEvent: (callback: (data: unknown) => void): (() => void) => {
     const handler = (_event: unknown, data: unknown): void => callback(data);
     ipcRenderer.on('operator:call-event', handler);
