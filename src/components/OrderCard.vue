@@ -19,10 +19,10 @@
       <div class="timer" :class="timerClass">⏱ {{ formattedTime }}</div>
     </div>
 
-    <div class="preparation-target">
+    <!-- <div class="preparation-target">
       <span>{{ order.status === 'READY' ? 'Tayyorlanish me’yori' : 'Qolgan taomlar me’yori' }}</span>
       <strong>{{ targetLabel }}</strong>
-    </div>
+    </div> -->
 
     <!-- ITEMS -->
     <div class="items-list">
@@ -82,7 +82,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 
 import type { KdsOrder } from 'src/types/kds';
-import { getKdsPreparation, formatPreparationElapsed, formatPreparationTarget } from 'src/utils/kdsPreparation';
+import { getKdsPreparation, formatPreparationElapsed } from 'src/utils/kdsPreparation';
 
 const props = defineProps<{
   order: KdsOrder;
@@ -132,7 +132,7 @@ let timerInterval: number | undefined;
 
 const preparation = computed(() => getKdsPreparation(props.order, currentTime.value));
 const formattedTime = computed(() => formatPreparationElapsed(preparation.value.elapsedSeconds));
-const targetLabel = computed(() => formatPreparationTarget(preparation.value.target, 'daq'));
+// const targetLabel = computed(() => formatPreparationTarget(preparation.value.target, 'daq'));
 const timerClass = computed(() => ({
   'timer-on-time': preparation.value.tone === 'success',
   'timer-warn': preparation.value.tone === 'warning',
@@ -327,13 +327,13 @@ watch(
 
 .item-ready-btn {
   flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--kds-text-muted);
-  font-size: 22px;
+  font-size: 18px;
   cursor: pointer;
 }
 .item-ready-btn[aria-pressed='true'] {

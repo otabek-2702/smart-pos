@@ -109,7 +109,7 @@ export function useKdsOrders(options: Options = {}) {
         if (data.orders.length === 0) throw new Error('Empty paginated response');
         ++page;
       }
-      orders.value = next.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      orders.value = next.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
       loaded.value = true;
       loadError.value = '';
       options.onLoaded?.(orders.value, requestedMode);
