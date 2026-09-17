@@ -1,14 +1,25 @@
 ﻿import { app, ipcMain } from 'electron';
 import type { BrowserWindow } from 'electron';
 import Store from 'electron-store';
-import { WebSocket, WebSocketServer, type RawData } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import dgram from 'node:dgram';
 import type { IncomingMessage } from 'node:http';
 import { getPersistDir } from './persist-path';
-import type { OperatorPairing, OperatorStatus } from '../src/types/operator';
-import { OperatorCallArchive, parseOperatorCallRecord } from './operator-call-archive';
+import type {
+  OperatorCallEvent,
+  OperatorLiveCall,
+  OperatorPairing,
+  OperatorRole,
+  OperatorStatus,
+} from '../src/types/operator';
+import { OperatorCallArchive } from './operator-call-archive';
+import {
+  parseOperatorMessage,
+  parseOrderCreated,
+  type OperatorPhoneMessage,
+} from './operator-protocol';
 
 const PORT = 8765;
 const DISCOVERY_PORT = 8766;
@@ -28,36 +39,13 @@ function lanIpv4(): string {
   return '127.0.0.1';
 }
 
-function parseCall(raw: RawData): Record<string, unknown> | null {
-  try {
-    const text = Array.isArray(raw)
-      ? Buffer.concat(raw).toString('utf8')
-      : Buffer.isBuffer(raw)
-        ? raw.toString('utf8')
-        : Buffer.from(raw).toString('utf8');
-    const event: unknown = JSON.parse(text);
-    if (!event || typeof event !== 'object') return null;
-    const value = event as Record<string, unknown>;
-    if (value.type === 'call_record') {
-      const record = parseOperatorCallRecord(value.record);
-      return record ? { type: 'call_record', record } : null;
-    }
-    if (typeof value.phone !== 'string' || !value.phone.trim() || value.phone.length > 80) {
-      return null;
-    }
-    if (value.type === 'call_start' && (value.direction === 'in' || value.direction === 'out')) {
-      return { type: value.type, phone: value.phone, direction: value.direction };
-    }
-    if (value.type === 'call_end')
-      return {
-        type: value.type,
-        phone: value.phone,
-        record: parseOperatorCallRecord(value.record),
-      };
-  } catch {
-    // Malformed frames never reach the renderer.
-  }
-  return null;
+interface PhoneSession {
+  /** Short per-connection ID the renderer uses to keep each phone's calls apart. */
+  source: string;
+  role: OperatorRole;
+  protocol: number;
+  /** Call IDs whose cached customer name was already sent on this connection. */
+  named: Set<string>;
 }
 
 /** Machine settings are separate from auth/session storage and its clear operation. */
@@ -70,6 +58,7 @@ export class OperatorLinkService {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private operations: Promise<unknown> = Promise.resolve();
   private closing = false;
+  private connections = 0;
   private readonly port: number;
   private readonly discoveryPort: number;
 
@@ -120,10 +109,93 @@ export class OperatorLinkService {
   customerName(phone: string, name: string): void {
     if (!phone || phone.length > 80 || !name.trim() || name.length > 240) return;
     this.archive.setCustomerName(phone, name);
+    this.sendToPhones({ type: 'customer_name', phone, name: name.trim() });
+  }
+
+  /** Tells every connected phone that an order was saved for this number. */
+  orderCreated(phone: unknown, orderId: unknown): boolean {
+    const message = parseOrderCreated(phone, orderId);
+    if (!message) return false;
+    this.sendToPhones(message);
+    return true;
+  }
+
+  private sendToPhones(message: object): void {
+    const text = JSON.stringify(message);
     for (const socket of this.server?.clients ?? []) {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'customer_name', phone, name: name.trim() }));
+      if (socket.readyState === WebSocket.OPEN) socket.send(text);
+    }
+  }
+
+  private toRenderer(event: OperatorCallEvent): void {
+    const win = this.getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents.send('operator:call-event', event);
+  }
+
+  private sendCachedNames(socket: WebSocket, session: PhoneSession, calls: OperatorLiveCall[]) {
+    for (const call of calls) {
+      if (call.state === 'ended' || !call.phone || call.customerName) continue;
+      if (session.named.has(call.id)) continue;
+      const name = this.archive.customerName(call.phone);
+      if (!name) continue;
+      if (session.named.size >= 200) session.named.clear();
+      session.named.add(call.id);
+      socket.send(JSON.stringify({ type: 'customer_name', phone: call.phone, name }));
+    }
+  }
+
+  private onPhoneMessage(
+    socket: WebSocket,
+    session: PhoneSession,
+    event: OperatorPhoneMessage,
+  ): void {
+    const record = event.type === 'call_record' || event.type === 'call_end' ? event.record : null;
+    if (record) {
+      try {
+        const saved = this.archive.save(record);
+        socket.send(
+          JSON.stringify({
+            type: 'call_record_ack',
+            id: saved.id,
+            ...(saved.revision === undefined ? {} : { revision: saved.revision }),
+          }),
+        );
+      } catch (error) {
+        // Leave the record unacknowledged so the phone retries it.
+        console.error('[operator] failed to save call record:', error);
       }
+    }
+    const { source } = session;
+    switch (event.type) {
+      case 'call_record':
+        return;
+      case 'operator_hello':
+        session.role = event.role;
+        session.protocol = event.protocol;
+        this.toRenderer({ type: 'phone_role', source, role: event.role });
+        return;
+      case 'call_state':
+        this.sendCachedNames(socket, session, event.calls);
+        this.toRenderer({ type: 'call_state', source, role: session.role, calls: event.calls });
+        return;
+      case 'call_start':
+      case 'call_end':
+        // Protocol 3 phones also send the legacy frames for older desktops;
+        // their call_state snapshot already describes the same calls.
+        if (session.protocol >= 3) return;
+        if (event.type === 'call_start') {
+          const name = this.archive.customerName(event.phone);
+          if (name)
+            socket.send(JSON.stringify({ type: 'customer_name', phone: event.phone, name }));
+          this.toRenderer({
+            type: 'call_start',
+            source,
+            phone: event.phone,
+            direction: event.direction,
+          });
+        } else {
+          this.toRenderer({ type: 'call_end', source, phone: event.phone });
+        }
     }
   }
 
@@ -195,37 +267,19 @@ export class OperatorLinkService {
         });
         this.server = server;
         server.on('connection', (socket) => {
+          // A phone that never says hello is a protocol 2 operator phone.
+          const session: PhoneSession = {
+            source: `p${++this.connections}`,
+            role: 'operator',
+            protocol: 2,
+            named: new Set(),
+          };
           socket.on('error', () => undefined);
+          socket.on('close', () => this.toRenderer({ type: 'phone_gone', source: session.source }));
           socket.on('message', (raw) => {
             if (!this.config.get('enabled')) return;
-            const event = parseCall(raw);
-            if (!event) return;
-            const record = parseOperatorCallRecord(event.record);
-            if (record) {
-              try {
-                const saved = this.archive.save(record);
-                socket.send(
-                  JSON.stringify({
-                    type: 'call_record_ack',
-                    id: saved.id,
-                    ...(saved.revision === undefined ? {} : { revision: saved.revision }),
-                  }),
-                );
-              } catch (error) {
-                // Leave the record unacknowledged so the phone retries it.
-                console.error('[operator] failed to save call record:', error);
-              }
-            }
-            if (event.type === 'call_record') return;
-            if (event.type === 'call_start') {
-              const name = this.archive.customerName(String(event.phone));
-              if (name)
-                socket.send(JSON.stringify({ type: 'customer_name', phone: event.phone, name }));
-            }
-            const win = this.getMainWindow();
-            if (event && win && !win.isDestroyed()) {
-              win.webContents.send('operator:call-event', event);
-            }
+            const event = parseOperatorMessage(raw);
+            if (event) this.onPhoneMessage(socket, session, event);
           });
         });
         await new Promise<void>((resolve, reject) => {
@@ -342,6 +396,9 @@ export function registerOperatorHandler(getMainWindow: () => BrowserWindow | nul
   ipcMain.handle('operator:customer-name', (_event, phone: unknown, name: unknown) => {
     if (typeof phone === 'string' && typeof name === 'string') service.customerName(phone, name);
   });
+  ipcMain.handle('operator:order-created', (_event, phone: unknown, orderId: unknown) =>
+    service.orderCreated(phone, orderId),
+  );
   ipcMain.handle('operator:start', async () => {
     await ready;
     await service.setEnabled(true);

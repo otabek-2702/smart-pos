@@ -253,6 +253,7 @@ import { suppressInternetWarningOnPage } from 'src/composables/useInternetWarnin
 import { useOrderTypes } from 'src/composables/useOrderTypes';
 import { composeLegacyDeliveryDescription } from 'src/utils/customerHistory';
 import { normalizeUzPhone } from 'src/utils/phone';
+import { useOperatorStore } from 'src/stores/operator';
 
 // While the cashier is mid-order, an internet-down modal would steal
 // focus and risk losing the receipt being built. Suppress for the whole
@@ -402,6 +403,7 @@ const detailsDialogRef = ref<{ reset: () => void } | null>(null);
    number. The watch handles the button being pressed while already on this page
    (route stays the same, only the query changes → no remount). */
 const route = useRoute();
+const operator = useOperatorStore();
 const { isAllInstant } = useInstantProducts();
 
 function prefillPhone(raw: string | undefined | null): void {
@@ -744,6 +746,10 @@ async function createOrderAndOpenPayment(): Promise<void> {
     // Store created order info
     createdOrderId.value = response.data.data.order_id;
     createdDisplayId.value = response.data.data.display_id;
+    // Operator phones mark the caller's call as "led to an order" (order_created).
+    if (canonicalPhone) {
+      operator.notifyOrderCreated(canonicalPhone, response.data.data.order_id, custName);
+    }
     // Queue only the backend order ID. The main PC fetches the authoritative
     // snapshot before writing creator, amount, items and status to its report DB.
     try {

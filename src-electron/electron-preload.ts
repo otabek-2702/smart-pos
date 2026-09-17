@@ -168,6 +168,8 @@ contextBridge.exposeInMainWorld('operator', {
   pairing: (): Promise<OperatorPairing> => invoke<OperatorPairing>('operator:pairing'),
   customerName: (phone: string, name: string): Promise<void> =>
     invoke('operator:customer-name', phone, name),
+  orderCreated: (phone: string, orderId: number): Promise<boolean> =>
+    invoke<boolean>('operator:order-created', phone, orderId),
   start: (): Promise<OperatorStatus & OperatorPairing> => invoke('operator:start'),
   stop: (): Promise<OperatorStatus> => invoke<OperatorStatus>('operator:stop'),
   onState: (callback: (state: OperatorStatus) => void): (() => void) => {

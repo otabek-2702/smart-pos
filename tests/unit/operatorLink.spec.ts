@@ -120,6 +120,7 @@ describe('persistent operator LAN link', () => {
     await vi.waitFor(() =>
       expect(send).toHaveBeenCalledWith('operator:call-event', {
         type: 'call_start',
+        source: expect.any(String),
         phone: '+998901234567',
         direction: 'in',
       }),
@@ -143,6 +144,84 @@ describe('persistent operator LAN link', () => {
         bad.once('error', reject);
       }),
     ).rejects.toThrow('401');
+  });
+
+  it('tracks the protocol 3 role per phone, forwards call_state and ignores its legacy duplicates', async () => {
+    const { service, send } = await setup();
+    await service.setEnabled(true);
+    service.customerName('+998901234567', 'Aziza');
+    const phone = await connect(service);
+    const legacy = await connect(service);
+    const events = () =>
+      send.mock.calls
+        .filter(([channel]) => channel === 'operator:call-event')
+        .map(([, event]) => event as Record<string, unknown>);
+
+    phone.send(
+      JSON.stringify({ type: 'operator_hello', protocol: 3, role: 'cashier', app: '2.2.0' }),
+    );
+    await vi.waitFor(() => expect(events()).toHaveLength(1));
+    const hello = events()[0]!;
+    expect(hello).toEqual({ type: 'phone_role', source: expect.any(String), role: 'cashier' });
+    const source = hello.source;
+
+    const call = { id: 'c1', phone: '+998901234567', direction: 'in', state: 'ringing', since: 1 };
+    const named = receive(phone);
+    phone.send(JSON.stringify({ type: 'call_state', calls: [{ ...call, junk: true }] }));
+    // The cached name is sent once per call, without waiting for a lookup.
+    expect(await named).toEqual({ type: 'customer_name', phone: call.phone, name: 'Aziza' });
+    await vi.waitFor(() =>
+      expect(events()).toContainEqual({
+        type: 'call_state',
+        source,
+        role: 'cashier',
+        calls: [call],
+      }),
+    );
+
+    send.mockClear();
+    phone.send(JSON.stringify({ type: 'call_state', calls: [{ ...call, state: 'active' }] }));
+    phone.send(JSON.stringify({ type: 'call_start', phone: call.phone, direction: 'in' }));
+    const ack = receive(phone);
+    phone.send(
+      JSON.stringify({
+        type: 'call_end',
+        phone: call.phone,
+        record: { id: 'c1', phone: call.phone, direction: 'in', startedAt: 1, endedAt: 2 },
+      }),
+    );
+    // No second customer_name arrives first; the record is still stored.
+    expect(await ack).toEqual({ type: 'call_record_ack', id: 'c1' });
+    expect(events().map((event) => event.type)).toEqual(['call_state']);
+
+    // A phone without hello stays on protocol 2 with its own source.
+    legacy.send(JSON.stringify({ type: 'call_start', phone: '+998931112233', direction: 'out' }));
+    await vi.waitFor(() => expect(events()).toHaveLength(2));
+    const legacyStart = events()[1]!;
+    expect(legacyStart).toEqual({
+      type: 'call_start',
+      source: expect.any(String),
+      phone: '+998931112233',
+      direction: 'out',
+    });
+    expect(legacyStart.source).not.toBe(source);
+
+    const toPhone = receive(phone);
+    const toLegacy = receive(legacy);
+    expect(service.orderCreated('998901234567', 42)).toBe(true);
+    for (const message of await Promise.all([toPhone, toLegacy])) {
+      expect(message).toEqual({
+        type: 'order_created',
+        phone: '998901234567',
+        orderId: 42,
+        at: expect.any(Number),
+      });
+    }
+    expect(service.orderCreated('998901234567', 0)).toBe(false);
+    expect(service.orderCreated('<img>', 42)).toBe(false);
+
+    phone.close();
+    await vi.waitFor(() => expect(events()).toContainEqual({ type: 'phone_gone', source }));
   });
 
   it('discovers only the requested machine, echoing nonce without disclosing its credential', async () => {

@@ -62,6 +62,28 @@
               </button>
             </div>
 
+            <!-- quick fill from the operator phone's current / recent calls -->
+            <div v-if="callChips.length" class="calls">
+              <span class="calls__label">
+                <q-icon name="phone_in_talk" size="14px" /> Qo‘ng‘iroqdagi raqamni kiritish
+              </span>
+              <div class="calls__list">
+                <button
+                  v-for="c in callChips"
+                  :key="c.key"
+                  type="button"
+                  class="chip chip--call"
+                  :class="{ 'chip--live': c.state !== 'ended', on: c.digits === phoneDigitsLocal }"
+                  :title="CALL_STATE_LABELS[c.state]"
+                  @click="fillFromCall(c.digits)"
+                >
+                  <q-icon :name="CALL_STATE_ICONS[c.state]" size="15px" />
+                  <span class="chip__phone">{{ formatUzPhone(c.digits) }}</span>
+                  <span v-if="c.name" class="chip__name">{{ c.name }}</span>
+                </button>
+              </div>
+            </div>
+
             <div v-if="phoneError" class="field-error">
               <q-icon name="error_outline" size="16px" /> {{ phoneError }}
             </div>
@@ -159,12 +181,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { api } from 'boot/axios';
 import VirtualKeyboard from 'components/virtual-keyboard/VirtualKeyboard.vue';
 import NumericKeyboard from 'components/numeric-keyboard/NumericKeyboard.vue';
 import { distinctDeliveryAddresses, type CustomerHistoryOrder } from 'src/utils/customerHistory';
-import { getUzNationalDigits, normalizeUzPhone } from 'src/utils/phone';
+import { formatUzPhone, getUzNationalDigits, normalizeUzPhone } from 'src/utils/phone';
+import { useOperatorStore } from 'src/stores/operator';
+import type { OperatorLiveCallState } from 'src/types/operator';
 
 const props = withDefaults(
   defineProps<{ phone?: string; description?: string; address?: string; customerName?: string }>(),
@@ -303,6 +327,39 @@ function clearFoundClient(clearName = false): void {
     nameFromLookup.value = false;
   }
 }
+
+/* QUICK FILL — numbers of the operator phone's current and recent calls.
+   Computed from the operator store only; the lookup is the usual one above. */
+const operator = useOperatorStore();
+const callChips = computed(() => operator.quickFillCalls);
+const CALL_STATE_ICONS: Record<OperatorLiveCallState, string> = {
+  active: 'phone_in_talk',
+  ringing: 'ring_volume',
+  waiting: 'phone_paused',
+  ended: 'history',
+};
+const CALL_STATE_LABELS: Record<OperatorLiveCallState, string> = {
+  active: 'Suhbatda',
+  ringing: 'Qo‘ng‘iroq qilmoqda',
+  waiting: 'Kutmoqda',
+  ended: 'Yaqinda qo‘ng‘iroq qilgan',
+};
+function fillFromCall(digits: string): void {
+  const national = getUzNationalDigits(digits);
+  activeField.value = 'phone';
+  if (!national || national === phoneDigitsLocal.value) return;
+  // Same path as typing the ninth digit on the keypad.
+  clearFoundClient(true);
+  phoneDigitsLocal.value = national;
+  queueLookup();
+}
+
+// Tells the operator store that an order is being entered (no call modal then).
+watch(showDetails, (visible) => operator.setOrderDialogOpen(visible));
+onBeforeUnmount(() => {
+  if (showDetails.value) operator.setOrderDialogOpen(false);
+  if (lookupTimer) clearTimeout(lookupTimer);
+});
 
 function useAddress(p: string): void {
   addressLocal.value = p;
@@ -612,6 +669,29 @@ defineExpose({ reset });
   &:active { transform: scale(0.97); }
 }
 .chip--tpl { border-style: dashed; border-color: var(--brand); color: var(--brand); }
+
+/* quick fill from calls */
+.calls { display: flex; flex-direction: column; gap: 6px; }
+.calls__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.calls__list { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip--call { gap: 7px; padding: 9px 14px; font-size: 14px; }
+.chip--live { border-color: var(--brand); color: var(--brand); }
+.chip--call.on { background: var(--brand-soft, color-mix(in srgb, var(--brand) 12%, transparent)); }
+.chip__phone { font-variant-numeric: tabular-nums; }
+.chip__name {
+  color: var(--ink-2);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
 
 /* full-width keyboard */
 .dd__kb {

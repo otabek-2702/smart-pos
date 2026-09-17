@@ -35,12 +35,13 @@
     <LicenseWarnBanner />
 
     <!--
-      CTI operator mode (mounted ONCE, app-wide): the QR pairing dialog and the
-      incoming-call dialog. The store wires the single phone-call event listener
-      via init() in onMounted below.
+      CTI operator mode (mounted ONCE, app-wide): the QR pairing dialog, the
+      incoming-call dialog and its non-blocking banner. The store wires the
+      single phone-call event listener via init() in onMounted below.
     -->
     <OperatorQrDialog />
     <IncomingCallDialog />
+    <IncomingCallBanner />
   </q-layout>
 </template>
 
@@ -52,6 +53,7 @@ import LicenseBlockedScreen from 'src/components/LicenseBlockedScreen.vue';
 import LicenseWarnBanner from 'src/components/LicenseWarnBanner.vue';
 import OperatorQrDialog from 'src/components/OperatorQrDialog.vue';
 import IncomingCallDialog from 'src/components/IncomingCallDialog.vue';
+import IncomingCallBanner from 'src/components/IncomingCallBanner.vue';
 import { useNetworkStatus } from 'src/composables/useNetworkStatus';
 import { useDeviceRole } from 'src/composables/useDeviceRole';
 import { useLicenseStatus } from 'src/composables/useLicenseStatus';

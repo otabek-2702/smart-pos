@@ -182,6 +182,8 @@ declare global {
       status(): Promise<OperatorStatus>;
       pairing(): Promise<OperatorPairing>;
       customerName(phone: string, name: string): Promise<void>;
+      // Sends `order_created` to every connected phone; false when rejected.
+      orderCreated(phone: string, orderId: number): Promise<boolean>;
       start(): Promise<OperatorStatus & OperatorPairing>;
       stop(): Promise<OperatorStatus>;
       onState(callback: (state: OperatorStatus) => void): () => void;

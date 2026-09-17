@@ -13,11 +13,9 @@
         </div>
 
         <div class="icd__dir">
-          <q-icon
-            :name="store.activeCall?.direction === 'out' ? 'call_made' : 'call_received'"
-            size="16px"
-          />
-          {{ store.activeCall?.direction === 'out' ? 'Chiquvchi' : 'Kiruvchi' }} qo'ng'iroq
+          <!-- The popup keeps its own direction, so it survives the hang-up. -->
+          <q-icon :name="outgoing ? 'call_made' : 'call_received'" size="16px" />
+          {{ outgoing ? 'Chiquvchi' : 'Kiruvchi' }} qo'ng'iroq
         </div>
 
         <div v-if="orders.length" class="icd__orders">
@@ -59,10 +57,12 @@ import { formatPhoneNumber } from 'src/utils';
 
 const store = useOperatorStore();
 
-// Visible whenever there's a popup — including on the create-order page. The
-// caller's number is NEVER auto-filled; it reaches the order only via the
-// "+ Yangi buyurtma" button below.
+// Visible whenever there's a popup. The store decides when to open it (operator
+// role only; protocol 3 calls use the banner while an order is being entered).
+// The caller's number is NEVER auto-filled; it reaches the order only via the
+// "+ Yangi buyurtma" button below or a quick-fill chip.
 const visible = computed(() => !!store.popup);
+const outgoing = computed(() => store.popup?.direction === 'out');
 
 const orders = computed(() => store.popup?.openOrders ?? []);
 const displayPhone = computed(() =>
